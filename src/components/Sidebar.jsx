@@ -23,6 +23,9 @@ const Sidebar = () => {
     { name: 'Dashboard', icon: LayoutDashboard, path: '/admin/dashboard' },
     { name: 'Patients', icon: Users, path: '/admin/patients' },
     { name: 'Doctors', icon: UserRound, path: '/admin/doctors' },
+    { name: 'Pharmacists', icon: Users, path: '/admin/pharmacists' },
+    { name: 'Add Doctor', icon: User, path: '/admin/add-doctor' },
+    { name: 'Add Pharmacist', icon: User, path: '/admin/add-pharmacist' },
     { name: 'Settings', icon: Settings, path: '/admin/settings' },
   ];
 

@@ -1,0 +1,41 @@
+.pharmacists-list-container {
+  padding: 24px;
+  background-color: var(--background-color);
+  min-height: calc(100vh - 70px);
+}
+
+.pharmacists-header {
+  margin-bottom: 24px;
+}
+
+.pharmacists-header h2 {
+  color: var(--text-color);
+  font-size: 24px;
+  font-weight: 600;
+}
+
+.pharmacists-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.pharmacists-table th,
+.pharmacists-table td {
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.pharmacists-table th {
+  background-color: #f8fafc;
+  color: #64748b;
+  font-weight: 500;
+  font-size: 14px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.pharmacists-table td {
+  color: #334155;
+  font-size: 15px;
+}
