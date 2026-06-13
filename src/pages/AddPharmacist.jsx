@@ -14,7 +14,6 @@ const DAYS_OF_WEEK = [
 const AddPharmacist = () => {
   const [step, setStep] = useState(1);
   const [form, setForm] = useState({
-    pharmacist_code: '',
     first_name: '',
     last_name: '',
     email: '',
@@ -67,7 +66,6 @@ const AddPharmacist = () => {
     const errors = {};
     
     if (currentStep === 1) {
-      if (!form.pharmacist_code.trim()) errors.pharmacist_code = 'Pharmacist Code is required';
       if (!form.first_name.trim()) errors.first_name = 'First name is required';
       if (!form.last_name.trim()) errors.last_name = 'Last name is required';
       if (!form.email.trim()) {
@@ -157,7 +155,7 @@ const AddPharmacist = () => {
         setMessage('Pharmacist registered successfully!');
         // Reset form and return to step 1
         setForm({
-          pharmacist_code: '', first_name: '', last_name: '', email: '', password: '', phone: '',
+          first_name: '', last_name: '', email: '', password: '', phone: '',
           pharmacy_name: '', qualification: '', license_no: '', address: '',
           profile_img: 'https://via.placeholder.com/150', work_time_start: '09:00', work_time_end: '17:00',
           status: 'active', is_verified: true, joining_date: new Date().toISOString().split('T')[0]
@@ -233,22 +231,6 @@ const AddPharmacist = () => {
               <h3 className="section-title">Step 1: Personal & Account Details</h3>
               
               <div className="form-grid">
-                <div className="form-group">
-                  <label className="field-label">Pharmacist Code <span className="req">*</span></label>
-                  <div className="input-with-icon">
-                    <CreditCard className="input-icon" size={18} />
-                    <input 
-                      name="pharmacist_code" 
-                      value={form.pharmacist_code} 
-                      onChange={handleChange} 
-                      placeholder="e.g. PHM012" 
-                      className={formErrors.pharmacist_code ? 'input-error' : ''}
-                      required 
-                    />
-                  </div>
-                  {formErrors.pharmacist_code && <span className="error-text">{formErrors.pharmacist_code}</span>}
-                </div>
-
                 <div className="form-group">
                   <label className="field-label">Email Address <span className="req">*</span></label>
                   <div className="input-with-icon">

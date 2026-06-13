@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { 
-  User, Mail, Lock, Phone, CreditCard, Award, 
-  Briefcase, MapPin, DollarSign, Calendar, Clock, 
-  CheckCircle2, AlertCircle, ArrowRight, ArrowLeft, 
+import {
+  User, Mail, Lock, Phone, CreditCard, Award,
+  Briefcase, MapPin, DollarSign, Calendar, Clock,
+  CheckCircle2, AlertCircle, ArrowRight, ArrowLeft,
   Stethoscope
 } from 'lucide-react';
 import './AddDoctor.css';
@@ -27,7 +27,6 @@ const DAYS_OF_WEEK = [
 const AddDoctor = () => {
   const [step, setStep] = useState(1);
   const [form, setForm] = useState({
-    doctor_code: '',
     first_name: '',
     last_name: '',
     email: '',
@@ -56,9 +55,9 @@ const AddDoctor = () => {
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
-    setForm({ 
-      ...form, 
-      [name]: type === 'checkbox' ? checked : value 
+    setForm({
+      ...form,
+      [name]: type === 'checkbox' ? checked : value
     });
     // Clear validation error on change
     if (formErrors[name]) {
@@ -81,9 +80,8 @@ const AddDoctor = () => {
 
   const validateStep = (currentStep) => {
     const errors = {};
-    
+
     if (currentStep === 1) {
-      if (!form.doctor_code.trim()) errors.doctor_code = 'Doctor Code is required';
       if (!form.first_name.trim()) errors.first_name = 'First name is required';
       if (!form.last_name.trim()) errors.last_name = 'Last name is required';
       if (!form.email.trim()) {
@@ -95,7 +93,7 @@ const AddDoctor = () => {
       if (form.password && form.password.length < 6) errors.password = 'Password must be at least 6 characters';
       if (!form.phone.trim()) errors.phone = 'Phone number is required';
     }
-    
+
     if (currentStep === 2) {
       if (!form.license_no.trim()) errors.license_no = 'License number is required';
       if (!form.specialization.trim()) errors.specialization = 'Specialization is required';
@@ -106,7 +104,7 @@ const AddDoctor = () => {
         errors.experience_year = 'Experience must be a positive number';
       }
     }
-    
+
     if (currentStep === 3) {
       if (!form.visit_address.trim()) errors.visit_address = 'Clinic/Visit Address is required';
       if (!form.consult_fee) {
@@ -156,20 +154,20 @@ const AddDoctor = () => {
     setLoading(true);
     setMessage('');
     setErrorMsg('');
-    
+
     try {
       const token = localStorage.getItem('token');
-      
-      const payload = { 
-        ...form, 
+
+      const payload = {
+        ...form,
         available_days: availableDays,
         experience_year: Number(form.experience_year),
         consult_fee: Number(form.consult_fee),
         work_time_start: formatTime(form.work_time_start),
         work_time_end: formatTime(form.work_time_end)
       };
-      
-      const response = await fetch('http://localhost:5000/api/admin/add-doctor', {
+
+      const response = await fetch('http://localhost:5000/admin/add-doctor', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -177,14 +175,14 @@ const AddDoctor = () => {
         },
         body: JSON.stringify(payload)
       });
-      
+
       const data = await response.json();
-      
+
       if (response.ok) {
         setMessage('Doctor registered successfully!');
         // Reset form and return to step 1
         setForm({
-          doctor_code: '', first_name: '', last_name: '', email: '', password: '', phone: '',
+          first_name: '', last_name: '', email: '', password: '', phone: '',
           profile_img: 'https://via.placeholder.com/150', license_no: '', department: DEPARTMENTS[0],
           specialization: '', qualification: '', experience_year: '', visit_address: '',
           consult_fee: '', consult_mode: 'both', work_time_start: '09:00', work_time_end: '17:00',
@@ -259,36 +257,20 @@ const AddDoctor = () => {
           {step === 1 && (
             <div className="form-step-content fade-in">
               <h3 className="section-title">Step 1: Personal & Account Details</h3>
-              
-              <div className="form-grid">
-                <div className="form-group">
-                  <label className="field-label">Doctor Code <span className="req">*</span></label>
-                  <div className="input-with-icon">
-                    <CreditCard className="input-icon" size={18} />
-                    <input 
-                      name="doctor_code" 
-                      value={form.doctor_code} 
-                      onChange={handleChange} 
-                      placeholder="e.g. DOC015" 
-                      className={formErrors.doctor_code ? 'input-error' : ''}
-                      required 
-                    />
-                  </div>
-                  {formErrors.doctor_code && <span className="error-text">{formErrors.doctor_code}</span>}
-                </div>
 
+              <div className="form-grid">
                 <div className="form-group">
                   <label className="field-label">Email Address <span className="req">*</span></label>
                   <div className="input-with-icon">
                     <Mail className="input-icon" size={18} />
-                    <input 
-                      name="email" 
+                    <input
+                      name="email"
                       type="email"
-                      value={form.email} 
-                      onChange={handleChange} 
-                      placeholder="doctor@medipulse.com" 
+                      value={form.email}
+                      onChange={handleChange}
+                      placeholder="doctor@medipulse.com"
                       className={formErrors.email ? 'input-error' : ''}
-                      required 
+                      required
                     />
                   </div>
                   {formErrors.email && <span className="error-text">{formErrors.email}</span>}
@@ -298,14 +280,14 @@ const AddDoctor = () => {
                   <label className="field-label">Password <span className="req">*</span></label>
                   <div className="input-with-icon">
                     <Lock className="input-icon" size={18} />
-                    <input 
-                      name="password" 
+                    <input
+                      name="password"
                       type="password"
-                      value={form.password} 
-                      onChange={handleChange} 
-                      placeholder="••••••••" 
+                      value={form.password}
+                      onChange={handleChange}
+                      placeholder="••••••••"
                       className={formErrors.password ? 'input-error' : ''}
-                      required 
+                      required
                     />
                   </div>
                   {formErrors.password && <span className="error-text">{formErrors.password}</span>}
@@ -315,13 +297,13 @@ const AddDoctor = () => {
                   <label className="field-label">First Name <span className="req">*</span></label>
                   <div className="input-with-icon">
                     <User className="input-icon" size={18} />
-                    <input 
-                      name="first_name" 
-                      value={form.first_name} 
-                      onChange={handleChange} 
-                      placeholder="John" 
+                    <input
+                      name="first_name"
+                      value={form.first_name}
+                      onChange={handleChange}
+                      placeholder="John"
                       className={formErrors.first_name ? 'input-error' : ''}
-                      required 
+                      required
                     />
                   </div>
                   {formErrors.first_name && <span className="error-text">{formErrors.first_name}</span>}
@@ -331,13 +313,13 @@ const AddDoctor = () => {
                   <label className="field-label">Last Name <span className="req">*</span></label>
                   <div className="input-with-icon">
                     <User className="input-icon" size={18} />
-                    <input 
-                      name="last_name" 
-                      value={form.last_name} 
-                      onChange={handleChange} 
-                      placeholder="Doe" 
+                    <input
+                      name="last_name"
+                      value={form.last_name}
+                      onChange={handleChange}
+                      placeholder="Doe"
                       className={formErrors.last_name ? 'input-error' : ''}
-                      required 
+                      required
                     />
                   </div>
                   {formErrors.last_name && <span className="error-text">{formErrors.last_name}</span>}
@@ -347,13 +329,13 @@ const AddDoctor = () => {
                   <label className="field-label">Phone Number <span className="req">*</span></label>
                   <div className="input-with-icon">
                     <Phone className="input-icon" size={18} />
-                    <input 
-                      name="phone" 
-                      value={form.phone} 
-                      onChange={handleChange} 
-                      placeholder="+1 (555) 019-2834" 
+                    <input
+                      name="phone"
+                      value={form.phone}
+                      onChange={handleChange}
+                      placeholder="+1 (555) 019-2834"
                       className={formErrors.phone ? 'input-error' : ''}
-                      required 
+                      required
                     />
                   </div>
                   {formErrors.phone && <span className="error-text">{formErrors.phone}</span>}
@@ -380,13 +362,13 @@ const AddDoctor = () => {
                   <label className="field-label">Medical License Number <span className="req">*</span></label>
                   <div className="input-with-icon">
                     <Award className="input-icon" size={18} />
-                    <input 
-                      name="license_no" 
-                      value={form.license_no} 
-                      onChange={handleChange} 
-                      placeholder="e.g. LIC-998877" 
+                    <input
+                      name="license_no"
+                      value={form.license_no}
+                      onChange={handleChange}
+                      placeholder="e.g. LIC-998877"
                       className={formErrors.license_no ? 'input-error' : ''}
-                      required 
+                      required
                     />
                   </div>
                   {formErrors.license_no && <span className="error-text">{formErrors.license_no}</span>}
@@ -396,9 +378,9 @@ const AddDoctor = () => {
                   <label className="field-label">Department <span className="req">*</span></label>
                   <div className="input-with-icon">
                     <Briefcase className="input-icon" size={18} />
-                    <select 
-                      name="department" 
-                      value={form.department} 
+                    <select
+                      name="department"
+                      value={form.department}
                       onChange={handleChange}
                     >
                       {DEPARTMENTS.map((dept) => (
@@ -412,13 +394,13 @@ const AddDoctor = () => {
                   <label className="field-label">Specialization <span className="req">*</span></label>
                   <div className="input-with-icon">
                     <Stethoscope className="input-icon" size={18} />
-                    <input 
-                      name="specialization" 
-                      value={form.specialization} 
-                      onChange={handleChange} 
-                      placeholder="e.g. Interventional Cardiology" 
+                    <input
+                      name="specialization"
+                      value={form.specialization}
+                      onChange={handleChange}
+                      placeholder="e.g. Interventional Cardiology"
                       className={formErrors.specialization ? 'input-error' : ''}
-                      required 
+                      required
                     />
                   </div>
                   {formErrors.specialization && <span className="error-text">{formErrors.specialization}</span>}
@@ -428,13 +410,13 @@ const AddDoctor = () => {
                   <label className="field-label">Qualifications <span className="req">*</span></label>
                   <div className="input-with-icon">
                     <Award className="input-icon" size={18} />
-                    <input 
-                      name="qualification" 
-                      value={form.qualification} 
-                      onChange={handleChange} 
-                      placeholder="e.g. MD, FACC, MBBS" 
+                    <input
+                      name="qualification"
+                      value={form.qualification}
+                      onChange={handleChange}
+                      placeholder="e.g. MD, FACC, MBBS"
                       className={formErrors.qualification ? 'input-error' : ''}
-                      required 
+                      required
                     />
                   </div>
                   {formErrors.qualification && <span className="error-text">{formErrors.qualification}</span>}
@@ -444,14 +426,14 @@ const AddDoctor = () => {
                   <label className="field-label">Years of Experience <span className="req">*</span></label>
                   <div className="input-with-icon">
                     <Briefcase className="input-icon" size={18} />
-                    <input 
-                      name="experience_year" 
+                    <input
+                      name="experience_year"
                       type="number"
-                      value={form.experience_year} 
-                      onChange={handleChange} 
-                      placeholder="e.g. 12" 
+                      value={form.experience_year}
+                      onChange={handleChange}
+                      placeholder="e.g. 12"
                       className={formErrors.experience_year ? 'input-error' : ''}
-                      required 
+                      required
                     />
                   </div>
                   {formErrors.experience_year && <span className="error-text">{formErrors.experience_year}</span>}
@@ -461,9 +443,9 @@ const AddDoctor = () => {
                   <label className="field-label">Consultation Mode</label>
                   <div className="input-with-icon">
                     <Briefcase className="input-icon" size={18} />
-                    <select 
-                      name="consult_mode" 
-                      value={form.consult_mode} 
+                    <select
+                      name="consult_mode"
+                      value={form.consult_mode}
                       onChange={handleChange}
                     >
                       <option value="both">Both (Online & Offline)</option>
@@ -496,13 +478,13 @@ const AddDoctor = () => {
                 <label className="field-label">Clinic / Visit Address <span className="req">*</span></label>
                 <div className="input-with-icon">
                   <MapPin className="input-icon" size={18} />
-                  <input 
-                    name="visit_address" 
-                    value={form.visit_address} 
-                    onChange={handleChange} 
-                    placeholder="Suite 400, Medipulse Building, Medical Parkway, NY" 
+                  <input
+                    name="visit_address"
+                    value={form.visit_address}
+                    onChange={handleChange}
+                    placeholder="Suite 400, Medipulse Building, Medical Parkway, NY"
                     className={formErrors.visit_address ? 'input-error' : ''}
-                    required 
+                    required
                   />
                 </div>
                 {formErrors.visit_address && <span className="error-text">{formErrors.visit_address}</span>}
@@ -513,14 +495,14 @@ const AddDoctor = () => {
                   <label className="field-label">Consultation Fee ($) <span className="req">*</span></label>
                   <div className="input-with-icon">
                     <DollarSign className="input-icon" size={18} />
-                    <input 
-                      name="consult_fee" 
+                    <input
+                      name="consult_fee"
                       type="number"
-                      value={form.consult_fee} 
-                      onChange={handleChange} 
-                      placeholder="150" 
+                      value={form.consult_fee}
+                      onChange={handleChange}
+                      placeholder="150"
                       className={formErrors.consult_fee ? 'input-error' : ''}
-                      required 
+                      required
                     />
                   </div>
                   {formErrors.consult_fee && <span className="error-text">{formErrors.consult_fee}</span>}
@@ -530,9 +512,9 @@ const AddDoctor = () => {
                   <label className="field-label">Duty Status</label>
                   <div className="input-with-icon">
                     <Briefcase className="input-icon" size={18} />
-                    <select 
-                      name="status" 
-                      value={form.status} 
+                    <select
+                      name="status"
+                      value={form.status}
                       onChange={handleChange}
                     >
                       <option value="active">Active Duty</option>
@@ -546,13 +528,13 @@ const AddDoctor = () => {
                   <label className="field-label">Start Time <span className="req">*</span></label>
                   <div className="input-with-icon">
                     <Clock className="input-icon" size={18} />
-                    <input 
-                      name="work_time_start" 
+                    <input
+                      name="work_time_start"
                       type="time"
-                      value={form.work_time_start} 
-                      onChange={handleChange} 
+                      value={form.work_time_start}
+                      onChange={handleChange}
                       className={formErrors.work_time_start ? 'input-error' : ''}
-                      required 
+                      required
                     />
                   </div>
                   {formErrors.work_time_start && <span className="error-text">{formErrors.work_time_start}</span>}
@@ -562,13 +544,13 @@ const AddDoctor = () => {
                   <label className="field-label">End Time <span className="req">*</span></label>
                   <div className="input-with-icon">
                     <Clock className="input-icon" size={18} />
-                    <input 
-                      name="work_time_end" 
+                    <input
+                      name="work_time_end"
                       type="time"
-                      value={form.work_time_end} 
-                      onChange={handleChange} 
+                      value={form.work_time_end}
+                      onChange={handleChange}
                       className={formErrors.work_time_end ? 'input-error' : ''}
-                      required 
+                      required
                     />
                   </div>
                   {formErrors.work_time_end && <span className="error-text">{formErrors.work_time_end}</span>}
@@ -605,11 +587,11 @@ const AddDoctor = () => {
                   <p>Check if doctor is credentialed and verified for instant scheduling.</p>
                 </div>
                 <label className="ios-switch">
-                  <input 
-                    type="checkbox" 
-                    name="is_verified" 
-                    checked={form.is_verified} 
-                    onChange={handleChange} 
+                  <input
+                    type="checkbox"
+                    name="is_verified"
+                    checked={form.is_verified}
+                    onChange={handleChange}
                   />
                   <span className="slider"></span>
                 </label>
