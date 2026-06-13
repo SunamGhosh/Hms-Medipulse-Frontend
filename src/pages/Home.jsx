@@ -169,7 +169,7 @@ const Home = () => {
         <div className="nav-links">
           <a href="#features" className="nav-link">Features</a>
           <a href="#services" className="nav-link">Services</a>
-          <a href="#about" className="nav-link">About</a>
+          <Link to="/about" className="nav-link">About</Link>
           <a href="#contact" className="nav-link">Contact</a>
         </div>
         <div className="nav-actions">
