@@ -47,15 +47,15 @@ const About = () => {
       {/* Sleek Minimal Navigation */}
       <nav className="about-nav">
         <Link to="/" className="nav-logo">
-          <div className="nav-logo-icon-wrapper">
-            <Activity size={24} className="nav-logo-icon" strokeWidth={3} />
-          </div>
+          <img src="/img/logo.jpeg" alt="MediPulse Logo" style={{ width: '32px', height: '32px', borderRadius: '8px', objectFit: 'contain' }} />
           <span className="nav-logo-text">MediPulse</span>
         </Link>
         <div className="nav-links">
           <Link to="/" className="nav-link">Home</Link>
-          <a href="#mission" className="nav-link">Mission</a>
           <Link to="/about" className="nav-link active">About</Link>
+          <Link to="/doctors" className="nav-link">Doctor</Link>
+          <Link to="/pharmacy" className="nav-link">Pharmacy</Link>
+          <a href="#contact" className="nav-link">Contact</a>
         </div>
         <div className="nav-actions">
           <Link to="/login" className="btn-premium">

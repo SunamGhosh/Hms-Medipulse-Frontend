@@ -1,0 +1,260 @@
+/* DoctorsPage.css */
+
+.dp-container {
+  min-height: 100vh;
+  background-color: var(--bg-color);
+  padding-top: 80px; /* Space for fixed navbar */
+}
+
+/* Navbar (reused styles from Home) */
+.dp-navbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 5%;
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: var(--shadow-sm);
+  backdrop-filter: blur(12px);
+  z-index: 1000;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.dp-content-wrapper {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 40px 5%;
+}
+
+.dp-page-title {
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--text-main);
+  margin-bottom: 8px;
+}
+
+.dp-page-subtitle {
+  font-size: 1.1rem;
+  color: var(--text-muted);
+  margin-bottom: 40px;
+}
+
+.dp-main-layout {
+  display: flex;
+  align-items: flex-start;
+  gap: 40px;
+}
+
+/* Sidebar styling */
+.dp-sidebar {
+  flex: 0 0 250px;
+  background: var(--bg-card-solid);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--border-color);
+  padding: 16px 0;
+  position: sticky;
+  top: 100px;
+}
+
+.dp-specialty-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.dp-specialty-item {
+  padding: 14px 24px;
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.3s ease;
+  position: relative;
+}
+
+.dp-specialty-item:hover {
+  background-color: var(--accent-color);
+  color: var(--primary-color);
+}
+
+.dp-specialty-item.active {
+  background-color: var(--accent-color);
+  color: var(--primary-color);
+  font-weight: 600;
+  border-left: 4px solid var(--primary-color);
+}
+
+/* Right Content: Grid */
+.dp-doctors-grid {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 24px;
+}
+
+/* Doctor Card */
+.dp-doctor-card {
+  background: var(--bg-card-solid);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--border-color);
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  display: flex;
+  flex-direction: column;
+}
+
+.dp-doctor-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-md);
+}
+
+.dp-doctor-image-wrapper {
+  height: 220px;
+  width: 100%;
+  background-color: #f1f5f9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.dp-doctor-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: top;
+  transition: transform 0.5s ease;
+}
+
+.dp-doctor-card:hover .dp-doctor-image {
+  transform: scale(1.05);
+}
+
+.dp-doctor-info {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+.dp-specialty-tag {
+  display: inline-block;
+  align-self: flex-start;
+  padding: 4px 10px;
+  background-color: var(--accent-color);
+  color: var(--primary-dark);
+  font-size: 0.75rem;
+  font-weight: 600;
+  border-radius: 20px;
+  margin-bottom: 12px;
+}
+
+.dp-doctor-name {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--text-main);
+  margin-bottom: 4px;
+}
+
+.dp-doctor-credentials {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin-bottom: 16px;
+}
+
+.dp-doctor-stats {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.dp-stat {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.dp-stat-icon {
+  color: var(--primary-light);
+}
+
+.dp-book-btn {
+  width: 100%;
+  padding: 12px;
+  background-color: #1f3d35; /* Dark forest green based on image */
+  color: white;
+  border-radius: var(--radius-sm);
+  font-size: 0.95rem;
+  font-weight: 600;
+  transition: background-color 0.3s ease;
+  margin-top: auto;
+}
+
+.dp-book-btn:hover {
+  background-color: #162f28;
+}
+
+/* Empty State */
+.dp-no-doctors {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: 60px 20px;
+  background: var(--bg-card-solid);
+  border-radius: var(--radius-md);
+  border: 1px dashed var(--border-color);
+}
+
+.dp-no-doctors p {
+  color: var(--text-muted);
+  margin-bottom: 16px;
+  font-size: 1.1rem;
+}
+
+.dp-reset-btn {
+  padding: 10px 24px;
+  background-color: var(--primary-color);
+  color: white;
+  border-radius: var(--radius-md);
+  font-weight: 500;
+}
+
+/* Responsive */
+@media (max-width: 900px) {
+  .dp-main-layout {
+    flex-direction: column;
+  }
+  
+  .dp-sidebar {
+    width: 100%;
+    flex: none;
+    position: static;
+  }
+  
+  .dp-specialty-list {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+  
+  .dp-specialty-item {
+    flex: 1 1 auto;
+    text-align: center;
+    border-left: none;
+    border-bottom: 2px solid transparent;
+  }
+  
+  .dp-specialty-item.active {
+    border-left: none;
+    border-bottom: 2px solid var(--primary-color);
+  }
+}

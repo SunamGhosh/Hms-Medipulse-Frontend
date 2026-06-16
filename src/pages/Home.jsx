@@ -161,15 +161,14 @@ const Home = () => {
       {/* Original Navigation */}
       <nav className="home-navbar">
         <Link to="/" className="nav-logo">
-          <div className="nav-logo-icon-wrapper">
-            <Activity size={24} className="nav-logo-icon" strokeWidth={3} />
-          </div>
+          <img src="/img/logo.jpeg" alt="MediPulse Logo" style={{ width: '32px', height: '32px', borderRadius: '8px', objectFit: 'contain' }} />
           <span className="nav-logo-text">MediPulse</span>
         </Link>
         <div className="nav-links">
-          <a href="#features" className="nav-link">Features</a>
-          <a href="#services" className="nav-link">Services</a>
+          <Link to="/" className="nav-link active">Home</Link>
           <Link to="/about" className="nav-link">About</Link>
+          <Link to="/doctors" className="nav-link">Doctor</Link>
+          <Link to="/pharmacy" className="nav-link">Pharmacy</Link>
           <a href="#contact" className="nav-link">Contact</a>
         </div>
         <div className="nav-actions">
@@ -258,12 +257,12 @@ const Home = () => {
               Book appointments with trusted doctors, manage family health, and order medicines — all from a single, friendly dashboard.
             </p>
             <div className="mg-hero-actions">
-              <a href="#doctors" className="mg-btn-primary">
+              <Link to="/doctors" className="mg-btn-primary">
                 <Leaf size={18} /> Find a doctor
-              </a>
-              <a href="#pharmacy" className="mg-btn-secondary">
+              </Link>
+              <Link to="/pharmacy" className="mg-btn-secondary">
                 <Clock size={18} /> Browse pharmacy
-              </a>
+              </Link>
             </div>
           </div>
           <div className="mg-hero-image-wrapper">
