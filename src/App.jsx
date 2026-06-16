@@ -10,12 +10,16 @@ import PharmacistsList from './pages/PharmacistsList';
 import AppointmentsList from './pages/AppointmentsList';
 import Home from './pages/Home';
 import About from './pages/About';
+import DoctorsPage from './pages/DoctorsPage';
+import PharmacyPage from './pages/PharmacyPage';
 
 function App() {
   return (
     <Routes>
       <Route path="/" element={<Home />} />
       <Route path="/about" element={<About />} />
+      <Route path="/doctors" element={<DoctorsPage />} />
+      <Route path="/pharmacy" element={<PharmacyPage />} />
       <Route path="/login" element={<Login />} />
       
       {/* Admin Protected Routes */}
