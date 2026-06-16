@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Users, Calendar, TrendingUp, DollarSign,
   ArrowUpRight, ArrowDownRight, Heart, Stethoscope,
@@ -26,60 +26,86 @@ const StatCard = ({ title, value, icon: Icon, trend, color, subtitle }) => (
   </div>
 );
 
-const appointments = [
-  { name: 'Rahul Sharma', time: '09:00 AM', doctor: 'Dr. Patel', status: 'confirmed', avatar: 'RS' },
-  { name: 'Priya Mehta', time: '10:30 AM', doctor: 'Dr. Singh', status: 'pending', avatar: 'PM' },
-  { name: 'Arjun Das', time: '11:00 AM', doctor: 'Dr. Verma', status: 'confirmed', avatar: 'AD' },
-  { name: 'Sanya Kapoor', time: '01:00 PM', doctor: 'Dr. Patel', status: 'cancelled', avatar: 'SK' },
-  { name: 'Vikram Nair', time: '02:30 PM', doctor: 'Dr. Joshi', status: 'confirmed', avatar: 'VN' },
-];
-
 const statusIcon = {
   confirmed: <CheckCircle size={14} />,
   pending: <Clock size={14} />,
   cancelled: <AlertCircle size={14} />,
+  completed: <CheckCircle size={14} />,
+  rejected: <AlertCircle size={14} />
 };
 
-const quickStats = [
-  { label: 'New Patients Today', value: '8', icon: Heart },
-  { label: 'Consultations Done', value: '31', icon: Stethoscope },
-  { label: 'Pending Reports', value: '5', icon: AlertCircle },
-];
-
 const Dashboard = () => {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const response = await fetch(`${import.meta.env.VITE_URL}/admin/dashboard-stats`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        const result = await response.json();
+        if (response.ok) {
+          setData(result.stats);
+        } else {
+          setError(result.message || 'Failed to fetch dashboard stats');
+        }
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchStats();
+  }, []);
+
+  if (loading) return <div className="dashboard"><div style={{padding: '40px', textAlign: 'center'}}>Loading dashboard...</div></div>;
+  if (error) return <div className="dashboard"><div style={{padding: '40px', textAlign: 'center', color: 'red'}}>Error: {error}</div></div>;
+  if (!data) return null;
+
   const stats = [
     {
       title: 'Total Patients',
-      value: '2,451',
+      value: data.totalPatients,
       icon: Users,
-      trend: { type: 'positive', value: '+12.5%' },
+      trend: { type: 'positive', value: '+5.2%' }, // Dummy trend for now
       color: 'green',
       subtitle: 'vs last month',
     },
     {
       title: 'Appointments Today',
-      value: '42',
+      value: data.appointmentsToday,
       icon: Calendar,
-      trend: { type: 'positive', value: '+4.2%' },
+      trend: { type: 'positive', value: '+2.1%' },
       color: 'teal',
-      subtitle: '6 remaining',
+      subtitle: 'today\'s schedule',
     },
     {
       title: 'Total Revenue',
-      value: '₹24,500',
+      value: `₹${data.totalRevenue}`,
       icon: DollarSign,
-      trend: { type: 'positive', value: '+18.2%' },
+      trend: { type: 'positive', value: '+10.5%' },
       color: 'emerald',
-      subtitle: 'vs last month',
+      subtitle: 'all time',
     },
     {
       title: 'Recovery Rate',
-      value: '94%',
+      value: data.recoveryRate,
       icon: TrendingUp,
       trend: { type: 'positive', value: '+1.5%' },
       color: 'lime',
       subtitle: 'industry avg: 88%',
     },
+  ];
+
+  const quickStats = [
+    { label: 'New Patients Today', value: data.quickStats.newPatientsToday, icon: Heart },
+    { label: 'Consultations Done', value: data.quickStats.consultationsDone, icon: Stethoscope },
+    { label: 'Pending Reports', value: data.quickStats.pendingReports, icon: AlertCircle },
   ];
 
   return (
@@ -110,8 +136,8 @@ const Dashboard = () => {
         <div className="card appointments-card">
           <div className="card-header">
             <div>
-              <h2>Today's Appointments</h2>
-              <p className="card-subtitle">42 total appointments scheduled</p>
+              <h2>Recent Appointments</h2>
+              <p className="card-subtitle">Showing latest 10 appointments</p>
             </div>
             <button className="card-action-btn">
               <MoreHorizontal size={18} />
@@ -119,23 +145,27 @@ const Dashboard = () => {
           </div>
           <div className="card-body">
             <div className="appointments-list">
-              {appointments.map((appt, i) => (
-                <div className="appointment-row" key={i}>
-                  <div className="appt-avatar">{appt.avatar}</div>
-                  <div className="appt-info">
-                    <p className="appt-name">{appt.name}</p>
-                    <p className="appt-doctor">{appt.doctor}</p>
+              {data.todaysAppointmentsList && data.todaysAppointmentsList.length > 0 ? (
+                data.todaysAppointmentsList.map((appt, i) => (
+                  <div className="appointment-row" key={i}>
+                    <div className="appt-avatar">{appt.avatar}</div>
+                    <div className="appt-info">
+                      <p className="appt-name">{appt.name}</p>
+                      <p className="appt-doctor">{appt.doctor}</p>
+                    </div>
+                    <div className="appt-time">
+                      <Clock size={12} />
+                      {appt.time}
+                    </div>
+                    <div className={`appt-status appt-status--${appt.status}`}>
+                      {statusIcon[appt.status] || <Clock size={14} />}
+                      {appt.status}
+                    </div>
                   </div>
-                  <div className="appt-time">
-                    <Clock size={12} />
-                    {appt.time}
-                  </div>
-                  <div className={`appt-status appt-status--${appt.status}`}>
-                    {statusIcon[appt.status]}
-                    {appt.status}
-                  </div>
-                </div>
-              ))}
+                ))
+              ) : (
+                <div style={{textAlign: 'center', padding: '20px', color: '#64748b'}}>No recent appointments found</div>
+              )}
             </div>
           </div>
         </div>
@@ -171,29 +201,15 @@ const Dashboard = () => {
                 <div className="activity-item">
                   <div className="activity-dot activity-dot--green"></div>
                   <div>
-                    <p className="activity-text">New patient <strong>Sunam Ghosh</strong> registered</p>
-                    <p className="activity-time">2 mins ago</p>
+                    <p className="activity-text">System is running smoothly</p>
+                    <p className="activity-time">Just now</p>
                   </div>
                 </div>
                 <div className="activity-item">
                   <div className="activity-dot activity-dot--teal"></div>
                   <div>
-                    <p className="activity-text">Appointment confirmed with <strong>Dr. Patel</strong></p>
-                    <p className="activity-time">15 mins ago</p>
-                  </div>
-                </div>
-                <div className="activity-item">
-                  <div className="activity-dot activity-dot--lime"></div>
-                  <div>
-                    <p className="activity-text">Lab report uploaded for <strong>Rahul Sharma</strong></p>
-                    <p className="activity-time">1 hr ago</p>
-                  </div>
-                </div>
-                <div className="activity-item">
-                  <div className="activity-dot activity-dot--green"></div>
-                  <div>
-                    <p className="activity-text">Invoice <strong>#INV-042</strong> generated</p>
-                    <p className="activity-time">3 hrs ago</p>
+                    <p className="activity-text">Dashboard data updated</p>
+                    <p className="activity-time">Live</p>
                   </div>
                 </div>
               </div>

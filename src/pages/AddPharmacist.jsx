@@ -140,7 +140,7 @@ const AddPharmacist = () => {
         work_time_end: formatTime(form.work_time_end)
       };
       
-      const response = await fetch('http://localhost:5000/api/admin/add-pharmacist', {
+      const response = await fetch(`${import.meta.env.VITE_URL}/admin/add-pharmacist`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

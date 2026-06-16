@@ -7,6 +7,7 @@ import AddDoctor from './pages/AddDoctor';
 import AddPharmacist from './pages/AddPharmacist';
 import DoctorsList from './pages/DoctorsList';
 import PharmacistsList from './pages/PharmacistsList';
+import AppointmentsList from './pages/AppointmentsList';
 import Home from './pages/Home';
 import About from './pages/About';
 
@@ -27,6 +28,7 @@ function App() {
         <Route path="patients" element={<div style={{padding: '24px'}}><h2>Patients List (Placeholder)</h2></div>} />
         <Route path="doctors" element={<DoctorsList />} />
         <Route path="pharmacists" element={<PharmacistsList />} />
+        <Route path="appointments" element={<AppointmentsList />} />
         <Route path="settings" element={<div style={{padding: '24px'}}><h2>Settings (Placeholder)</h2></div>} />
       </Route>
 

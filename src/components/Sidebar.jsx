@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Users, UserRound, Settings, LogOut, Activity, User } from 'lucide-react';
+import { LayoutDashboard, Users, UserRound, Settings, LogOut, Activity, User, CalendarDays } from 'lucide-react';
 import './Sidebar.css';
 
 const Sidebar = () => {
@@ -21,6 +21,7 @@ const Sidebar = () => {
 
   const menuItems = [
     { name: 'Dashboard', icon: LayoutDashboard, path: '/admin/dashboard' },
+    { name: 'Appointments', icon: CalendarDays, path: '/admin/appointments' },
     { name: 'Patients', icon: Users, path: '/admin/patients' },
     { name: 'Doctors', icon: UserRound, path: '/admin/doctors' },
     { name: 'Pharmacists', icon: Users, path: '/admin/pharmacists' },
@@ -32,6 +33,7 @@ const Sidebar = () => {
   const handleLogout = () => {
     localStorage.removeItem('adminName');
     localStorage.removeItem('adminEmail');
+    localStorage.removeItem('token');
   };
 
   return (
@@ -72,7 +74,7 @@ const Sidebar = () => {
         </div>
 
         {/* Logout */}
-        <NavLink to="/login" className="nav-link logout" onClick={handleLogout}>
+        <NavLink to="/" className="nav-link logout" onClick={handleLogout}>
           <LogOut size={20} />
           <span>Logout</span>
         </NavLink>

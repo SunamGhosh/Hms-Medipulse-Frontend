@@ -167,7 +167,7 @@ const AddDoctor = () => {
         work_time_end: formatTime(form.work_time_end)
       };
 
-      const response = await fetch('http://localhost:5000/admin/add-doctor', {
+      const response = await fetch(`${import.meta.env.VITE_URL}/admin/add-doctor`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -1,26 +1,43 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Activity, Mail, Lock, ArrowRight } from 'lucide-react';
+import { Activity, Mail, Lock, ArrowRight, AlertCircle } from 'lucide-react';
 import './Login.css';
 
 const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
   const navigate = useNavigate();
 
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
     if (email && password) {
       setIsLoading(true);
-      // Simulate API call for animation effect
-      setTimeout(() => {
+      setErrorMsg('');
+      try {
+        const response = await fetch(`${import.meta.env.VITE_URL}/admin/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
+        });
+        const data = await response.json();
+        
+        if (response.ok) {
+          localStorage.setItem('token', data.token);
+          localStorage.setItem('adminEmail', email);
+          localStorage.setItem('adminName', email.split('@')[0] || 'Admin');
+          navigate('/admin/dashboard');
+        } else {
+          setErrorMsg(data.message || 'Login failed. Please check your credentials.');
+        }
+      } catch (error) {
+        setErrorMsg('Connection error. Is the backend server running?');
+      } finally {
         setIsLoading(false);
-        // Store admin details
-        localStorage.setItem('adminEmail', email);
-        localStorage.setItem('adminName', email.split('@')[0] || 'Admin');
-        navigate('/admin/dashboard');
-      }, 800);
+      }
+    } else {
+      setErrorMsg('Please enter both email and password.');
     }
   };
 
@@ -39,6 +56,13 @@ const Login = () => {
           <h2>Welcome Back</h2>
           <p>Sign in to Medipulse Admin Portal</p>
         </div>
+        
+        {errorMsg && (
+          <div className="login-alert-banner">
+            <AlertCircle size={20} className="alert-icon" />
+            <span>{errorMsg}</span>
+          </div>
+        )}
         
         <form onSubmit={handleLogin} className="login-form">
           <div className="form-group">

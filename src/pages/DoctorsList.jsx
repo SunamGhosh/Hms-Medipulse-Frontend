@@ -9,7 +9,7 @@ const DoctorsList = () => {
   const fetchDoctors = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:5000/api/admin/doctors', {
+      const response = await fetch(`${import.meta.env.VITE_URL}/doctor/all`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -35,7 +35,7 @@ const DoctorsList = () => {
     const newStatus = currentStatus === 'active' ? 'inactive' : 'active';
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:5000/api/admin/doctors/${id}/status`, {
+      const response = await fetch(`${import.meta.env.VITE_URL}/api/admin/doctors/${id}/status`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

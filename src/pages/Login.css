@@ -220,3 +220,23 @@
 .login-button:active {
   transform: translateY(1px);
 }
+
+.login-alert-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background-color: #fee2e2;
+  color: #b91c1c;
+  padding: 14px 16px;
+  border-radius: var(--radius-md);
+  margin-bottom: 24px;
+  font-size: 14px;
+  font-weight: 500;
+  border-left: 4px solid #ef4444;
+  animation: slideDownFade 0.3s ease forwards;
+  text-align: left;
+}
+
+.login-alert-banner .alert-icon {
+  flex-shrink: 0;
+}
