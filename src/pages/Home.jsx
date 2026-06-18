@@ -172,11 +172,11 @@ const Home = () => {
           <a href="#contact" className="nav-link">Contact</a>
         </div>
         <div className="nav-actions">
-          <Link to="/login" className="btn-outline">
-            Admin login
+          <Link to="/signup" className="btn-outline">
+            Signup
           </Link>
           <button className="btn-primary-nav" onClick={() => setIsRoleModalOpen(true)}>
-            Get Started
+            Login
           </button>
         </div>
       </nav>
@@ -190,8 +190,8 @@ const Home = () => {
             <span className="text-gradient">Management</span>
           </h1>
           <p className="hero-description">
-            Transform your healthcare facility with Medipulse. Streamline operations, 
-            enhance patient care, and empower your medical staff with our state-of-the-art 
+            Transform your healthcare facility with Medipulse. Streamline operations,
+            enhance patient care, and empower your medical staff with our state-of-the-art
             management system.
           </p>
           <div className="hero-actions">
@@ -206,10 +206,10 @@ const Home = () => {
         <div className="hero-image-wrapper">
           <div className="hero-image-container">
             <div className="hero-image-glow"></div>
-            <img 
-              src="/img/hero-image.png" 
-              alt="Modern Healthcare Technology" 
-              className="hero-image" 
+            <img
+              src="/img/hero-image.png"
+              alt="Modern Healthcare Technology"
+              className="hero-image"
             />
           </div>
         </div>
@@ -220,7 +220,7 @@ const Home = () => {
         <div className="section-header">
           <h2 className="section-title">Why Choose Medipulse?</h2>
           <p className="section-subtitle">
-            Our platform provides everything you need to run a modern, efficient, 
+            Our platform provides everything you need to run a modern, efficient,
             and patient-centered healthcare facility.
           </p>
         </div>
@@ -244,9 +244,9 @@ const Home = () => {
 
       {/* --- NEW MEDIGROVE DESIGN APPENDED BELOW --- */}
       <div className="medigrove-container">
-        
+
         {/* MediGrove Hero Section */}
-        <section className="mg-hero" style={{borderTop: '1px solid #e2e8f0'}}>
+        <section className="mg-hero" style={{ borderTop: '1px solid #e2e8f0' }}>
           <div className="mg-hero-content">
             <div className="mg-hero-badge">TRUSTED HEALTHCARE • SINCE 2026</div>
             <h1 className="mg-hero-title">
@@ -266,10 +266,10 @@ const Home = () => {
             </div>
           </div>
           <div className="mg-hero-image-wrapper">
-            <img 
-              src="/img/hero_flipboard.png" 
-              alt="MediGrove flipboard sign" 
-              className="mg-hero-image" 
+            <img
+              src="/img/hero_flipboard.png"
+              alt="MediGrove flipboard sign"
+              className="mg-hero-image"
             />
           </div>
         </section>
@@ -286,7 +286,7 @@ const Home = () => {
               <input type="text" placeholder="Search by name or specialty..." />
             </div>
           </div>
-          
+
           <div className="mg-doctors-grid">
             {doctors.map(doctor => (
               <div key={doctor.id} className="mg-card">
@@ -308,7 +308,7 @@ const Home = () => {
         </section>
 
         {/* Pharmacy Section */}
-        <section id="pharmacy" className="mg-section" style={{background: '#F8F9FA'}}>
+        <section id="pharmacy" className="mg-section" style={{ background: '#F8F9FA' }}>
           <div className="mg-section-header">
             <div>
               <div className="mg-section-tag">02 - PHARMACY</div>
@@ -323,10 +323,10 @@ const Home = () => {
           <div className="mg-pharmacy-grid">
             {medicines.map(med => (
               <div key={med.id} className="mg-card">
-                <img src={med.image} alt={med.name} className="mg-card-image" style={{objectFit: 'contain', padding: '1rem'}} />
+                <img src={med.image} alt={med.name} className="mg-card-image" style={{ objectFit: 'contain', padding: '1rem' }} />
                 <div className="mg-card-content">
-                  <span className="mg-card-tag" style={{background: '#fff3e0', color: '#e65100'}}>{med.type}</span>
-                  <h3 className="mg-card-title" style={{fontSize: '1.1rem'}}>{med.name}</h3>
+                  <span className="mg-card-tag" style={{ background: '#fff3e0', color: '#e65100' }}>{med.type}</span>
+                  <h3 className="mg-card-title" style={{ fontSize: '1.1rem' }}>{med.name}</h3>
                   <div className="mg-price-row">
                     <span className="mg-price">{med.price}</span>
                     <span className="mg-stock">{med.stock}</span>
@@ -352,9 +352,9 @@ const Home = () => {
         </div>
       </footer>
 
-      <RoleSelectionModal 
-        isOpen={isRoleModalOpen} 
-        onClose={() => setIsRoleModalOpen(false)} 
+      <RoleSelectionModal
+        isOpen={isRoleModalOpen}
+        onClose={() => setIsRoleModalOpen(false)}
       />
     </div>
   );

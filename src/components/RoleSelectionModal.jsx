@@ -11,17 +11,32 @@ const RoleSelectionModal = ({ isOpen, onClose }) => {
 
   if (!isOpen) return null;
 
-  const handleUserLogin = (e) => {
+  const handleUserLogin = async (e) => {
     e.preventDefault();
     if (email && password) {
       setIsLoading(true);
-      setTimeout(() => {
+      try {
+        const response = await fetch(`${import.meta.env.VITE_URL}/user/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
+        });
+        const data = await response.json();
+        
+        if (response.ok) {
+          localStorage.setItem('userToken', data.token);
+          localStorage.setItem('userEmail', email);
+          localStorage.setItem('userName', data.name || email.split('@')[0]);
+          navigate('/user/dashboard');
+          onClose();
+        } else {
+          alert(data.message || 'Login failed. Please check your credentials.');
+        }
+      } catch (error) {
+        alert('Connection error. Is the backend server running?');
+      } finally {
         setIsLoading(false);
-        localStorage.setItem('adminEmail', email);
-        localStorage.setItem('adminName', email.split('@')[0] || 'User');
-        navigate('/admin/dashboard');
-        onClose();
-      }, 800);
+      }
     }
   };
 
@@ -39,10 +54,10 @@ const RoleSelectionModal = ({ isOpen, onClose }) => {
 
         <div className="modal-header">
           <div className="modal-logo-wrapper">
-            <Activity size={32} className="modal-logo-icon" strokeWidth={3} />
+            <img src="/img/logo.jpeg" alt="MediPulse Logo" style={{ width: '32px', height: '32px', borderRadius: '8px', objectFit: 'contain' }} />
           </div>
           <h2 className="modal-title">Welcome to MediPulse</h2>
-          <p className="modal-subtitle">Sign in to your account</p>
+          <p className="modal-subtitle">Sign in to your patient account</p>
         </div>
 
         <form onSubmit={handleUserLogin} className="modal-login-form">
@@ -83,19 +98,19 @@ const RoleSelectionModal = ({ isOpen, onClose }) => {
         </div>
 
         <div className="quick-roles-row">
-          <button className="quick-role-card role-doctor" onClick={() => handleRoleSelect('doctor')}>
+          <button type="button" className="quick-role-card role-doctor" onClick={() => handleRoleSelect('doctor')}>
             <div className="quick-role-icon">
               <Stethoscope size={20} />
             </div>
             <span>Doctor</span>
           </button>
-          <button className="quick-role-card role-patient" onClick={() => handleRoleSelect('patient')}>
+          <button type="button" className="quick-role-card role-patient" onClick={() => { navigate('/admin/login'); onClose(); }}>
             <div className="quick-role-icon">
-              <Users size={20} />
+              <Lock size={20} />
             </div>
-            <span>Patient</span>
+            <span>Admin</span>
           </button>
-          <button className="quick-role-card role-pharmacy" onClick={() => handleRoleSelect('pharmacist')}>
+          <button type="button" className="quick-role-card role-pharmacy" onClick={() => handleRoleSelect('pharmacist')}>
             <div className="quick-role-icon">
               <Pill size={20} />
             </div>

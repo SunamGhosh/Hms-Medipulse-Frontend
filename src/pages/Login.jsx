@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { Activity, Mail, Lock, ArrowRight, AlertCircle } from 'lucide-react';
 import './Login.css';
 
@@ -96,6 +96,11 @@ const Login = () => {
             {!isLoading && <ArrowRight size={18} />}
           </button>
         </form>
+
+        <p className="login-signup-redirect">
+          Don&apos;t have an account?{' '}
+          <Link to="/signup" className="login-signup-link">Sign Up</Link>
+        </p>
       </div>
     </div>
   );

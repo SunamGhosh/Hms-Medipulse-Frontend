@@ -40,7 +40,7 @@ const Sidebar = () => {
     <div className="sidebar">
       <div className="sidebar-header">
         <div className="logo">
-          <Activity size={32} color="var(--primary-color)" />
+          <img src="/img/logo.jpeg" alt="MediPulse Logo" style={{ width: '32px', height: '32px', borderRadius: '8px', objectFit: 'contain' }} />
           <span>MEDIPULSE</span>
         </div>
       </div>

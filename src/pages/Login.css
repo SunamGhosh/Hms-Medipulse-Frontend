@@ -20,7 +20,7 @@
 .shape-1 {
   width: 600px;
   height: 600px;
-  background: rgba(20, 184, 166, 0.15); /* Teal */
+  background: rgba(20, 184, 166, 0.15);
   top: -200px;
   left: -100px;
   animation-delay: 0s;
@@ -29,7 +29,7 @@
 .shape-2 {
   width: 500px;
   height: 500px;
-  background: rgba(16, 185, 129, 0.15); /* Emerald */
+  background: rgba(16, 185, 129, 0.15);
   bottom: -150px;
   right: -50px;
   animation-delay: -5s;
@@ -38,7 +38,7 @@
 .shape-3 {
   width: 400px;
   height: 400px;
-  background: rgba(56, 189, 248, 0.15); /* Sky blue */
+  background: rgba(56, 189, 248, 0.15);
   top: 40%;
   left: 50%;
   transform: translate(-50%, -50%);
@@ -239,4 +239,25 @@
 
 .login-alert-banner .alert-icon {
   flex-shrink: 0;
+}
+
+/* Signup redirect link */
+.login-signup-redirect {
+  text-align: center;
+  font-size: 13.5px;
+  color: #64748b;
+  margin-top: 22px;
+  margin-bottom: 0;
+}
+
+.login-signup-link {
+  color: var(--primary-color, #0d9488);
+  font-weight: 700;
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+.login-signup-link:hover {
+  color: var(--primary-dark, #0f766e);
+  text-decoration: underline;
 }
