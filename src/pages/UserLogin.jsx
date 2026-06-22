@@ -11,6 +11,7 @@ import {
   ShieldCheck,
   CheckCircle2,
 } from 'lucide-react';
+import SignupModal from '../components/SignupModal';
 import './UserLogin.css';
 
 const UserLogin = () => {
@@ -20,6 +21,7 @@ const UserLogin = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const [isSignupModalOpen, setIsSignupModalOpen] = useState(false);
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -152,7 +154,7 @@ const UserLogin = () => {
         {/* Signup redirect */}
         <p className="ul-redirect">
           Don&apos;t have an account?{' '}
-          <Link to="/signup" className="ul-redirect-link">Create one free →</Link>
+          <button type="button" className="ul-redirect-link" onClick={() => setIsSignupModalOpen(true)} style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', cursor: 'pointer' }}>Create one free →</button>
         </p>
 
         {/* Trust badges */}
@@ -166,6 +168,11 @@ const UserLogin = () => {
         </div>
 
       </div>
+
+      <SignupModal
+        isOpen={isSignupModalOpen}
+        onClose={() => setIsSignupModalOpen(false)}
+      />
     </div>
   );
 };

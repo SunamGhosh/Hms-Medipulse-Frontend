@@ -2,7 +2,6 @@ import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import Login from './pages/Login'; // Admin Login
 import UserLogin from './pages/UserLogin'; // Patient Login
-import Signup from './pages/Signup';
 import AdminLayout from './components/AdminLayout';
 import Dashboard from './pages/Dashboard';
 import AddDoctor from './pages/AddDoctor';
@@ -25,7 +24,6 @@ function App() {
       <Route path="/pharmacy" element={<PharmacyPage />} />
       <Route path="/login" element={<UserLogin />} />
       <Route path="/admin/login" element={<Login />} />
-      <Route path="/signup" element={<Signup />} />
       <Route path="/user/dashboard" element={<UserDashboard />} />
       
       {/* Admin Protected Routes */}

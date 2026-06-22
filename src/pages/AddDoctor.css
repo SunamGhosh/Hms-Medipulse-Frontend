@@ -604,3 +604,75 @@ input:checked + .slider:before {
 .mt-4 { margin-top: 16px; }
 .justify-between { justify-content: space-between; }
 .flex { display: flex; }
+
+/* ---- Profile Image Upload Area (AddDoctor) ---- */
+.ad-image-upload-area {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 16px;
+  background: #f8fafc;
+  border: 1.5px dashed #cbd5e1;
+  border-radius: 12px;
+  transition: border-color 0.2s;
+}
+.ad-image-upload-area:hover {
+  border-color: var(--primary-color, #0d9488);
+}
+.ad-image-preview {
+  flex-shrink: 0;
+}
+.ad-preview-img {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 3px solid white;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+.ad-preview-placeholder {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.ad-upload-right {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.ad-upload-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 18px;
+  background: var(--primary-color, #0d9488);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  width: fit-content;
+}
+.ad-upload-btn:hover {
+  background: var(--primary-dark, #0f766e);
+  transform: translateY(-1px);
+}
+.ad-file-name {
+  font-size: 12px;
+  color: #475569;
+  font-weight: 500;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ad-file-hint {
+  font-size: 11px;
+  color: #94a3b8;
+}

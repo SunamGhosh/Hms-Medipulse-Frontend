@@ -1,0 +1,576 @@
+/* ── BookAppointmentModal.css ─────────────────────────────────── */
+
+.bam-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.55);
+  backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1200;
+  padding: 1rem;
+  animation: bamFadeIn 0.2s ease;
+}
+
+@keyframes bamFadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.bam-card {
+  background: #ffffff;
+  border-radius: 20px;
+  width: 100%;
+  max-width: 680px;
+  max-height: 92vh;
+  overflow-y: auto;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.18);
+  position: relative;
+  animation: bamSlideUp 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+@keyframes bamSlideUp {
+  from { opacity: 0; transform: translateY(30px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* header */
+.bam-header {
+  background: linear-gradient(135deg, #0d9488 0%, #14b8a6 100%);
+  padding: 1.5rem 2rem 1.25rem;
+  border-radius: 20px 20px 0 0;
+  position: relative;
+  overflow: hidden;
+}
+
+.bam-header::before {
+  content: '';
+  position: absolute;
+  top: -30px;
+  right: -30px;
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.bam-header-title {
+  color: #fff;
+  font-size: 1.2rem;
+  font-weight: 700;
+  margin: 0 0 0.25rem;
+}
+
+.bam-header-sub {
+  color: rgba(255,255,255,0.8);
+  font-size: 0.85rem;
+  margin: 0;
+}
+
+/* progress stepper */
+.bam-stepper {
+  display: flex;
+  align-items: center;
+  margin-top: 1.1rem;
+  gap: 0;
+}
+
+.bam-step {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 1;
+}
+
+.bam-step-circle {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+  flex-shrink: 0;
+  transition: all 0.3s;
+}
+
+.bam-step--done .bam-step-circle {
+  background: #fff;
+  color: #0d9488;
+}
+
+.bam-step--active .bam-step-circle {
+  background: #fff;
+  color: #0d9488;
+  box-shadow: 0 0 0 3px rgba(255,255,255,0.4);
+}
+
+.bam-step--pending .bam-step-circle {
+  background: rgba(255,255,255,0.25);
+  color: #fff;
+}
+
+.bam-step-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: rgba(255,255,255,0.85);
+  white-space: nowrap;
+}
+
+.bam-step--active .bam-step-label {
+  color: #fff;
+}
+
+.bam-step-line {
+  flex: 1;
+  height: 2px;
+  background: rgba(255,255,255,0.25);
+  margin: 0 0.4rem;
+}
+
+.bam-step-line--done {
+  background: #fff;
+}
+
+/* body */
+.bam-body {
+  padding: 1.75rem 2rem;
+}
+
+/* close btn */
+.bam-close {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  background: rgba(255,255,255,0.15);
+  border: none;
+  border-radius: 50%;
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #fff;
+  transition: background 0.2s;
+}
+
+.bam-close:hover { background: rgba(255,255,255,0.25); }
+
+/* ── Alerts ── */
+.bam-alert {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  padding: 0.8rem 1rem;
+  border-radius: 10px;
+  font-size: 0.875rem;
+  margin-bottom: 1.25rem;
+  font-weight: 500;
+}
+
+.bam-alert.error {
+  background: #fef2f2;
+  color: #b91c1c;
+  border: 1px solid #fecaca;
+}
+
+.bam-alert.success {
+  background: #f0fdf4;
+  color: #15803d;
+  border: 1px solid #bbf7d0;
+}
+
+/* ── Section heading ── */
+.bam-section-title {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  margin-bottom: 1rem;
+}
+
+/* ── Patient cards ── */
+.bam-patient-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  margin-bottom: 1.25rem;
+}
+
+.bam-patient-card {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.9rem 1.1rem;
+  border: 2px solid #e2e8f0;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+  background: #fff;
+}
+
+.bam-patient-card:hover {
+  border-color: #14b8a6;
+  background: #f0fdfa;
+}
+
+.bam-patient-card.selected {
+  border-color: #14b8a6;
+  background: #f0fdfa;
+  box-shadow: 0 0 0 3px rgba(20,184,166,0.12);
+}
+
+.bam-patient-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #14b8a6, #0d9488);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 1.1rem;
+  flex-shrink: 0;
+}
+
+.bam-patient-info { flex: 1; }
+
+.bam-patient-name {
+  font-weight: 600;
+  color: #1a202c;
+  font-size: 0.95rem;
+}
+
+.bam-patient-meta {
+  font-size: 0.78rem;
+  color: #718096;
+  margin-top: 0.15rem;
+}
+
+.bam-patient-radio {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid #cbd5e1;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.bam-patient-card.selected .bam-patient-radio {
+  border-color: #14b8a6;
+  background: #14b8a6;
+}
+
+.bam-patient-card.selected .bam-patient-radio::after {
+  content: '';
+  width: 8px;
+  height: 8px;
+  background: #fff;
+  border-radius: 50%;
+}
+
+/* Add patient form */
+.bam-add-patient-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: none;
+  border: 2px dashed #cbd5e1;
+  border-radius: 12px;
+  padding: 0.9rem 1.1rem;
+  width: 100%;
+  cursor: pointer;
+  color: #14b8a6;
+  font-weight: 600;
+  font-size: 0.9rem;
+  transition: all 0.2s;
+}
+
+.bam-add-patient-toggle:hover {
+  border-color: #14b8a6;
+  background: #f0fdfa;
+}
+
+/* ── Form fields ── */
+.bam-field {
+  margin-bottom: 1rem;
+}
+
+.bam-field label {
+  display: block;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 0.4rem;
+}
+
+.bam-field-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.bam-field-icon {
+  position: absolute;
+  left: 0.85rem;
+  color: #9ca3af;
+  pointer-events: none;
+}
+
+.bam-field input,
+.bam-field select,
+.bam-field textarea {
+  width: 100%;
+  padding: 0.7rem 0.9rem 0.7rem 2.4rem;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 10px;
+  font-size: 0.9rem;
+  font-family: inherit;
+  color: #1a202c;
+  background: #fff;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  outline: none;
+}
+
+.bam-field input:focus,
+.bam-field select:focus,
+.bam-field textarea:focus {
+  border-color: #14b8a6;
+  box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.12);
+}
+
+.bam-field textarea {
+  min-height: 80px;
+  resize: vertical;
+  padding-left: 2.4rem;
+}
+
+.bam-field select {
+  appearance: none;
+  cursor: pointer;
+}
+
+.bam-form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.85rem;
+}
+
+/* ── Doctor cards ── */
+.bam-doctor-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 0.85rem;
+  margin-bottom: 1.25rem;
+}
+
+.bam-doctor-card {
+  border: 2px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 1rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  background: #fff;
+  text-align: center;
+}
+
+.bam-doctor-card:hover {
+  border-color: #14b8a6;
+  background: #f0fdfa;
+  transform: translateY(-2px);
+}
+
+.bam-doctor-card.selected {
+  border-color: #14b8a6;
+  background: #f0fdfa;
+  box-shadow: 0 0 0 3px rgba(20,184,166,0.15);
+}
+
+.bam-doctor-img {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  object-fit: cover;
+  object-position: top;
+  margin: 0 auto 0.6rem;
+  display: block;
+  border: 2px solid #e2e8f0;
+}
+
+.bam-doctor-name {
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: #1a202c;
+  margin-bottom: 0.2rem;
+}
+
+.bam-doctor-spec {
+  font-size: 0.75rem;
+  color: #14b8a6;
+  font-weight: 600;
+  margin-bottom: 0.3rem;
+}
+
+.bam-doctor-fee {
+  font-size: 0.78rem;
+  color: #718096;
+}
+
+/* empty state */
+.bam-empty {
+  text-align: center;
+  color: #94a3b8;
+  padding: 2rem;
+  font-size: 0.9rem;
+}
+
+/* ── Consult mode pills ── */
+.bam-mode-row {
+  display: flex;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.bam-mode-pill {
+  flex: 1;
+  padding: 0.65rem;
+  border: 2px solid #e2e8f0;
+  border-radius: 10px;
+  background: #fff;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #64748b;
+  text-align: center;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+}
+
+.bam-mode-pill:hover { border-color: #14b8a6; }
+
+.bam-mode-pill.selected {
+  border-color: #14b8a6;
+  background: #f0fdfa;
+  color: #0d9488;
+}
+
+/* ── Buttons ── */
+.bam-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 1.5rem;
+  gap: 1rem;
+}
+
+.bam-btn-back {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: none;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 0.7rem 1.2rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.bam-btn-back:hover {
+  border-color: #94a3b8;
+  color: #374151;
+}
+
+.bam-btn-next {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: linear-gradient(135deg, #0d9488, #14b8a6);
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  padding: 0.75rem 1.5rem;
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.25s;
+  box-shadow: 0 4px 12px rgba(13,148,136,0.3);
+}
+
+.bam-btn-next:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(13,148,136,0.4);
+}
+
+.bam-btn-next:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.bam-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255,255,255,0.4);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: bamSpin 0.7s linear infinite;
+  display: inline-block;
+}
+
+@keyframes bamSpin {
+  to { transform: rotate(360deg); }
+}
+
+/* loading skeleton */
+.bam-loading {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.bam-skeleton {
+  height: 60px;
+  background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
+  background-size: 200% 100%;
+  border-radius: 12px;
+  animation: bamShimmer 1.4s infinite;
+}
+
+@keyframes bamShimmer {
+  to { background-position: -200% 0; }
+}
+
+/* summary box */
+.bam-summary-box {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 1rem 1.25rem;
+  margin-bottom: 1.25rem;
+  font-size: 0.875rem;
+  color: #374151;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.bam-summary-row {
+  display: flex;
+  justify-content: space-between;
+}
+
+.bam-summary-label { color: #94a3b8; font-weight: 500; }
+.bam-summary-value { font-weight: 600; color: #0d9488; }

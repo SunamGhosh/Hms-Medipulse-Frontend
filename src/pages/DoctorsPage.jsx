@@ -1,33 +1,66 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Activity, Clock, Star, Users } from 'lucide-react';
+import { Clock, Star, Users, Loader2 } from 'lucide-react';
 import RoleSelectionModal from '../components/RoleSelectionModal';
+import BookAppointmentModal from '../components/BookAppointmentModal';
+import SignupModal from '../components/SignupModal';
+import ProfileDropdown from '../components/ProfileDropdown';
 import './DoctorsPage.css';
 
-// Mock data to match the design requested
-const allDoctors = [
-  { id: 1, name: 'Dr. John Carter', specialty: 'General physician', credentials: 'MBBS, MD', experience: '12y', hours: '09:00-17:00', patients: '300+', image: '/img/doctor_portrait.png' },
-  { id: 2, name: 'Dr. Emily Zhang', specialty: 'Pediatricians', credentials: 'MBBS, DCH', experience: '8y', hours: '09:00-17:00', patients: '275+', image: '/img/doctor_2.png' },
-  { id: 3, name: 'Dr. Rajiv Mehta', specialty: 'Cardiologist', credentials: 'MBBS, MD, DM Cardiology', experience: '15y', hours: '09:00-17:00', patients: '500+', image: '/img/doctor_3.png' },
-  { id: 4, name: 'Dr. Amina Okafor', specialty: 'Neurologist', credentials: 'MBBS, DM Neurology', experience: '10y', hours: '09:30-17:30', patients: '450+', image: 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?q=80&w=600&auto=format&fit=crop' },
-  { id: 5, name: 'Dr. Sarah Lee', specialty: 'Gynecologist', credentials: 'MBBS, MS, DGO', experience: '9y', hours: '10:00-18:00', patients: '400+', image: 'https://images.unsplash.com/photo-1594824436951-7f12bc00a9e3?q=80&w=600&auto=format&fit=crop' },
-  { id: 6, name: 'Dr. Michael Chen', specialty: 'Dermatologist', credentials: 'MBBS, MD Dermatology', experience: '11y', hours: '08:00-16:00', patients: '350+', image: 'https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?q=80&w=600&auto=format&fit=crop' },
-  { id: 7, name: 'Dr. Robert Wilson', specialty: 'Gastroenterologist', credentials: 'MBBS, MD, DM Gastroenterology', experience: '14y', hours: '09:00-17:00', patients: '480+', image: 'https://images.unsplash.com/photo-1537368910025-70280451b211?q=80&w=600&auto=format&fit=crop' }
-];
-
-const specializations = [
-  'General physician',
-  'Gynecologist',
-  'Dermatologist',
-  'Pediatricians',
-  'Neurologist',
-  'Gastroenterologist'
-];
+const API = import.meta.env.VITE_URL || 'http://localhost:4000/api';
 
 const DoctorsPage = () => {
+  const [allDoctors, setAllDoctors] = useState([]);
+  const [specializations, setSpecializations] = useState([]);
   const [selectedSpecialty, setSelectedSpecialty] = useState('');
   const [isRoleModalOpen, setIsRoleModalOpen] = useState(false);
+  const [isBookModalOpen, setIsBookModalOpen] = useState(false);
+  const [isSignupModalOpen, setIsSignupModalOpen] = useState(false);
+  const [bookDoctorId, setBookDoctorId] = useState(null);
+  const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
+
+  const handleBookAppointment = (doctorId) => {
+    const token = localStorage.getItem('userToken');
+    if (!token) {
+      setIsRoleModalOpen(true);
+      return;
+    }
+    setBookDoctorId(doctorId);
+    setIsBookModalOpen(true);
+  };
+
+  useEffect(() => {
+    const fetchDoctors = async () => {
+      try {
+        const res = await fetch(`${API}/doctor/active`);
+        const data = await res.json();
+        if (res.ok && data.doctors) {
+          const docs = data.doctors.map(doc => ({
+            id: doc._id,
+            name: `Dr. ${doc.first_name} ${doc.last_name}`,
+            specialty: doc.specialization,
+            credentials: doc.qualification,
+            experience: `${doc.experience_year}y`,
+            hours: `${doc.work_time_start}-${doc.work_time_end}`,
+            patients: '200+', // fallback stat
+            image: (doc.profile_img && !doc.profile_img.includes('placeholder')) 
+              ? doc.profile_img 
+              : `https://ui-avatars.com/api/?name=${encodeURIComponent(doc.first_name)}+${encodeURIComponent(doc.last_name)}&background=0d9488&color=fff&size=400&font-size=0.33`
+          }));
+          setAllDoctors(docs);
+          
+          const uniqueSpecs = [...new Set(docs.map(d => d.specialty))].filter(Boolean);
+          setSpecializations(uniqueSpecs);
+        }
+      } catch (error) {
+        console.error("Failed to fetch doctors:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchDoctors();
+  }, []);
 
   const filteredDoctors = selectedSpecialty 
     ? allDoctors.filter(doc => doc.specialty === selectedSpecialty)
@@ -38,7 +71,7 @@ const DoctorsPage = () => {
       {/* Reusing Home Navigation Style */}
       <nav className="dp-navbar">
         <Link to="/" className="nav-logo">
-          <img src="/img/logo.jpeg" alt="MediPulse Logo" style={{ width: '32px', height: '32px', borderRadius: '8px', objectFit: 'contain' }} />
+          <img src="/img/logo.jpeg" alt="MediPulse Logo" />
           <span className="nav-logo-text">MediPulse</span>
         </Link>
         <div className="nav-links">
@@ -49,12 +82,18 @@ const DoctorsPage = () => {
           <Link to="/contact" className="nav-link">Contact</Link>
         </div>
         <div className="nav-actions">
-          <Link to="/login" className="btn-outline">
-            Admin login
-          </Link>
-          <button className="btn-primary-nav" onClick={() => setIsRoleModalOpen(true)}>
-            Get Started
-          </button>
+          {localStorage.getItem('userToken') ? (
+            <ProfileDropdown />
+          ) : (
+            <>
+              <button className="btn-outline" onClick={() => setIsSignupModalOpen(true)}>
+                Signup
+              </button>
+              <button className="btn-primary-nav" onClick={() => setIsRoleModalOpen(true)}>
+                Login
+              </button>
+            </>
+          )}
         </div>
       </nav>
 
@@ -86,7 +125,11 @@ const DoctorsPage = () => {
 
           {/* Right Content: Doctors Grid */}
           <main className="dp-doctors-grid">
-            {filteredDoctors.length > 0 ? (
+            {loading ? (
+              <div style={{ display: 'flex', justifyContent: 'center', padding: '3rem', gridColumn: '1 / -1' }}>
+                <Loader2 size={32} className="spin" style={{ animation: 'spin 1s linear infinite', color: 'var(--primary-color)' }} />
+              </div>
+            ) : filteredDoctors.length > 0 ? (
               filteredDoctors.map(doctor => (
                 <div key={doctor.id} className="dp-doctor-card">
                   <div className="dp-doctor-image-wrapper">
@@ -96,7 +139,7 @@ const DoctorsPage = () => {
                       className="dp-doctor-image" 
                       onError={(e) => {
                         e.target.onerror = null;
-                        e.target.src = 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?q=80&w=600&auto=format&fit=crop';
+                        e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(doctor.name)}&background=0d9488&color=fff&size=400&font-size=0.33`;
                       }}
                     />
                   </div>
@@ -111,7 +154,7 @@ const DoctorsPage = () => {
                       <div className="dp-stat"><Users size={14} className="dp-stat-icon" /> {doctor.patients}</div>
                     </div>
                     
-                    <button className="dp-book-btn">Book appointment</button>
+                    <button className="dp-book-btn" onClick={() => handleBookAppointment(doctor.id)}>Book appointment</button>
                   </div>
                 </div>
               ))
@@ -128,6 +171,17 @@ const DoctorsPage = () => {
       <RoleSelectionModal 
         isOpen={isRoleModalOpen} 
         onClose={() => setIsRoleModalOpen(false)} 
+      />
+
+      <BookAppointmentModal
+        isOpen={isBookModalOpen}
+        onClose={() => setIsBookModalOpen(false)}
+        preselectedDoctorId={bookDoctorId}
+      />
+
+      <SignupModal
+        isOpen={isSignupModalOpen}
+        onClose={() => setIsSignupModalOpen(false)}
       />
     </div>
   );

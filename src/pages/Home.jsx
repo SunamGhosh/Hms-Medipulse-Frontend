@@ -1,51 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Activity, HeartPulse, Shield, Users, ArrowRight, Stethoscope, Leaf, Search, Clock, Star } from 'lucide-react';
+import { Activity, HeartPulse, Shield, Users, ArrowRight, Stethoscope, Leaf, Search, Clock, Star, Loader2 } from 'lucide-react';
 import RoleSelectionModal from '../components/RoleSelectionModal';
+import SignupModal from '../components/SignupModal';
+import BookAppointmentModal from '../components/BookAppointmentModal';
+import ProfileDropdown from '../components/ProfileDropdown';
 import './Home.css';
 
-const doctors = [
-  {
-    id: 1,
-    name: 'Dr. John Carter',
-    specialty: 'General Physician',
-    credentials: 'MBBS, MD',
-    rating: '12y',
-    hours: '09:00-17:00',
-    patients: '300+',
-    image: '/img/doctor_portrait.png'
-  },
-  {
-    id: 2,
-    name: 'Dr. Emily Zhang',
-    specialty: 'Pediatrician',
-    credentials: 'MBBS, DCH',
-    rating: '8y',
-    hours: '09:00-17:00',
-    patients: '275+',
-    image: '/img/doctor_2.png'
-  },
-  {
-    id: 3,
-    name: 'Dr. Rajiv Mehta',
-    specialty: 'Cardiologist',
-    credentials: 'MBBS, MD, DM Cardiology',
-    rating: '15y',
-    hours: '09:00-17:00',
-    patients: '500+',
-    image: '/img/doctor_3.png'
-  },
-  {
-    id: 4,
-    name: 'Dr. Amina Okafor',
-    specialty: 'Neurologist',
-    credentials: 'MBBS, DM Neurology',
-    rating: '10y',
-    hours: '09:30-17:30',
-    patients: '450+',
-    image: 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?q=80&w=600&auto=format&fit=crop'
-  }
-];
+const API = import.meta.env.VITE_URL || 'http://localhost:4000/api';
 
 const medicines = [
   {
@@ -100,6 +62,50 @@ const medicines = [
 
 const Home = () => {
   const [isRoleModalOpen, setIsRoleModalOpen] = useState(false);
+  const [isSignupModalOpen, setIsSignupModalOpen] = useState(false);
+  const [isBookModalOpen, setIsBookModalOpen] = useState(false);
+  const [bookDoctorId, setBookDoctorId] = useState(null);
+  const [allDoctors, setAllDoctors] = useState([]);
+  const [doctorsLoading, setDoctorsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchDoctors = async () => {
+      try {
+        const res = await fetch(`${API}/doctor/active`);
+        const data = await res.json();
+        if (res.ok && data.doctors) {
+          const docs = data.doctors.map(doc => ({
+            id: doc._id,
+            name: `Dr. ${doc.first_name} ${doc.last_name}`,
+            specialty: doc.specialization,
+            credentials: doc.qualification,
+            rating: `${doc.experience_year}y`,
+            hours: `${doc.work_time_start}-${doc.work_time_end}`,
+            patients: '200+', // fallback stat
+            image: (doc.profile_img && !doc.profile_img.includes('placeholder')) 
+              ? doc.profile_img 
+              : `https://ui-avatars.com/api/?name=${encodeURIComponent(doc.first_name)}+${encodeURIComponent(doc.last_name)}&background=0d9488&color=fff&size=400&font-size=0.33`
+          }));
+          setAllDoctors(docs.slice(0, 5));
+        }
+      } catch (error) {
+        console.error("Failed to fetch doctors:", error);
+      } finally {
+        setDoctorsLoading(false);
+      }
+    };
+    fetchDoctors();
+  }, []);
+
+  const handleBookAppointment = (doctorId = null) => {
+    const token = localStorage.getItem('userToken');
+    if (!token) {
+      setIsRoleModalOpen(true);
+      return;
+    }
+    setBookDoctorId(doctorId);
+    setIsBookModalOpen(true);
+  };
 
   // Simple scroll effect for navbar
   useEffect(() => {
@@ -161,7 +167,7 @@ const Home = () => {
       {/* Original Navigation */}
       <nav className="home-navbar">
         <Link to="/" className="nav-logo">
-          <img src="/img/logo.jpeg" alt="MediPulse Logo" style={{ width: '32px', height: '32px', borderRadius: '8px', objectFit: 'contain' }} />
+          <img src="/img/logo.jpeg" alt="MediPulse Logo" />
           <span className="nav-logo-text">MediPulse</span>
         </Link>
         <div className="nav-links">
@@ -172,12 +178,18 @@ const Home = () => {
           <a href="#contact" className="nav-link">Contact</a>
         </div>
         <div className="nav-actions">
-          <Link to="/signup" className="btn-outline">
-            Signup
-          </Link>
-          <button className="btn-primary-nav" onClick={() => setIsRoleModalOpen(true)}>
-            Login
-          </button>
+          {localStorage.getItem('userToken') ? (
+            <ProfileDropdown />
+          ) : (
+            <>
+              <button className="btn-outline" onClick={() => setIsSignupModalOpen(true)}>
+                Signup
+              </button>
+              <button className="btn-primary-nav" onClick={() => setIsRoleModalOpen(true)}>
+                Login
+              </button>
+            </>
+          )}
         </div>
       </nav>
 
@@ -288,9 +300,21 @@ const Home = () => {
           </div>
 
           <div className="mg-doctors-grid">
-            {doctors.map(doctor => (
+            {doctorsLoading ? (
+              <div style={{ display: 'flex', justifyContent: 'center', padding: '3rem', gridColumn: '1 / -1' }}>
+                <Loader2 size={32} className="spin" style={{ animation: 'spin 1s linear infinite', color: 'var(--primary-color)' }} />
+              </div>
+            ) : allDoctors.map(doctor => (
               <div key={doctor.id} className="mg-card">
-                <img src={doctor.image} alt={doctor.name} className="mg-card-image" />
+                <img 
+                  src={doctor.image} 
+                  alt={doctor.name} 
+                  className="mg-card-image" 
+                  onError={(e) => {
+                    e.target.onerror = null;
+                    e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(doctor.name)}&background=0d9488&color=fff&size=400&font-size=0.33`;
+                  }}
+                />
                 <div className="mg-card-content">
                   <span className="mg-card-tag">{doctor.specialty}</span>
                   <h3 className="mg-card-title">{doctor.name}</h3>
@@ -300,7 +324,7 @@ const Home = () => {
                     <div className="mg-stat"><Clock size={14} /> {doctor.hours}</div>
                     <div className="mg-stat"><Users size={14} /> {doctor.patients}</div>
                   </div>
-                  <button className="mg-card-btn">Book appointment</button>
+                  <button className="mg-card-btn" onClick={() => handleBookAppointment(doctor.id)}>Book appointment</button>
                 </div>
               </div>
             ))}
@@ -355,6 +379,17 @@ const Home = () => {
       <RoleSelectionModal
         isOpen={isRoleModalOpen}
         onClose={() => setIsRoleModalOpen(false)}
+      />
+
+      <SignupModal
+        isOpen={isSignupModalOpen}
+        onClose={() => setIsSignupModalOpen(false)}
+      />
+
+      <BookAppointmentModal
+        isOpen={isBookModalOpen}
+        onClose={() => setIsBookModalOpen(false)}
+        preselectedDoctorId={bookDoctorId}
       />
     </div>
   );

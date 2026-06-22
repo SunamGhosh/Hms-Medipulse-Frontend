@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   User, Mail, Lock, Phone, CreditCard, Award,
   Briefcase, MapPin, DollarSign, Calendar, Clock,
   CheckCircle2, AlertCircle, ArrowRight, ArrowLeft,
-  Stethoscope
+  Stethoscope, Upload
 } from 'lucide-react';
 import './AddDoctor.css';
 
@@ -48,6 +48,9 @@ const AddDoctor = () => {
   });
 
   const [availableDays, setAvailableDays] = useState(['Monday', 'Wednesday', 'Friday']);
+  const [imageFile, setImageFile] = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
+  const fileInputRef = useRef(null);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
@@ -158,22 +161,27 @@ const AddDoctor = () => {
     try {
       const token = localStorage.getItem('token');
 
-      const payload = {
-        ...form,
-        available_days: availableDays,
-        experience_year: Number(form.experience_year),
-        consult_fee: Number(form.consult_fee),
-        work_time_start: formatTime(form.work_time_start),
-        work_time_end: formatTime(form.work_time_end)
-      };
+      const formData = new FormData();
+      Object.keys(form).forEach(key => {
+        if (key === 'profile_img') return; // handled separately
+        formData.append(key, form[key]);
+      });
+      formData.append('available_days', JSON.stringify(availableDays));
+      formData.append('experience_year', Number(form.experience_year));
+      formData.append('consult_fee', Number(form.consult_fee));
+      formData.append('work_time_start', formatTime(form.work_time_start));
+      formData.append('work_time_end', formatTime(form.work_time_end));
+      
+      if (imageFile) {
+        formData.append('profile_img', imageFile);
+      }
 
       const response = await fetch(`${import.meta.env.VITE_URL}/admin/add-doctor`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          'Authorization': `Bearer ${token}` // let fetch set Content-Type for multipart/form-data
         },
-        body: JSON.stringify(payload)
+        body: formData
       });
 
       const data = await response.json();
@@ -189,6 +197,8 @@ const AddDoctor = () => {
           status: 'active', is_verified: true
         });
         setAvailableDays(['Monday', 'Wednesday', 'Friday']);
+        setImageFile(null);
+        setImagePreview(null);
         setStep(1);
       } else {
         setErrorMsg(data.message || 'Failed to add doctor');
@@ -257,6 +267,50 @@ const AddDoctor = () => {
           {step === 1 && (
             <div className="form-step-content fade-in">
               <h3 className="section-title">Step 1: Personal & Account Details</h3>
+
+              <div className="form-group full-width" style={{ marginBottom: '1.5rem' }}>
+                <label className="field-label">Doctor Profile Photo</label>
+                <div className="ad-image-upload-area">
+                  <div className="ad-image-preview">
+                    {imagePreview ? (
+                      <img src={imagePreview} alt="Preview" className="ad-preview-img" />
+                    ) : (
+                      <div className="ad-preview-placeholder">
+                        <User size={36} color="#9ca3af" />
+                      </div>
+                    )}
+                  </div>
+                  <div className="ad-upload-right">
+                    <button
+                      type="button"
+                      className="ad-upload-btn"
+                      onClick={() => fileInputRef.current?.click()}
+                    >
+                      <Upload size={16} />
+                      {imageFile ? 'Change Photo' : 'Upload Photo'}
+                    </button>
+                    {imageFile && (
+                      <span className="ad-file-name">{imageFile.name}</span>
+                    )}
+                    {!imageFile && (
+                      <span className="ad-file-hint">PNG, JPG, WEBP · max 5MB</span>
+                    )}
+                  </div>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    ref={fileInputRef}
+                    style={{ display: 'none' }}
+                    onChange={(e) => {
+                      const file = e.target.files[0];
+                      if (file) {
+                        setImageFile(file);
+                        setImagePreview(URL.createObjectURL(file));
+                      }
+                    }}
+                  />
+                </div>
+              </div>
 
               <div className="form-grid">
                 <div className="form-group">

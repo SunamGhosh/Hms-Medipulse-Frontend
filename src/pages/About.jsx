@@ -1,9 +1,15 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Activity, ShieldCheck, Target, Users, Award, HeartPulse, Sparkles, Globe, Zap, ArrowRight } from 'lucide-react';
+import { ShieldCheck, Target, Users, Award, HeartPulse, Sparkles, Globe, Zap, ArrowRight } from 'lucide-react';
+import ProfileDropdown from '../components/ProfileDropdown';
+import RoleSelectionModal from '../components/RoleSelectionModal';
+import SignupModal from '../components/SignupModal';
 import './About.css';
 
 const About = () => {
+  const [isRoleModalOpen, setIsRoleModalOpen] = useState(false);
+  const [isSignupModalOpen, setIsSignupModalOpen] = useState(false);
+
   useEffect(() => {
     const handleScroll = () => {
       const navbar = document.querySelector('.about-nav');
@@ -47,7 +53,7 @@ const About = () => {
       {/* Sleek Minimal Navigation */}
       <nav className="about-nav">
         <Link to="/" className="nav-logo">
-          <img src="/img/logo.jpeg" alt="MediPulse Logo" style={{ width: '32px', height: '32px', borderRadius: '8px', objectFit: 'contain' }} />
+          <img src="/img/logo.jpeg" alt="MediPulse Logo" />
           <span className="nav-logo-text">MediPulse</span>
         </Link>
         <div className="nav-links">
@@ -58,9 +64,18 @@ const About = () => {
           <a href="#contact" className="nav-link">Contact</a>
         </div>
         <div className="nav-actions">
-          <Link to="/login" className="btn-premium">
-            Platform Login
-          </Link>
+          {localStorage.getItem('userToken') ? (
+            <ProfileDropdown />
+          ) : (
+            <>
+              <button className="btn-outline" onClick={() => setIsSignupModalOpen(true)}>
+                Signup
+              </button>
+              <button className="btn-primary-nav" onClick={() => setIsRoleModalOpen(true)}>
+                Login
+              </button>
+            </>
+          )}
         </div>
       </nav>
 
@@ -207,6 +222,15 @@ const About = () => {
           <p>© {new Date().getFullYear()} MediPulse Healthcare Systems. Designed for the future.</p>
         </div>
       </footer>
+
+      <RoleSelectionModal
+        isOpen={isRoleModalOpen}
+        onClose={() => setIsRoleModalOpen(false)}
+      />
+      <SignupModal
+        isOpen={isSignupModalOpen}
+        onClose={() => setIsSignupModalOpen(false)}
+      />
     </div>
   );
 };

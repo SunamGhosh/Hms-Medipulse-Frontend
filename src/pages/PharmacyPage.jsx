@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Activity, ShoppingCart } from 'lucide-react';
+import { ShoppingCart } from 'lucide-react';
 import RoleSelectionModal from '../components/RoleSelectionModal';
+import SignupModal from '../components/SignupModal';
+import ProfileDropdown from '../components/ProfileDropdown';
 import './PharmacyPage.css';
 
 // Mock data based on Home.jsx
@@ -25,6 +27,7 @@ const categories = [
 const PharmacyPage = () => {
   const [selectedCategory, setSelectedCategory] = useState('');
   const [isRoleModalOpen, setIsRoleModalOpen] = useState(false);
+  const [isSignupModalOpen, setIsSignupModalOpen] = useState(false);
 
   const filteredMedicines = selectedCategory 
     ? allMedicines.filter(med => med.type === selectedCategory)
@@ -35,7 +38,7 @@ const PharmacyPage = () => {
       {/* Navigation */}
       <nav className="pp-navbar">
         <Link to="/" className="nav-logo">
-          <img src="/img/logo.jpeg" alt="MediPulse Logo" style={{ width: '32px', height: '32px', borderRadius: '8px', objectFit: 'contain' }} />
+          <img src="/img/logo.jpeg" alt="MediPulse Logo" />
           <span className="nav-logo-text">MediPulse</span>
         </Link>
         <div className="nav-links">
@@ -46,12 +49,18 @@ const PharmacyPage = () => {
           <Link to="/contact" className="nav-link">Contact</Link>
         </div>
         <div className="nav-actions">
-          <Link to="/login" className="btn-outline">
-            Admin login
-          </Link>
-          <button className="btn-primary-nav" onClick={() => setIsRoleModalOpen(true)}>
-            Get Started
-          </button>
+          {localStorage.getItem('userToken') ? (
+            <ProfileDropdown />
+          ) : (
+            <>
+              <button className="btn-outline" onClick={() => setIsSignupModalOpen(true)}>
+                Signup
+              </button>
+              <button className="btn-primary-nav" onClick={() => setIsRoleModalOpen(true)}>
+                Login
+              </button>
+            </>
+          )}
         </div>
       </nav>
 
@@ -125,6 +134,11 @@ const PharmacyPage = () => {
       <RoleSelectionModal 
         isOpen={isRoleModalOpen} 
         onClose={() => setIsRoleModalOpen(false)} 
+      />
+
+      <SignupModal
+        isOpen={isSignupModalOpen}
+        onClose={() => setIsSignupModalOpen(false)}
       />
     </div>
   );

@@ -26,7 +26,13 @@ const RoleSelectionModal = ({ isOpen, onClose }) => {
         if (response.ok) {
           localStorage.setItem('userToken', data.token);
           localStorage.setItem('userEmail', email);
-          localStorage.setItem('userName', data.name || email.split('@')[0]);
+          
+          let userName = email.split('@')[0];
+          if (data.user && data.user.first_name) {
+            userName = data.user.last_name ? `${data.user.first_name} ${data.user.last_name}` : data.user.first_name;
+          }
+          localStorage.setItem('userName', userName);
+          
           navigate('/user/dashboard');
           onClose();
         } else {
