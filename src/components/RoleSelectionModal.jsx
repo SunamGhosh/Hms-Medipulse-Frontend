@@ -104,7 +104,7 @@ const RoleSelectionModal = ({ isOpen, onClose }) => {
         </div>
 
         <div className="quick-roles-row">
-          <button type="button" className="quick-role-card role-doctor" onClick={() => handleRoleSelect('doctor')}>
+          <button type="button" className="quick-role-card role-doctor" onClick={() => { navigate('/doctor/login'); onClose(); }}>
             <div className="quick-role-icon">
               <Stethoscope size={20} />
             </div>
@@ -116,7 +116,7 @@ const RoleSelectionModal = ({ isOpen, onClose }) => {
             </div>
             <span>Admin</span>
           </button>
-          <button type="button" className="quick-role-card role-pharmacy" onClick={() => handleRoleSelect('pharmacist')}>
+          <button type="button" className="quick-role-card role-pharmacy" onClick={() => { navigate('/pharmacist/login'); onClose(); }}>
             <div className="quick-role-icon">
               <Pill size={20} />
             </div>

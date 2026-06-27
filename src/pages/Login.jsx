@@ -4,6 +4,8 @@ import { Activity, Mail, Lock, ArrowRight, AlertCircle } from 'lucide-react';
 import SignupModal from '../components/SignupModal';
 import './Login.css';
 
+import Header from '../components/Header';
+
 const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -45,6 +47,7 @@ const Login = () => {
 
   return (
     <div className="login-container">
+      <Header />
       {/* Animated Background Elements */}
       <div className="bg-shape shape-1"></div>
       <div className="bg-shape shape-2"></div>

@@ -40,6 +40,47 @@ const BookAppointmentModal = ({ isOpen, onClose, preselectedDoctorId = null }) =
     appointment_date: '', appointment_time: '',
     consult_mode: 'online', disease: '', symptoms: ''
   });
+  const [bookedSlots, setBookedSlots] = useState([]);
+  const [availableSlots, setAvailableSlots] = useState([]);
+  const [slotsLoading, setSlotsLoading] = useState(false);
+
+  /* slot generation helper */
+  const generateTimeSlots = (start, end) => {
+    if (!start || !end) return [];
+    const slots = [];
+    // Handle am/pm or 24h format by padding/normalizing if needed. Assuming 24h HH:mm format from backend.
+    // If it's something like "09:00 AM", we can parse it, but let's assume it works with Date parsing.
+    let current = new Date(`2000-01-01T${start.padStart(5, '0')}`);
+    if (isNaN(current)) current = new Date(`2000-01-01T09:00`); // fallback
+    const endTime = new Date(`2000-01-01T${end.padStart(5, '0')}`);
+    const endT = isNaN(endTime) ? new Date(`2000-01-01T17:00`) : endTime;
+    
+    while (current < endT) {
+      slots.push(current.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }));
+      current.setMinutes(current.getMinutes() + 30);
+    }
+    return slots;
+  };
+
+  /* fetch booked slots */
+  useEffect(() => {
+    if (selectedDoctor && appt.appointment_date) {
+      setSlotsLoading(true);
+      setAppt(a => ({ ...a, appointment_time: '' })); // reset time on date change
+      fetch(`${API}/appointment/slots/${selectedDoctor._id}/${appt.appointment_date}`)
+        .then(res => res.json())
+        .then(data => {
+          setBookedSlots(data.bookedTimes || []);
+          const generated = generateTimeSlots(selectedDoctor.work_time_start || '09:00', selectedDoctor.work_time_end || '17:00');
+          setAvailableSlots(generated);
+        })
+        .catch(() => {})
+        .finally(() => setSlotsLoading(false));
+    } else {
+      setAvailableSlots([]);
+      setBookedSlots([]);
+    }
+  }, [selectedDoctor, appt.appointment_date]);
 
   /* reset on open */
   useEffect(() => {
@@ -444,25 +485,55 @@ const BookAppointmentModal = ({ isOpen, onClose, preselectedDoctorId = null }) =
 
               <p className="bam-section-title">Select date & time</p>
 
-              <div className="bam-form-row">
-                <div className="bam-field">
-                  <label>Appointment Date *</label>
-                  <div className="bam-field-wrap">
-                    <Calendar size={14} className="bam-field-icon" />
-                    <input type="date" value={appt.appointment_date}
-                      min={new Date().toISOString().split('T')[0]}
-                      onChange={e => setAppt(a => ({ ...a, appointment_date: e.target.value }))} />
-                  </div>
-                </div>
-                <div className="bam-field">
-                  <label>Appointment Time *</label>
-                  <div className="bam-field-wrap">
-                    <Clock size={14} className="bam-field-icon" />
-                    <input type="time" value={appt.appointment_time}
-                      onChange={e => setAppt(a => ({ ...a, appointment_time: e.target.value }))} />
-                  </div>
+              <div className="bam-field">
+                <label>Appointment Date *</label>
+                <div className="bam-field-wrap">
+                  <Calendar size={14} className="bam-field-icon" />
+                  <input type="date" value={appt.appointment_date}
+                    min={new Date().toISOString().split('T')[0]}
+                    onChange={e => setAppt(a => ({ ...a, appointment_date: e.target.value }))} />
                 </div>
               </div>
+
+              {appt.appointment_date && (
+                <div className="bam-field" style={{ marginTop: '1rem', width: '100%' }}>
+                  <label>Available Time Slots *</label>
+                  {slotsLoading ? (
+                    <div className="bam-loading" style={{ marginTop: '0.5rem' }}>
+                      <div className="bam-skeleton" style={{ height: '30px', width: '100%' }} />
+                    </div>
+                  ) : availableSlots.length === 0 ? (
+                    <div className="bam-empty" style={{ marginTop: '0.5rem', padding: '1rem', fontSize: '13px' }}>No slots available on this date.</div>
+                  ) : (
+                    <div style={{
+                      display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(80px, 1fr))', gap: '8px', marginTop: '0.75rem'
+                    }}>
+                      {availableSlots.map(time => {
+                        const isBooked = bookedSlots.includes(time);
+                        const isSelected = appt.appointment_time === time;
+                        return (
+                          <button
+                            key={time}
+                            type="button"
+                            disabled={isBooked}
+                            onClick={() => setAppt(a => ({ ...a, appointment_time: time }))}
+                            style={{
+                              padding: '8px 4px', borderRadius: '8px', border: '1px solid', fontSize: '13px', fontWeight: 600, 
+                              cursor: isBooked ? 'not-allowed' : 'pointer', transition: 'all 0.2s',
+                              background: isSelected ? '#0d9488' : isBooked ? '#f1f5f9' : '#fff',
+                              color: isSelected ? '#fff' : isBooked ? '#94a3b8' : '#334155',
+                              borderColor: isSelected ? '#0d9488' : isBooked ? '#e2e8f0' : '#cbd5e1',
+                              textDecoration: isBooked ? 'line-through' : 'none'
+                            }}
+                          >
+                            {time}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
 
               <p className="bam-section-title">Consultation mode</p>
               <div className="bam-mode-row">

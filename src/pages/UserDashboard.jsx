@@ -3,7 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import {
   Activity, CalendarCheck, Stethoscope, Pill, Bell, User, LogOut,
   ArrowRight, Clock, Heart, ShieldCheck, ArrowUpRight, Users,
-  X, CheckCircle2, AlertCircle, XCircle, Loader2, Plus,
+  X, CheckCircle2, AlertCircle, XCircle, Loader2, Plus, Video
 } from 'lucide-react';
 import './UserDashboard.css';
 import BookAppointmentModal from '../components/BookAppointmentModal';
@@ -438,13 +438,21 @@ const UserDashboard = () => {
                           {cfg.label}
                         </span>
 
-                        {/* Cancel button */}
-                        {canCancel && (
-                          <button onClick={() => handleCancel(appt._id)}
-                            style={{ background: '#fff5f5', border: '1px solid #fecaca', color: '#ef4444', borderRadius: '8px', padding: '6px 14px', fontWeight: 700, fontSize: '13px', cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '4px', transition: 'all 0.2s' }}>
-                            <XCircle size={13} /> Cancel
-                          </button>
-                        )}
+                        <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
+                          {appt.status === 'confirmed' && appt.consult_mode === 'online' && (
+                            <button onClick={() => navigate(`/video-call/MediPulse_${appt._id}`)}
+                              style={{ background: '#eff6ff', border: '1px solid #bfdbfe', color: '#2563eb', borderRadius: '8px', padding: '6px 14px', fontWeight: 700, fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                              <Video size={13} /> Join Video Call
+                            </button>
+                          )}
+                          {/* Cancel button */}
+                          {canCancel && (
+                            <button onClick={() => handleCancel(appt._id)}
+                              style={{ background: '#fff5f5', border: '1px solid #fecaca', color: '#ef4444', borderRadius: '8px', padding: '6px 14px', fontWeight: 700, fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', transition: 'all 0.2s' }}>
+                              <XCircle size={13} /> Cancel
+                            </button>
+                          )}
+                        </div>
                       </div>
                     );
                   })}

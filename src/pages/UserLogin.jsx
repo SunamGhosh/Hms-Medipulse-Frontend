@@ -14,6 +14,8 @@ import {
 import SignupModal from '../components/SignupModal';
 import './UserLogin.css';
 
+import Header from '../components/Header';
+
 const UserLogin = () => {
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
@@ -59,6 +61,7 @@ const UserLogin = () => {
 
   return (
     <div className="ul-container">
+      <Header />
       {/* Animated blobs */}
       <div className="ul-blob ul-blob-1" />
       <div className="ul-blob ul-blob-2" />

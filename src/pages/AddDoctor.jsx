@@ -167,10 +167,10 @@ const AddDoctor = () => {
         formData.append(key, form[key]);
       });
       formData.append('available_days', JSON.stringify(availableDays));
-      formData.append('experience_year', Number(form.experience_year));
-      formData.append('consult_fee', Number(form.consult_fee));
-      formData.append('work_time_start', formatTime(form.work_time_start));
-      formData.append('work_time_end', formatTime(form.work_time_end));
+      formData.set('experience_year', Number(form.experience_year));
+      formData.set('consult_fee', Number(form.consult_fee));
+      formData.set('work_time_start', formatTime(form.work_time_start));
+      formData.set('work_time_end', formatTime(form.work_time_end));
       
       if (imageFile) {
         formData.append('profile_img', imageFile);

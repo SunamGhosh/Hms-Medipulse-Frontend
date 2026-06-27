@@ -14,6 +14,11 @@ import About from './pages/About';
 import DoctorsPage from './pages/DoctorsPage';
 import PharmacyPage from './pages/PharmacyPage';
 import UserDashboard from './pages/UserDashboard';
+import DoctorLogin from './pages/DoctorLogin';
+import DoctorDashboard from './pages/DoctorDashboard';
+import PharmacistLogin from './pages/PharmacistLogin';
+import PharmacistDashboard from './pages/PharmacistDashboard';
+import VideoCall from './pages/VideoCall';
 
 function App() {
   return (
@@ -25,6 +30,11 @@ function App() {
       <Route path="/login" element={<UserLogin />} />
       <Route path="/admin/login" element={<Login />} />
       <Route path="/user/dashboard" element={<UserDashboard />} />
+      <Route path="/doctor/login" element={<DoctorLogin />} />
+      <Route path="/doctor/dashboard" element={<DoctorDashboard />} />
+      <Route path="/pharmacist/login" element={<PharmacistLogin />} />
+      <Route path="/pharmacist/dashboard" element={<PharmacistDashboard />} />
+      <Route path="/video-call/:roomId" element={<VideoCall />} />
       
       {/* Admin Protected Routes */}
       <Route path="/admin" element={<AdminLayout />}>
