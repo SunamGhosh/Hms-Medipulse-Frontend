@@ -1,5 +1,5 @@
 import React from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import Login from './pages/Login'; // Admin Login
 import UserLogin from './pages/UserLogin'; // Patient Login
 import AdminLayout from './components/AdminLayout';
@@ -20,40 +20,50 @@ import PharmacistLogin from './pages/PharmacistLogin';
 import PharmacistDashboard from './pages/PharmacistDashboard';
 import VideoCall from './pages/VideoCall';
 
-function App() {
-  return (
-    <Routes>
-      <Route path="/" element={<Home />} />
-      <Route path="/about" element={<About />} />
-      <Route path="/doctors" element={<DoctorsPage />} />
-      <Route path="/pharmacy" element={<PharmacyPage />} />
-      <Route path="/login" element={<UserLogin />} />
-      <Route path="/admin/login" element={<Login />} />
-      <Route path="/user/dashboard" element={<UserDashboard />} />
-      <Route path="/doctor/login" element={<DoctorLogin />} />
-      <Route path="/doctor/dashboard" element={<DoctorDashboard />} />
-      <Route path="/pharmacist/login" element={<PharmacistLogin />} />
-      <Route path="/pharmacist/dashboard" element={<PharmacistDashboard />} />
-      <Route path="/video-call/:roomId" element={<VideoCall />} />
-      
-      {/* Admin Protected Routes */}
-      <Route path="/admin" element={<AdminLayout />}>
-        <Route index element={<Navigate to="dashboard" replace />} />
-        <Route path="dashboard" element={<Dashboard />} />
-        <Route path="add-doctor" element={<AddDoctor />} />
-        <Route path="add-pharmacist" element={<AddPharmacist />} />
-        {/* Placeholders for other pages */}
-        <Route path="patients" element={<div style={{padding: '24px'}}><h2>Patients List (Placeholder)</h2></div>} />
-        <Route path="doctors" element={<DoctorsList />} />
-        <Route path="pharmacists" element={<PharmacistsList />} />
-        <Route path="appointments" element={<AppointmentsList />} />
-        <Route path="settings" element={<div style={{padding: '24px'}}><h2>Settings (Placeholder)</h2></div>} />
-      </Route>
+import Chatbot from './components/Chatbot';
 
-      {/* Catch all */}
-      <Route path="*" element={<Navigate to="/login" replace />} />
-    </Routes>
+function App() {
+  const location = useLocation();
+  const hideChatbotPaths = ['/admin', '/doctor', '/pharmacist', '/video-call'];
+  const shouldShowChatbot = !hideChatbotPaths.some(path => location.pathname.startsWith(path));
+
+  return (
+    <>
+      <Routes>
+        <Route path="/" element={<Home />} />
+        <Route path="/about" element={<About />} />
+        <Route path="/doctors" element={<DoctorsPage />} />
+        <Route path="/pharmacy" element={<PharmacyPage />} />
+        <Route path="/login" element={<UserLogin />} />
+        <Route path="/admin/login" element={<Login />} />
+        <Route path="/user/dashboard" element={<UserDashboard />} />
+        <Route path="/doctor/login" element={<DoctorLogin />} />
+        <Route path="/doctor/dashboard" element={<DoctorDashboard />} />
+        <Route path="/pharmacist/login" element={<PharmacistLogin />} />
+        <Route path="/pharmacist/dashboard" element={<PharmacistDashboard />} />
+        <Route path="/video-call/:roomId" element={<VideoCall />} />
+        
+        {/* Admin Protected Routes */}
+        <Route path="/admin" element={<AdminLayout />}>
+          <Route index element={<Navigate to="dashboard" replace />} />
+          <Route path="dashboard" element={<Dashboard />} />
+          <Route path="add-doctor" element={<AddDoctor />} />
+          <Route path="add-pharmacist" element={<AddPharmacist />} />
+          {/* Placeholders for other pages */}
+          <Route path="patients" element={<div style={{padding: '24px'}}><h2>Patients List (Placeholder)</h2></div>} />
+          <Route path="doctors" element={<DoctorsList />} />
+          <Route path="pharmacists" element={<PharmacistsList />} />
+          <Route path="appointments" element={<AppointmentsList />} />
+          <Route path="settings" element={<div style={{padding: '24px'}}><h2>Settings (Placeholder)</h2></div>} />
+        </Route>
+
+        {/* Catch all */}
+        <Route path="*" element={<Navigate to="/login" replace />} />
+      </Routes>
+      {shouldShowChatbot && <Chatbot />}
+    </>
   );
 }
 
 export default App;
+

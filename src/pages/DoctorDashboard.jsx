@@ -20,6 +20,7 @@ const STATUS_CONFIG = {
 const VIEWS = {
   DASHBOARD: 'dashboard',
   APPOINTMENTS: 'appointments',
+  PATIENTS: 'patients',
   PROFILE: 'profile',
 };
 
@@ -31,6 +32,8 @@ const DoctorDashboard = () => {
   
   const [appointments, setAppointments] = useState([]);
   const [apptLoading, setApptLoading] = useState(false);
+  const [patients, setPatients] = useState([]);
+  const [patientLoading, setPatientLoading] = useState(false);
   const [doctorProfile, setDoctorProfile] = useState(null);
 
   // Profile Edit states
@@ -109,12 +112,31 @@ const DoctorDashboard = () => {
     } catch { /* silent */ }
   }, []);
 
+  const fetchPatients = useCallback(async () => {
+    const token = getToken();
+    if (!token) return;
+    setPatientLoading(true);
+    try {
+      const res = await fetch(`${API}/patient/doctor/all`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setPatients(data.patients || []);
+      }
+    } catch { /* silent */ }
+    finally {
+      setPatientLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     fetchAppointments();
     fetchProfile();
+    fetchPatients();
     const intervalId = setInterval(() => fetchAppointments(true), 15000);
     return () => clearInterval(intervalId);
-  }, [fetchAppointments, fetchProfile]);
+  }, [fetchAppointments, fetchProfile, fetchPatients]);
 
   const handleLogout = () => {
     localStorage.removeItem('doctorToken');
@@ -236,6 +258,11 @@ const DoctorDashboard = () => {
             {pendingAppts > 0 && (
               <span className="dd-badge-count">{pendingAppts}</span>
             )}
+          </button>
+
+          <button className={`dd-nav-item${view === VIEWS.PATIENTS ? ' active' : ''}`}
+            onClick={() => setView(VIEWS.PATIENTS)}>
+            <Users size={18} /> My Patients
           </button>
 
           <div className="dd-nav-divider" />
@@ -426,6 +453,46 @@ const DoctorDashboard = () => {
                       </div>
                     );
                   })}
+                </div>
+              )}
+            </div>
+          </section>
+        )}
+
+        {view === VIEWS.PATIENTS && (
+          <section className="dd-section">
+            <div className="dd-section-header">
+              <h2 className="dd-section-title">My Patients</h2>
+            </div>
+            <div className="dd-section-body">
+              {patientLoading ? (
+                <div style={{ textAlign: 'center', color: '#94a3b8', padding: '3rem' }}>
+                  <Loader2 size={32} style={{ animation: 'spin 1s linear infinite', marginBottom: '1rem' }} />
+                  <p>Loading patients…</p>
+                </div>
+              ) : patients.length === 0 ? (
+                <div style={{ textAlign: 'center', color: '#94a3b8', padding: '3rem' }}>
+                  <Users size={60} style={{ marginBottom: '1rem', opacity: 0.3 }} />
+                  <h3 style={{ color: '#374151', marginBottom: '0.5rem' }}>No patients found</h3>
+                  <p>Patients will appear here once they are assigned to you.</p>
+                </div>
+              ) : (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1rem' }}>
+                  {patients.map(p => (
+                    <div key={p._id} style={{ display: 'flex', alignItems: 'center', gap: '1rem', background: '#fff', border: '1.5px solid #e2e8f0', borderRadius: '12px', padding: '1.25rem' }}>
+                      <div style={{ width: 48, height: 48, borderRadius: '50%', background: 'linear-gradient(135deg,#0ea5e9,#0284c7)', color: '#fff', fontSize: '20px', fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        {p.first_name?.[0]}
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 700, fontSize: '15px', color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {p.first_name} {p.last_name}
+                        </div>
+                        <div style={{ fontSize: '13px', color: '#64748b', marginTop: '2px' }}>
+                          {p.gender} • {p.age || 'N/A'} yrs • {p.blood_group || 'N/A'}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
