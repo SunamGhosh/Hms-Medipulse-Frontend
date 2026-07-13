@@ -1,0 +1,238 @@
+.medical-records-container {
+  padding: 24px;
+}
+
+.medical-records-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.medical-records-header h2 {
+  font-size: 24px;
+  color: #1e293b;
+  margin: 0 0 4px 0;
+}
+
+.medical-records-header p {
+  color: #64748b;
+  margin: 0;
+}
+
+.records-table-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.records-search-box {
+  position: relative;
+  width: 320px;
+}
+
+.records-search-box input {
+  width: 100%;
+  padding: 10px 12px 10px 40px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  outline: none;
+  font-size: 14px;
+  transition: border-color 0.2s;
+}
+
+.records-search-box input:focus {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.records-search-icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #94a3b8;
+}
+
+.filter-select {
+  padding: 10px 14px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font-size: 14px;
+  color: #475569;
+  outline: none;
+  background: white;
+  cursor: pointer;
+}
+
+.filter-select:focus {
+  border-color: #3b82f6;
+}
+
+.records-table-wrapper {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  overflow: auto;
+}
+
+.records-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 900px;
+}
+
+.records-table th,
+.records-table td {
+  padding: 14px 16px;
+  text-align: left;
+  border-bottom: 1px solid #e2e8f0;
+  font-size: 14px;
+}
+
+.records-table th {
+  background-color: #f8fafc;
+  color: #475569;
+  font-weight: 600;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+
+.records-table tbody tr:hover {
+  background-color: #f8fafc;
+}
+
+.record-id-cell {
+  font-size: 12px;
+  color: #94a3b8;
+  font-family: monospace;
+}
+
+.record-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.record-status-badge.Active {
+  background-color: #ecfdf5;
+  color: #059669;
+}
+
+.record-status-badge.Archived {
+  background-color: #fef3c7;
+  color: #d97706;
+}
+
+.diagnosis-cell {
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #1e293b;
+  font-weight: 500;
+}
+
+.record-action-buttons {
+  display: flex;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.btn-archive {
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  border: none;
+  transition: all 0.2s;
+  background-color: #fef3c7;
+  color: #d97706;
+}
+
+.btn-archive:hover {
+  background-color: #fde68a;
+}
+
+.btn-restore {
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  border: none;
+  transition: all 0.2s;
+  background-color: #d1fae5;
+  color: #059669;
+}
+
+.btn-restore:hover {
+  background-color: #a7f3d0;
+}
+
+.records-loading-state,
+.records-error-state {
+  padding: 48px;
+  text-align: center;
+  color: #64748b;
+}
+
+.records-error-state {
+  color: #ef4444;
+}
+
+.records-spinner {
+  border: 3px solid #f3f3f3;
+  border-radius: 50%;
+  border-top: 3px solid #3b82f6;
+  width: 24px;
+  height: 24px;
+  animation: spin 1s linear infinite;
+  margin: 0 auto 16px auto;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.stats-row {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.stat-card {
+  background: white;
+  border-radius: 10px;
+  padding: 16px 24px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  flex: 1;
+  text-align: center;
+}
+
+.stat-card .stat-num {
+  font-size: 28px;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.stat-card .stat-label {
+  font-size: 12px;
+  color: #64748b;
+  margin-top: 4px;
+}
+
+.stat-card.total .stat-num { color: #3b82f6; }
+.stat-card.active-stat .stat-num { color: #059669; }
+.stat-card.archived-stat .stat-num { color: #d97706; }

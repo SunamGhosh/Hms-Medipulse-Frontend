@@ -24,6 +24,7 @@ const STATUS_CONFIG = {
 const VIEWS = {
   DASHBOARD: 'dashboard',
   APPOINTMENTS: 'appointments',
+  RECORDS: 'records',
   PROFILE: 'profile',
 };
 
@@ -37,8 +38,10 @@ const UserDashboard = () => {
   /* ── API data ── */
   const [appointments, setAppointments] = useState([]);
   const [patients, setPatients] = useState([]);
+  const [medicalRecords, setMedicalRecords] = useState([]);
   const [apptLoading, setApptLoading] = useState(false);
   const [patientLoading, setPatientLoading] = useState(false);
+  const [recordsLoading, setRecordsLoading] = useState(false);
   const [userProfile, setUserProfile] = useState(null);
 
   /* ── auth ── */
@@ -96,11 +99,27 @@ const UserDashboard = () => {
     } catch { /* silent */ }
   }, []);
 
+  /* ── fetch records ── */
+  const fetchRecords = useCallback(async () => {
+    const token = getToken();
+    if (!token) return;
+    setRecordsLoading(true);
+    try {
+      const res = await fetch(`${API}/med-rec/patient-records`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok) setMedicalRecords(data.data || []);
+    } catch { /* silent */ }
+    finally { setRecordsLoading(false); }
+  }, []);
+
   useEffect(() => {
     fetchAppointments();
     fetchPatients();
     fetchProfile();
-  }, [fetchAppointments, fetchPatients, fetchProfile]);
+    fetchRecords();
+  }, [fetchAppointments, fetchPatients, fetchProfile, fetchRecords]);
 
   /* refresh after booking */
   const handleBookClose = () => {
@@ -146,7 +165,7 @@ const UserDashboard = () => {
     { icon: <CalendarCheck size={20} />, label: 'Book Appointment', desc: 'Schedule with a doctor', action: () => setIsBookModalOpen(true), color: 'teal' },
     { icon: <Stethoscope size={20} />,   label: 'Find Doctors',     desc: 'Browse specialists',    to: '/doctors',                          color: 'blue' },
     { icon: <Pill size={20} />,          label: 'Order Medicine',   desc: 'From our pharmacy',     to: '/pharmacy',                         color: 'purple' },
-    { icon: <ShieldCheck size={20} />,   label: 'Health Records',   desc: 'View your history',     to: '#',                                 color: 'green' },
+    { icon: <ShieldCheck size={20} />,   label: 'Health Records',   desc: 'View your history',     action: () => setView(VIEWS.RECORDS),    color: 'green' },
   ];
 
   /* ── helpers ── */
@@ -189,6 +208,11 @@ const UserDashboard = () => {
                 {pendingAppts}
               </span>
             )}
+          </button>
+
+          <button className={`ud-nav-item${view === VIEWS.RECORDS ? ' active' : ''}`}
+            onClick={() => setView(VIEWS.RECORDS)} style={{ background: 'none', border: 'none', font: 'inherit', cursor: 'pointer', width: '100%', textAlign: 'left' }}>
+            <ShieldCheck size={18} /> Health Records
           </button>
 
           {/* ── Book Appointment — sidebar CTA ── */}
@@ -456,6 +480,107 @@ const UserDashboard = () => {
                       </div>
                     );
                   })}
+                </div>
+              )}
+            </div>
+          </section>
+        )}
+
+        {/* ════════════ RECORDS VIEW ════════════ */}
+        {view === VIEWS.RECORDS && (
+          <section className="ud-section">
+            <div className="ud-section-header">
+              <h2 className="ud-section-title">My Health Records</h2>
+            </div>
+            <div className="ud-section-body">
+              {recordsLoading ? (
+                <div style={{ textAlign: 'center', color: '#94a3b8', padding: '3rem' }}>
+                  <Loader2 size={32} style={{ animation: 'spin 1s linear infinite', marginBottom: '1rem' }} />
+                  <p>Loading your medical history…</p>
+                </div>
+              ) : medicalRecords.length === 0 ? (
+                <div style={{ textAlign: 'center', color: '#94a3b8', padding: '3rem' }}>
+                  <ShieldCheck size={60} style={{ marginBottom: '1rem', opacity: 0.3 }} />
+                  <h3 style={{ color: '#374151', marginBottom: '0.5rem' }}>No medical records found</h3>
+                  <p>Your consultation notes and prescriptions will appear here after a doctor visit.</p>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                  {medicalRecords.map((record) => (
+                    <div key={record._id} style={{
+                      background: '#fff',
+                      border: '1.5px solid #e2e8f0',
+                      borderRadius: '16px',
+                      padding: '1.5rem',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '1rem'
+                    }}>
+                      {/* Header */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem', borderBottom: '1px solid #f1f5f9', paddingBottom: '1rem' }}>
+                        <div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
+                            <span style={{ padding: '4px 10px', background: '#eff6ff', color: '#2563eb', borderRadius: '8px', fontSize: '12px', fontWeight: 700 }}>
+                              {formatDate(record.visit_date)}
+                            </span>
+                            {record.follow_up_date && (
+                              <span style={{ fontSize: '12px', color: '#f59e0b', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                <CalendarCheck size={12} /> Follow up: {formatDate(record.follow_up_date)}
+                              </span>
+                            )}
+                          </div>
+                          <h3 style={{ margin: 0, fontSize: '1.15rem', color: '#0f172a', fontWeight: 800 }}>
+                            {record.diagnosis}
+                          </h3>
+                        </div>
+                        <div style={{ textAlign: 'right' }}>
+                          <div style={{ fontWeight: 700, color: '#334155' }}>
+                            Dr. {record.doctor_id?.first_name} {record.doctor_id?.last_name}
+                          </div>
+                          <div style={{ fontSize: '12px', color: '#64748b' }}>
+                            {record.doctor_id?.specialization}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Body */}
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.5rem' }}>
+                        <div>
+                          <h4 style={{ margin: '0 0 6px 0', fontSize: '12px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Symptoms</h4>
+                          <p style={{ margin: 0, fontSize: '14px', color: '#334155', lineHeight: '1.5' }}>{record.symptoms}</p>
+                        </div>
+                        {record.doctor_notes && (
+                          <div>
+                            <h4 style={{ margin: '0 0 6px 0', fontSize: '12px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Doctor's Notes</h4>
+                            <p style={{ margin: 0, fontSize: '14px', color: '#334155', lineHeight: '1.5' }}>{record.doctor_notes}</p>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Prescriptions */}
+                      {record.medicines_prescribed && record.medicines_prescribed.length > 0 && (
+                        <div style={{ background: '#f8fafc', padding: '1.25rem', borderRadius: '12px', marginTop: '0.5rem' }}>
+                          <h4 style={{ margin: '0 0 12px 0', fontSize: '13px', color: '#0f172a', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <Pill size={15} color="#0d9488" /> Prescribed Medicines
+                          </h4>
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '10px' }}>
+                            {record.medicines_prescribed.map((med, idx) => (
+                              <div key={idx} style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '10px 14px' }}>
+                                <div style={{ fontWeight: 700, color: '#0f172a', fontSize: '14px', marginBottom: '2px' }}>
+                                  {med.medicine_id?.medicine_name} {med.medicine_id?.strength ? `(${med.medicine_id?.strength})` : ''}
+                                </div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: '#64748b' }}>
+                                  <span>{med.dosage}</span>
+                                  <span>{med.duration}</span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                    </div>
+                  ))}
                 </div>
               )}
             </div>

@@ -19,6 +19,8 @@ import DoctorDashboard from './pages/DoctorDashboard';
 import PharmacistLogin from './pages/PharmacistLogin';
 import PharmacistDashboard from './pages/PharmacistDashboard';
 import VideoCall from './pages/VideoCall';
+import MedicinesList from './pages/MedicinesList';
+import MedicalRecordsList from './pages/MedicalRecordsList';
 
 import Chatbot from './components/Chatbot';
 
@@ -54,6 +56,8 @@ function App() {
           <Route path="doctors" element={<DoctorsList />} />
           <Route path="pharmacists" element={<PharmacistsList />} />
           <Route path="appointments" element={<AppointmentsList />} />
+          <Route path="medicines" element={<MedicinesList />} />
+          <Route path="medical-records" element={<MedicalRecordsList />} />
           <Route path="settings" element={<div style={{padding: '24px'}}><h2>Settings (Placeholder)</h2></div>} />
         </Route>
 
