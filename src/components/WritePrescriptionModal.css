@@ -1,0 +1,278 @@
+.wpm-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  padding: 1rem;
+}
+
+.wpm-modal {
+  background: #fff;
+  border-radius: 16px;
+  width: 100%;
+  max-width: 800px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  animation: modalIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes modalIn {
+  from { opacity: 0; transform: translateY(20px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.wpm-header {
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.wpm-header-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.wpm-header-title h2 {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.wpm-close-btn {
+  background: #f1f5f9;
+  border: none;
+  color: #64748b;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.wpm-close-btn:hover {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+.wpm-body {
+  padding: 1.5rem;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.wpm-error {
+  background: #fef2f2;
+  color: #ef4444;
+  padding: 12px 16px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 1.25rem;
+  border: 1px solid #fecaca;
+}
+
+.wpm-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.25rem;
+}
+
+.wpm-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.wpm-form-group label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #475569;
+}
+
+.wpm-form-group input,
+.wpm-form-group textarea,
+.wpm-form-group select {
+  padding: 10px 14px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font-size: 14px;
+  color: #0f172a;
+  outline: none;
+  transition: border-color 0.2s;
+  font-family: inherit;
+}
+
+.wpm-form-group input:focus,
+.wpm-form-group textarea:focus,
+.wpm-form-group select:focus {
+  border-color: #0d9488;
+  box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.1);
+}
+
+.wpm-medicines-section {
+  margin-top: 2rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.wpm-medicines-header {
+  background: #f8fafc;
+  padding: 12px 16px;
+  border-bottom: 1px solid #e2e8f0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.wpm-medicines-header h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: #0f172a;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.wpm-add-med-btn {
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  color: #0f172a;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.2s;
+}
+
+.wpm-add-med-btn:hover {
+  border-color: #94a3b8;
+  background: #f1f5f9;
+}
+
+.wpm-no-meds {
+  padding: 2rem;
+  text-align: center;
+  color: #64748b;
+  font-size: 14px;
+  background: #fff;
+}
+
+.wpm-meds-list {
+  background: #fff;
+}
+
+.wpm-med-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border-bottom: 1px solid #f1f5f9;
+}
+.wpm-med-row:last-child {
+  border-bottom: none;
+}
+
+.wpm-med-col input,
+.wpm-med-col select {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 13px;
+  outline: none;
+}
+.wpm-med-col input:focus,
+.wpm-med-col select:focus {
+  border-color: #0d9488;
+}
+
+.wpm-med-select { flex: 2; }
+.wpm-med-dosage { flex: 1; }
+.wpm-med-freq { flex: 1; }
+.wpm-med-dur { flex: 1; }
+.wpm-med-qty { width: 70px; flex-shrink: 0; }
+.wpm-med-inst { flex: 2; }
+
+.wpm-remove-med-btn {
+  background: #fef2f2;
+  color: #ef4444;
+  border: 1px solid #fecaca;
+  width: 32px; height: 32px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.2s;
+}
+.wpm-remove-med-btn:hover {
+  background: #fee2e2;
+}
+
+.wpm-footer {
+  padding: 1.25rem 1.5rem;
+  border-top: 1px solid #e2e8f0;
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  background: #f8fafc;
+  border-radius: 0 0 16px 16px;
+}
+
+.wpm-cancel-btn {
+  padding: 10px 20px;
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  color: #475569;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.wpm-submit-btn {
+  padding: 10px 20px;
+  background: #0d9488;
+  border: none;
+  color: #fff;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.wpm-submit-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.wpm-spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}

@@ -5,6 +5,8 @@ import {
   AlertCircle, XCircle, Loader2, Users, Stethoscope, Check, Bell, Video, Edit2, Lock, Save, X
 } from 'lucide-react';
 import './DoctorDashboard.css';
+import WritePrescriptionModal from '../components/WritePrescriptionModal';
+import PatientRecordsModal from '../components/PatientRecordsModal';
 
 const API = import.meta.env.VITE_URL;
 const getToken = () => localStorage.getItem('doctorToken');
@@ -29,6 +31,12 @@ const DoctorDashboard = () => {
   const [doctorName, setDoctorName] = useState('');
   const [greeting, setGreeting] = useState('');
   const [view, setView] = useState(VIEWS.DASHBOARD);
+  
+  const [isPrescriptionModalOpen, setIsPrescriptionModalOpen] = useState(false);
+  const [selectedApptForPrescription, setSelectedApptForPrescription] = useState(null);
+
+  const [isPatientRecordsModalOpen, setIsPatientRecordsModalOpen] = useState(false);
+  const [selectedPatientForRecords, setSelectedPatientForRecords] = useState(null);
   
   const [appointments, setAppointments] = useState([]);
   const [apptLoading, setApptLoading] = useState(false);
@@ -450,6 +458,24 @@ const DoctorDashboard = () => {
                             </button>
                           </div>
                         )}
+                        {appt.status === 'completed' && !appt.prescription_added && (
+                          <div style={{display: 'flex', gap: '8px', flexShrink: 0}}>
+                            <button onClick={() => {
+                              setSelectedApptForPrescription(appt);
+                              setIsPrescriptionModalOpen(true);
+                            }}
+                              style={{ background: '#eff6ff', border: '1px solid #bfdbfe', color: '#2563eb', borderRadius: '8px', padding: '6px 14px', fontWeight: 700, fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                              <Edit2 size={13} /> Write Prescription
+                            </button>
+                          </div>
+                        )}
+                        {appt.status === 'completed' && appt.prescription_added && (
+                          <div style={{display: 'flex', gap: '8px', flexShrink: 0}}>
+                            <span style={{ fontSize: '13px', color: '#16a34a', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                              <CheckCircle2 size={14} /> Record Added
+                            </span>
+                          </div>
+                        )}
                       </div>
                     );
                   })}
@@ -491,6 +517,12 @@ const DoctorDashboard = () => {
                           {p.gender} • {p.age || 'N/A'} yrs • {p.blood_group || 'N/A'}
                         </div>
                       </div>
+                      <button onClick={() => {
+                        setSelectedPatientForRecords(p);
+                        setIsPatientRecordsModalOpen(true);
+                      }} style={{ background: '#eff6ff', border: '1px solid #bfdbfe', color: '#2563eb', borderRadius: '8px', padding: '6px 12px', fontSize: '12px', fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                        View Records
+                      </button>
                     </div>
                   ))}
                 </div>
@@ -633,6 +665,35 @@ const DoctorDashboard = () => {
             </form>
           </div>
         </div>
+      )}
+
+      {selectedApptForPrescription && (
+        <WritePrescriptionModal
+          isOpen={isPrescriptionModalOpen}
+          onClose={() => {
+            setIsPrescriptionModalOpen(false);
+            setSelectedApptForPrescription(null);
+          }}
+          appointment={selectedApptForPrescription}
+          onSuccess={() => {
+            setIsPrescriptionModalOpen(false);
+            setSelectedApptForPrescription(null);
+            fetchAppointments(); // Refresh to update prescription_added status
+            setNotification('Consultation record saved successfully!');
+            setTimeout(() => setNotification(''), 4000);
+          }}
+        />
+      )}
+
+      {selectedPatientForRecords && (
+        <PatientRecordsModal
+          isOpen={isPatientRecordsModalOpen}
+          onClose={() => {
+            setIsPatientRecordsModalOpen(false);
+            setSelectedPatientForRecords(null);
+          }}
+          patient={selectedPatientForRecords}
+        />
       )}
 
       <style>{`

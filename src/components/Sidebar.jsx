@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Users, UserRound, Settings, LogOut, Activity, User, CalendarDays } from 'lucide-react';
+import { LayoutDashboard, Users, UserRound, Settings, LogOut, Activity, User, CalendarDays, Pill, FileText } from 'lucide-react';
 import './Sidebar.css';
 
 const Sidebar = () => {
@@ -27,6 +27,8 @@ const Sidebar = () => {
     { name: 'Pharmacists', icon: Users, path: '/admin/pharmacists' },
     { name: 'Add Doctor', icon: User, path: '/admin/add-doctor' },
     { name: 'Add Pharmacist', icon: User, path: '/admin/add-pharmacist' },
+    { name: 'Medicines', icon: Pill, path: '/admin/medicines' },
+    { name: 'Medical Records', icon: FileText, path: '/admin/medical-records' },
     { name: 'Settings', icon: Settings, path: '/admin/settings' },
   ];
 
