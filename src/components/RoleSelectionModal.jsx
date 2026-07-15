@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { X, Stethoscope, Users, Pill, Activity, Mail, Lock, ArrowRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import toast from 'react-hot-toast';
 import './RoleSelectionModal.css';
 
 const RoleSelectionModal = ({ isOpen, onClose }) => {
@@ -36,10 +37,10 @@ const RoleSelectionModal = ({ isOpen, onClose }) => {
           navigate('/user/dashboard');
           onClose();
         } else {
-          alert(data.message || 'Login failed. Please check your credentials.');
+          toast.error(data.message || 'Login failed. Please check your credentials.');
         }
       } catch (error) {
-        alert('Connection error. Is the backend server running?');
+        toast.error('Connection error. Is the backend server running?');
       } finally {
         setIsLoading(false);
       }

@@ -3,9 +3,12 @@ import { useNavigate, Link } from 'react-router-dom';
 import {
   Activity, CalendarCheck, Stethoscope, Pill, Bell, User, LogOut,
   ArrowRight, Clock, Heart, ShieldCheck, ArrowUpRight, Users,
-  X, CheckCircle2, AlertCircle, XCircle, Loader2, Plus, Video
+  X, CheckCircle2, AlertCircle, XCircle, Loader2, Plus, Video, Package, Truck, Trash2
 } from 'lucide-react';
+import toast from 'react-hot-toast';
 import './UserDashboard.css';
+import './MyOrders.css';
+import './PharmacyPage.css';
 import BookAppointmentModal from '../components/BookAppointmentModal';
 
 const API = import.meta.env.VITE_URL;
@@ -20,11 +23,21 @@ const STATUS_CONFIG = {
   rejected:  { color: 'orange', label: 'Rejected',  dot: '#f97316' },
 };
 
+/* ── order status colour map ── */
+const ORDER_STATUS_CONFIG = {
+  paid:        { label: 'Order Placed',  icon: CheckCircle2, color: '#16a34a', bg: '#f0fdf4', border: '#bbf7d0' },
+  processing:  { label: 'Processing',    icon: Clock,        color: '#d97706', bg: '#fffbeb', border: '#fde68a' },
+  delivered:   { label: 'Delivered',     icon: Truck,        color: '#2563eb', bg: '#eff6ff', border: '#bfdbfe' },
+  cancelled:   { label: 'Cancelled',     icon: XCircle,      color: '#dc2626', bg: '#fef2f2', border: '#fecaca' },
+  pending:     { label: 'Pending',       icon: Clock,        color: '#64748b', bg: '#f8fafc', border: '#e2e8f0' },
+};
+
 /* ── views ── */
 const VIEWS = {
   DASHBOARD: 'dashboard',
   APPOINTMENTS: 'appointments',
   PROFILE: 'profile',
+  ORDERS: 'orders',
 };
 
 const UserDashboard = () => {
@@ -37,8 +50,10 @@ const UserDashboard = () => {
   /* ── API data ── */
   const [appointments, setAppointments] = useState([]);
   const [patients, setPatients] = useState([]);
+  const [orders, setOrders] = useState([]);
   const [apptLoading, setApptLoading] = useState(false);
   const [patientLoading, setPatientLoading] = useState(false);
+  const [ordersLoading, setOrdersLoading] = useState(false);
   const [userProfile, setUserProfile] = useState(null);
 
   /* ── auth ── */
@@ -96,11 +111,47 @@ const UserDashboard = () => {
     } catch { /* silent */ }
   }, []);
 
+  const fetchOrders = useCallback(async () => {
+    const token = getToken();
+    if (!token) return;
+    setOrdersLoading(true);
+    try {
+      const res = await fetch(`${API}/api/payment/my-orders`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok) setOrders(data.orders || []);
+    } catch { /* silent */ }
+    finally { setOrdersLoading(false); }
+  }, []);
+
+  /* ── remove order ── */
+  const handleRemoveOrder = async (orderId) => {
+    const token = getToken();
+    if (!token) return;
+    try {
+      const res = await fetch(`${API}/api/payment/my-orders/${orderId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        toast.success('Order removed successfully');
+        setOrders(prev => prev.filter(o => o._id !== orderId));
+      } else {
+        toast.error(data.message || 'Failed to remove order');
+      }
+    } catch (error) {
+      toast.error('Error removing order');
+    }
+  };
+
   useEffect(() => {
     fetchAppointments();
     fetchPatients();
     fetchProfile();
-  }, [fetchAppointments, fetchPatients, fetchProfile]);
+    fetchOrders();
+  }, [fetchAppointments, fetchPatients, fetchProfile, fetchOrders]);
 
   /* refresh after booking */
   const handleBookClose = () => {
@@ -118,14 +169,23 @@ const UserDashboard = () => {
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ cancel_reason: 'Cancelled by user' })
       });
-      if (res.ok) fetchAppointments();
-    } catch { /* silent */ }
+      if (res.ok) {
+        toast.success('Appointment cancelled successfully');
+        fetchAppointments();
+      } else {
+        const data = await res.json();
+        toast.error(data.message || 'Failed to cancel appointment');
+      }
+    } catch { 
+      toast.error('An error occurred while cancelling');
+    }
   };
 
   const handleLogout = () => {
     localStorage.removeItem('userToken');
     localStorage.removeItem('userEmail');
     localStorage.removeItem('userName');
+    toast.success('Logged out successfully');
     navigate('/login');
   };
 
@@ -189,6 +249,11 @@ const UserDashboard = () => {
                 {pendingAppts}
               </span>
             )}
+          </button>
+
+          <button className={`ud-nav-item${view === VIEWS.ORDERS ? ' active' : ''}`}
+            onClick={() => setView(VIEWS.ORDERS)} style={{ background: 'none', border: 'none', font: 'inherit', cursor: 'pointer', width: '100%', textAlign: 'left' }}>
+            <Package size={18} /> My Orders
           </button>
 
           {/* ── Book Appointment — sidebar CTA ── */}
@@ -331,14 +396,52 @@ const UserDashboard = () => {
               </section>
 
               <section className="ud-section">
-                <div className="ud-section-header"><h2 className="ud-section-title">Today&apos;s Health Tip</h2></div>
+                <div className="ud-section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <h2 className="ud-section-title">Recent Orders</h2>
+                  <button onClick={() => setView(VIEWS.ORDERS)}
+                    style={{ background: 'none', border: 'none', color: '#0d9488', fontWeight: 700, fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    View all <ArrowRight size={13} />
+                  </button>
+                </div>
                 <div className="ud-section-body">
-                  <div className="ud-tip-body">
-                    <div className="ud-tip-icon">💧</div>
-                    <h3>Stay Hydrated</h3>
-                    <p>Drinking at least 8 glasses of water a day helps your body maintain energy levels, flush out toxins, and keep your skin healthy.</p>
-                    <div className="ud-tip-tag"><Heart size={12} color="#f43f5e" /> Wellness Reminder</div>
-                  </div>
+                  {ordersLoading ? (
+                    <div style={{ textAlign: 'center', color: '#94a3b8', padding: '2rem' }}>
+                      <Loader2 size={24} style={{ animation: 'spin 1s linear infinite' }} />
+                    </div>
+                  ) : orders.length === 0 ? (
+                    <div style={{ textAlign: 'center', color: '#94a3b8', padding: '2rem' }}>
+                      <Package size={40} style={{ marginBottom: '1rem', opacity: 0.4 }} />
+                      <p>No recent orders. <Link to="/pharmacy" style={{ color: '#0d9488', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 700, textDecoration: 'none' }}>Order medicine →</Link></p>
+                    </div>
+                  ) : (
+                    <ul className="ud-activity-list">
+                      {orders.slice(0, 4).map((order, i) => {
+                        const isDelivered = order.status === 'delivered';
+                        const dotColor = isDelivered ? '#10b981' : order.status === 'paid' ? '#0d9488' : order.status === 'cancelled' ? '#ef4444' : '#f97316';
+                        return (
+                          <li key={i} className="ud-activity-item">
+                            <div className="ud-activity-dot" style={{ background: dotColor, boxShadow: `0 0 0 3px ${dotColor}33` }} />
+                            <div className="ud-activity-content">
+                              <p className="ud-activity-title">
+                                Order #{order._id.slice(-6).toUpperCase()}
+                                <span style={{ color: '#94a3b8', fontWeight: 400 }}> — ₹{order.grand_total}</span>
+                              </p>
+                              <div className="ud-activity-meta">
+                                <Clock size={11} />
+                                <span>{formatDate(order.placed_at || order.createdAt)}</span>
+                                <span className="ud-activity-badge" style={{
+                                  background: isDelivered ? '#f0fdf4' : order.status === 'paid' ? '#ecfdf5' : '#fff7ed',
+                                  color: isDelivered ? '#16a34a' : order.status === 'paid' ? '#10b981' : '#f97316'
+                                }}>
+                                  {order.status}
+                                </span>
+                              </div>
+                            </div>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
                 </div>
               </section>
             </div>
@@ -452,6 +555,79 @@ const UserDashboard = () => {
                               <XCircle size={13} /> Cancel
                             </button>
                           )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </section>
+        )}
+
+        {/* ════════════ ORDERS VIEW ════════════ */}
+        {view === VIEWS.ORDERS && (
+          <section className="ud-section">
+            <div className="ud-section-header">
+              <h2 className="ud-section-title">My Orders</h2>
+            </div>
+            <div className="ud-section-body">
+              {ordersLoading ? (
+                <div style={{ textAlign: 'center', color: '#94a3b8', padding: '3rem' }}>
+                  <Loader2 size={32} style={{ animation: 'spin 1s linear infinite', marginBottom: '1rem' }} />
+                  <p>Loading orders…</p>
+                </div>
+              ) : orders.length === 0 ? (
+                <div style={{ textAlign: 'center', color: '#94a3b8', padding: '3rem' }}>
+                  <Package size={60} style={{ marginBottom: '1rem', opacity: 0.3 }} />
+                  <h3 style={{ color: '#374151', marginBottom: '0.5rem' }}>No orders yet</h3>
+                  <p style={{ marginBottom: '1.5rem' }}>Order medicines from our pharmacy</p>
+                  <Link to="/pharmacy"
+                    style={{ background: '#0d9488', color: '#fff', border: 'none', borderRadius: '10px', padding: '12px 24px', fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '8px', textDecoration: 'none' }}>
+                    <Pill size={16} /> Order Medicine
+                  </Link>
+                </div>
+              ) : (
+                <div className="pp-medicines-grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))' }}>
+                  {orders.map((order) => {
+                    const status = ORDER_STATUS_CONFIG[order.status] || ORDER_STATUS_CONFIG.pending;
+                    const firstItem = order.items && order.items[0];
+                    return (
+                      <div className="pp-medicine-card" key={order._id} style={{ display: 'flex', flexDirection: 'column' }}>
+                        <div className="pp-medicine-image-wrapper" style={{ height: '160px', padding: '16px' }}>
+                          <img 
+                            src={firstItem?.medicine_image || '/img/medicine_bottle.png'} 
+                            alt={firstItem?.medicine_name || 'Order'} 
+                            className="pp-medicine-image" 
+                            style={{ maxHeight: '100px' }}
+                            onError={(e) => {
+                              e.target.onerror = null;
+                              e.target.src = '/img/medicine_bottle.png';
+                            }}
+                          />
+                        </div>
+                        <div className="pp-medicine-info" style={{ padding: '16px', flex: 1, display: 'flex', flexDirection: 'column' }}>
+                          <span className="pp-category-tag" style={{ background: status.bg, color: status.color, marginBottom: '8px', padding: '4px 10px', fontSize: '11px' }}>
+                            {status.label}
+                          </span>
+                          <h3 className="pp-medicine-name" style={{ fontSize: '15px' }}>Order #{order._id?.slice(-8).toUpperCase()}</h3>
+                          <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '12px' }}>
+                            {formatDate(order.placed_at || order.createdAt)}
+                          </div>
+                          
+                          <div className="pp-medicine-pricing" style={{ marginTop: 'auto', marginBottom: '16px' }}>
+                            <span className="pp-price" style={{ fontSize: '18px' }}>₹{order.grand_total?.toFixed(2)}</span>
+                            <span className="pp-stock" style={{ fontSize: '12px' }}>{order.total_quantity} item{order.total_quantity !== 1 ? 's' : ''}</span>
+                          </div>
+                          
+                          <div style={{ display: 'flex', gap: '8px' }}>
+                            <button className="pp-buy-btn" style={{ background: '#0d9488', flex: 1, padding: '10px' }}>
+                              VIEW ORDER
+                            </button>
+                            <button onClick={() => handleRemoveOrder(order._id)} style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', borderRadius: '8px', padding: '0 12px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                              <Trash2 size={16} />
+                            </button>
+                          </div>
                         </div>
                       </div>
                     );

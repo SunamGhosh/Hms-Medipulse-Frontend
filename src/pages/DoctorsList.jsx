@@ -4,6 +4,7 @@ import {
   Eye, Edit2, Phone, Mail, MapPin, Clock, Calendar,
   Award, Stethoscope, DollarSign, ShieldCheck
 } from 'lucide-react';
+import toast from 'react-hot-toast';
 import './DoctorsList.css';
 
 const API = import.meta.env.VITE_URL || 'http://localhost:4000/api';
@@ -217,7 +218,7 @@ const DoctorsList = () => {
         setDoctors(doctors.map(doc => doc._id === id ? { ...doc, status: newStatus } : doc));
       }
     } catch (err) {
-      alert(err.message);
+      toast.error(err.message);
     }
   };
 

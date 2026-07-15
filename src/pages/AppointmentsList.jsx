@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import toast from 'react-hot-toast';
 import './AppointmentsList.css';
 
 const AppointmentsList = () => {
@@ -42,9 +43,9 @@ const AppointmentsList = () => {
       if (response.ok) {
         setAppointments(prev => prev.map(app => app._id === id ? { ...app, status: 'cancelled' } : app));
       } else {
-        alert(data.message || 'Failed to cancel');
+        toast.error(data.message || 'Failed to cancel');
       }
-    } catch (err) { alert(err.message); }
+    } catch (err) { toast.error(err.message); }
   };
 
   const doctorName = (a) => a.doctor_id?.first_name ? `Dr. ${a.doctor_id.first_name} ${a.doctor_id.last_name}` : '—';

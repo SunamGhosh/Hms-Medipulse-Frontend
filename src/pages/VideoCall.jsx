@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { io } from 'socket.io-client';
+import toast from 'react-hot-toast';
 import {
   Mic, MicOff, Video, VideoOff, PhoneOff,
   MonitorUp, MessageSquare, Stethoscope, Clock
@@ -202,7 +203,7 @@ const VideoCall = () => {
 
         socket.on('room-full', () => {
           setConnectionStatus('error');
-          alert('This call room is already full (2 participants max).');
+          toast.error('This call room is already full (2 participants max).');
         });
 
       } catch (err) {

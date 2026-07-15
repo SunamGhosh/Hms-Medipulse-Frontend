@@ -1,11 +1,13 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import { User, LogOut, Settings, Gift } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { User, LogOut, Settings, Gift, Package } from 'lucide-react';
+import toast from 'react-hot-toast';
 import './ProfileDropdown.css';
 
 const ProfileDropdown = () => {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef(null);
+  const navigate = useNavigate();
 
   const userName = localStorage.getItem('userName') || 'User';
   // Get initials (e.g., Sunam Ghosh -> SG)
@@ -20,7 +22,9 @@ const ProfileDropdown = () => {
   const handleLogout = () => {
     localStorage.removeItem('userToken');
     localStorage.removeItem('userName');
-    window.location.reload();
+    setIsOpen(false);
+    toast.success('Logged out successfully');
+    navigate('/');
   };
 
   // Close dropdown when clicking outside
@@ -58,6 +62,9 @@ const ProfileDropdown = () => {
           
           <Link to="/user/dashboard" className="profile-dropdown-item" onClick={() => setIsOpen(false)}>
             <User size={18} /> My profile
+          </Link>
+          <Link to="/my-orders" className="profile-dropdown-item" onClick={() => setIsOpen(false)}>
+            <Package size={18} /> My Orders
           </Link>
           <div className="profile-dropdown-item" onClick={() => setIsOpen(false)}>
             <Settings size={18} /> Theme

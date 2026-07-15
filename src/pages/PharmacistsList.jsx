@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import toast from 'react-hot-toast';
 import './PharmacistsList.css';
 
 const PharmacistsList = () => {
@@ -47,10 +48,10 @@ const PharmacistsList = () => {
       if (response.ok) {
         setPharmacists(pharmacists.map(ph => ph._id === id ? { ...ph, status: newStatus } : ph));
       } else {
-        alert(data.message || 'Failed to update status');
+        toast.error(data.message || 'Failed to update status');
       }
     } catch (err) {
-      alert(err.message);
+      toast.error(err.message);
     }
   };
 

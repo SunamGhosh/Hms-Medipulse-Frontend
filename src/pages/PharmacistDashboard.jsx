@@ -4,6 +4,7 @@ import {
   Activity, CalendarCheck, User, LogOut, ArrowRight, Clock, ShieldCheck, ArrowUpRight, CheckCircle2,
   AlertCircle, Loader2, Users, Check, Bell, Pill
 } from 'lucide-react';
+import toast from 'react-hot-toast';
 import './PharmacistDashboard.css';
 
 const API = import.meta.env.VITE_URL;
@@ -85,6 +86,7 @@ const PharmacistDashboard = () => {
     localStorage.removeItem('pharmacistToken');
     localStorage.removeItem('pharmacistEmail');
     localStorage.removeItem('pharmacistName');
+    toast.success('Logged out successfully');
     navigate('/pharmacist/login');
   };
 

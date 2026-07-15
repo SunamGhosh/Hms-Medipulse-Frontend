@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Users, UserRound, Settings, LogOut, Activity, User, CalendarDays } from 'lucide-react';
+import { NavLink, useNavigate } from 'react-router-dom';
+import toast from 'react-hot-toast';
+import { LayoutDashboard, Users, UserRound, Settings, LogOut, Activity, User, CalendarDays, Pill } from 'lucide-react';
 import './Sidebar.css';
 
 const Sidebar = () => {
   const [adminName, setAdminName] = useState('Admin User');
   const [adminRole, setAdminRole] = useState('Administrator');
+  const navigate = useNavigate();
 
   useEffect(() => {
     const storedName = localStorage.getItem('adminName');
@@ -27,6 +29,7 @@ const Sidebar = () => {
     { name: 'Pharmacists', icon: Users, path: '/admin/pharmacists' },
     { name: 'Add Doctor', icon: User, path: '/admin/add-doctor' },
     { name: 'Add Pharmacist', icon: User, path: '/admin/add-pharmacist' },
+    { name: 'Medicines', icon: Pill, path: '/admin/medicines' },
     { name: 'Settings', icon: Settings, path: '/admin/settings' },
   ];
 
@@ -34,6 +37,8 @@ const Sidebar = () => {
     localStorage.removeItem('adminName');
     localStorage.removeItem('adminEmail');
     localStorage.removeItem('token');
+    toast.success('Logged out successfully');
+    navigate('/admin/login');
   };
 
   return (

@@ -4,6 +4,7 @@ import {
   Activity, CalendarCheck, User, LogOut, ArrowRight, Clock, ShieldCheck, ArrowUpRight, CheckCircle2,
   AlertCircle, XCircle, Loader2, Users, Stethoscope, Check, Bell, Video, Edit2, Lock, Save, X
 } from 'lucide-react';
+import toast from 'react-hot-toast';
 import './DoctorDashboard.css';
 
 const API = import.meta.env.VITE_URL;
@@ -142,6 +143,7 @@ const DoctorDashboard = () => {
     localStorage.removeItem('doctorToken');
     localStorage.removeItem('doctorEmail');
     localStorage.removeItem('doctorName');
+    toast.success('Logged out successfully');
     navigate('/doctor/login');
   };
 
@@ -175,10 +177,10 @@ const DoctorDashboard = () => {
         setNotification('Profile updated successfully!');
         setTimeout(() => setNotification(''), 4000);
       } else {
-        alert('Failed to update profile');
+        toast.error('Failed to update profile');
       }
     } catch (error) {
-      alert('Error updating profile');
+      toast.error('Error updating profile');
     } finally {
       setProfileSaving(false);
     }
