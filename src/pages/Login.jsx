@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Activity, Mail, Lock, ArrowRight, AlertCircle } from 'lucide-react';
+import { Activity, Mail, Lock, ArrowRight, AlertCircle, Eye, EyeOff } from 'lucide-react';
 import SignupModal from '../components/SignupModal';
 import './Login.css';
 
@@ -11,6 +11,7 @@ const Login = () => {
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [isSignupModalOpen, setIsSignupModalOpen] = useState(false);
   const navigate = useNavigate();
 
@@ -84,7 +85,7 @@ const Login = () => {
           
           <div className="form-group">
             <input 
-              type="password" 
+              type={showPassword ? 'text' : 'password'} 
               id="password" 
               value={password} 
               onChange={(e) => setPassword(e.target.value)} 
@@ -92,6 +93,15 @@ const Login = () => {
               required 
             />
             <Lock className="input-icon" size={20} />
+            <button
+              type="button"
+              className="password-eye-btn"
+              onClick={() => setShowPassword(!showPassword)}
+              tabIndex={-1}
+              aria-label={showPassword ? 'Hide password' : 'Show password'}
+            >
+              {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+            </button>
           </div>
 
           <a href="#" className="forgot-password">Forgot password?</a>

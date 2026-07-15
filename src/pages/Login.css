@@ -136,6 +136,28 @@
   transition: color 0.3s;
 }
 
+.password-eye-btn {
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #94a3b8;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: color 0.2s;
+}
+
+.password-eye-btn:hover {
+  color: var(--primary-color);
+}
+
+
 .form-group input {
   width: 100%;
   padding: 16px 16px 16px 48px;
