@@ -1,81 +1,176 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
 .medical-records-container {
-  padding: 24px;
+  padding: 32px;
+  background: linear-gradient(135deg, #f4f7f6 0%, #e2e8f0 100%);
+  min-height: 100vh;
+  font-family: 'Inter', sans-serif;
+  animation: fadeIn 0.6s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 .medical-records-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 24px;
+  margin-bottom: 32px;
 }
 
 .medical-records-header h2 {
-  font-size: 24px;
-  color: #1e293b;
+  font-size: 26px;
+  font-weight: 800;
+  color: #0f172a;
   margin: 0 0 4px 0;
+  letter-spacing: -0.5px;
 }
 
 .medical-records-header p {
   color: #64748b;
   margin: 0;
+  font-size: 14px;
+  font-weight: 500;
 }
 
+/* ── Stats ── */
+.stats-row {
+  display: flex;
+  gap: 20px;
+  margin-bottom: 28px;
+  flex-wrap: wrap;
+}
+
+.stat-card {
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(12px);
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.03), inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  border: 1px solid rgba(226, 232, 240, 0.6);
+  flex: 1;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.stat-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+
+.stat-card::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; width: 100%; height: 4px;
+}
+.stat-card.total::after    { background: linear-gradient(90deg, #6366f1, #8b5cf6); }
+.stat-card.active-stat::after   { background: linear-gradient(90deg, #10b981, #34d399); }
+.stat-card.archived-stat::after { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
+
+.stat-card .stat-num {
+  font-size: 36px;
+  font-weight: 800;
+  color: #0f172a;
+  line-height: 1;
+  margin-bottom: 8px;
+}
+
+.stat-card .stat-label {
+  font-size: 13px;
+  color: #64748b;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.stat-card.total .stat-num { color: #6366f1; }
+.stat-card.active-stat .stat-num { color: #10b981; }
+.stat-card.archived-stat .stat-num { color: #f59e0b; }
+
+/* Controls */
 .records-table-controls {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 16px;
+  margin-bottom: 24px;
   gap: 16px;
   flex-wrap: wrap;
 }
 
 .records-search-box {
   position: relative;
-  width: 320px;
+  flex-grow: 1;
+  max-width: 400px;
 }
 
 .records-search-box input {
   width: 100%;
-  padding: 10px 12px 10px 40px;
-  border: 1px solid #cbd5e1;
-  border-radius: 8px;
+  padding: 12px 20px 12px 42px;
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(10px);
   outline: none;
   font-size: 14px;
-  transition: border-color 0.2s;
+  color: #1e293b;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.02);
+}
+
+.records-search-box input::placeholder {
+  color: #94a3b8;
 }
 
 .records-search-box input:focus {
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  border-color: #0d9488;
+  background: #ffffff;
+  box-shadow: 0 0 0 4px rgba(13, 148, 136, 0.15), 0 4px 12px rgba(0,0,0,0.05);
 }
 
 .records-search-icon {
   position: absolute;
-  left: 12px;
+  left: 14px;
   top: 50%;
   transform: translateY(-50%);
   color: #94a3b8;
+  transition: color 0.3s ease;
+}
+
+.records-search-box input:focus + .records-search-icon {
+  color: #0d9488;
 }
 
 .filter-select {
-  padding: 10px 14px;
-  border: 1px solid #cbd5e1;
-  border-radius: 8px;
+  padding: 12px 18px;
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  border-radius: 12px;
   font-size: 14px;
+  font-weight: 600;
   color: #475569;
   outline: none;
-  background: white;
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(10px);
   cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.02);
 }
 
-.filter-select:focus {
-  border-color: #3b82f6;
+.filter-select:focus, .filter-select:hover {
+  border-color: #0d9488;
+  background: #ffffff;
+  box-shadow: 0 4px 12px rgba(13, 148, 136, 0.1);
 }
 
 .records-table-wrapper {
-  background: white;
-  border-radius: 12px;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(12px);
+  border-radius: 16px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03), inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  border: 1px solid rgba(226, 232, 240, 0.7);
   overflow: auto;
 }
 
@@ -87,118 +182,133 @@
 
 .records-table th,
 .records-table td {
-  padding: 14px 16px;
+  padding: 18px 20px;
   text-align: left;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid rgba(226, 232, 240, 0.6);
   font-size: 14px;
 }
 
 .records-table th {
-  background-color: #f8fafc;
-  color: #475569;
-  font-weight: 600;
-  font-size: 12px;
+  background-color: rgba(248, 250, 252, 0.6);
+  color: #64748b;
+  font-weight: 700;
+  font-size: 11px;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.1em;
   white-space: nowrap;
 }
 
+.records-table tbody tr {
+  transition: all 0.2s ease;
+}
+
 .records-table tbody tr:hover {
-  background-color: #f8fafc;
+  background-color: rgba(241, 245, 249, 0.6);
 }
 
 .record-id-cell {
-  font-size: 12px;
-  color: #94a3b8;
-  font-family: monospace;
+  font-size: 13px;
+  color: #64748b;
+  font-family: 'Inter', monospace;
+  font-weight: 600;
 }
 
 .record-status-badge {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding: 4px 10px;
-  border-radius: 20px;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 24px;
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 700;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.04);
 }
 
 .record-status-badge.Active {
-  background-color: #ecfdf5;
-  color: #059669;
+  background: linear-gradient(135deg, #10b981, #059669); 
+  color: white; 
 }
 
 .record-status-badge.Archived {
-  background-color: #fef3c7;
-  color: #d97706;
+  background: linear-gradient(135deg, #f59e0b, #d97706); 
+  color: white;
 }
 
 .diagnosis-cell {
-  max-width: 180px;
+  max-width: 220px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   color: #1e293b;
-  font-weight: 500;
+  font-weight: 600;
 }
 
 .record-action-buttons {
   display: flex;
-  gap: 8px;
+  gap: 10px;
   white-space: nowrap;
 }
 
 .btn-archive {
-  padding: 6px 12px;
-  border-radius: 6px;
+  padding: 8px 14px;
+  border-radius: 8px;
   font-size: 12px;
-  font-weight: 500;
+  font-weight: 600;
   cursor: pointer;
-  border: none;
+  border: 1px solid rgba(245, 158, 11, 0.3);
   transition: all 0.2s;
-  background-color: #fef3c7;
+  background-color: rgba(254, 243, 199, 0.8);
   color: #d97706;
 }
 
 .btn-archive:hover {
   background-color: #fde68a;
+  box-shadow: 0 4px 10px rgba(217, 119, 6, 0.1);
+  transform: translateY(-1px);
 }
 
 .btn-restore {
-  padding: 6px 12px;
-  border-radius: 6px;
+  padding: 8px 14px;
+  border-radius: 8px;
   font-size: 12px;
-  font-weight: 500;
+  font-weight: 600;
   cursor: pointer;
-  border: none;
+  border: 1px solid rgba(16, 185, 129, 0.3);
   transition: all 0.2s;
-  background-color: #d1fae5;
+  background-color: rgba(209, 250, 229, 0.8);
   color: #059669;
 }
 
 .btn-restore:hover {
   background-color: #a7f3d0;
+  box-shadow: 0 4px 10px rgba(5, 150, 105, 0.1);
+  transform: translateY(-1px);
 }
 
 .records-loading-state,
 .records-error-state {
-  padding: 48px;
+  padding: 80px 20px;
   text-align: center;
   color: #64748b;
+  font-size: 15px;
+  font-weight: 500;
 }
 
 .records-error-state {
-  color: #ef4444;
+  color: #b91c1c;
+  background: rgba(254, 226, 226, 0.5);
+  border-radius: 12px;
+  margin: 20px;
 }
 
 .records-spinner {
-  border: 3px solid #f3f3f3;
+  border: 3px solid rgba(13, 148, 136, 0.2);
   border-radius: 50%;
-  border-top: 3px solid #3b82f6;
-  width: 24px;
-  height: 24px;
-  animation: spin 1s linear infinite;
-  margin: 0 auto 16px auto;
+  border-top: 3px solid #0d9488;
+  width: 36px;
+  height: 36px;
+  animation: spin 1s cubic-bezier(0.5, 0.1, 0.4, 0.9) infinite;
+  margin: 0 auto 20px auto;
 }
 
 @keyframes spin {
@@ -206,33 +316,11 @@
   100% { transform: rotate(360deg); }
 }
 
-.stats-row {
-  display: flex;
-  gap: 16px;
-  margin-bottom: 24px;
+@media (max-width: 768px) {
+  .medical-records-container {
+    padding: 20px;
+  }
+  .records-search-box {
+    max-width: 100%;
+  }
 }
-
-.stat-card {
-  background: white;
-  border-radius: 10px;
-  padding: 16px 24px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
-  flex: 1;
-  text-align: center;
-}
-
-.stat-card .stat-num {
-  font-size: 28px;
-  font-weight: 700;
-  color: #1e293b;
-}
-
-.stat-card .stat-label {
-  font-size: 12px;
-  color: #64748b;
-  margin-top: 4px;
-}
-
-.stat-card.total .stat-num { color: #3b82f6; }
-.stat-card.active-stat .stat-num { color: #059669; }
-.stat-card.archived-stat .stat-num { color: #d97706; }

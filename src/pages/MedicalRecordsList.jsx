@@ -89,11 +89,18 @@ const MedicalRecordsList = () => {
   };
 
   const filteredRecords = records.filter(r => {
+    const patientStr = typeof r.patient_id === 'object' && r.patient_id !== null 
+      ? `${r.patient_id.first_name || ''} ${r.patient_id.last_name || ''}` 
+      : String(r.patient_id || '');
+    const doctorStr = typeof r.doctor_id === 'object' && r.doctor_id !== null
+      ? `${r.doctor_id.first_name || ''} ${r.doctor_id.last_name || ''}`
+      : String(r.doctor_id || '');
+
     const matchesSearch =
-      r._id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      r.patient_id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      r.doctor_id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      r.diagnosis?.toLowerCase().includes(searchTerm.toLowerCase());
+      (r._id && String(r._id).toLowerCase().includes(searchTerm.toLowerCase())) ||
+      patientStr.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      doctorStr.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (r.diagnosis && String(r.diagnosis).toLowerCase().includes(searchTerm.toLowerCase()));
     const matchesStatus = statusFilter === 'All' || r.record_status === statusFilter;
     return matchesSearch && matchesStatus;
   });
@@ -192,9 +199,21 @@ const MedicalRecordsList = () => {
                       <FileText size={12} style={{ display: 'inline', marginRight: '5px', color: '#3b82f6' }} />
                       {record._id}
                     </td>
-                    <td className="record-id-cell">{record.patient_id}</td>
-                    <td className="record-id-cell">{record.doctor_id}</td>
-                    <td className="record-id-cell">{record.appointment_id}</td>
+                    <td className="record-id-cell">
+                      {typeof record.patient_id === 'object' && record.patient_id !== null
+                        ? `${record.patient_id.first_name || ''} ${record.patient_id.last_name || ''}`
+                        : record.patient_id}
+                    </td>
+                    <td className="record-id-cell">
+                      {typeof record.doctor_id === 'object' && record.doctor_id !== null
+                        ? `${record.doctor_id.first_name || ''} ${record.doctor_id.last_name || ''}`
+                        : record.doctor_id}
+                    </td>
+                    <td className="record-id-cell">
+                      {typeof record.appointment_id === 'object' && record.appointment_id !== null
+                        ? record.appointment_id._id || 'N/A'
+                        : record.appointment_id}
+                    </td>
                     <td>
                       <div className="diagnosis-cell" title={record.diagnosis}>
                         {record.diagnosis}

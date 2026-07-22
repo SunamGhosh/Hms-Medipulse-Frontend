@@ -20,6 +20,11 @@ import DoctorDashboard from './pages/DoctorDashboard';
 import PharmacistLogin from './pages/PharmacistLogin';
 import PharmacistDashboard from './pages/PharmacistDashboard';
 import VideoCall from './pages/VideoCall';
+import Cart from './pages/Cart';
+import MyOrders from './pages/MyOrders';
+import MedicalRecordsList from './pages/MedicalRecordsList';
+import PatientsList from './pages/PatientsList';
+import AdminSettings from './pages/AdminSettings';
 
 import Chatbot from './components/Chatbot';
 import { Toaster } from 'react-hot-toast';
@@ -56,13 +61,13 @@ function App() {
           <Route path="add-pharmacist" element={<AddPharmacist />} />
           <Route path="medicines" element={<MedicinesList />} />
           {/* Placeholders for other pages */}
-          <Route path="patients" element={<div style={{ padding: '24px' }}><h2>Patients List (Placeholder)</h2></div>} />
+          <Route path="patients" element={<PatientsList />} />
           <Route path="doctors" element={<DoctorsList />} />
           <Route path="pharmacists" element={<PharmacistsList />} />
           <Route path="appointments" element={<AppointmentsList />} />
           <Route path="medicines" element={<MedicinesList />} />
           <Route path="medical-records" element={<MedicalRecordsList />} />
-          <Route path="settings" element={<div style={{ padding: '24px' }}><h2>Settings (Placeholder)</h2></div>} />
+          <Route path="settings" element={<AdminSettings />} />
         </Route>
 
         {/* Catch all */}

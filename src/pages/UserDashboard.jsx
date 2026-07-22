@@ -16,20 +16,20 @@ const getToken = () => localStorage.getItem('userToken');
 
 /* ── status colour map ── */
 const STATUS_CONFIG = {
-  pending:   { color: 'blue',   label: 'Pending',   dot: '#3b82f6' },
-  confirmed: { color: 'teal',   label: 'Confirmed', dot: '#0d9488' },
-  completed: { color: 'green',  label: 'Completed', dot: '#10b981' },
-  cancelled: { color: 'rose',   label: 'Cancelled', dot: '#f43f5e' },
-  rejected:  { color: 'orange', label: 'Rejected',  dot: '#f97316' },
+  pending: { color: 'blue', label: 'Pending', dot: '#3b82f6' },
+  confirmed: { color: 'teal', label: 'Confirmed', dot: '#0d9488' },
+  completed: { color: 'green', label: 'Completed', dot: '#10b981' },
+  cancelled: { color: 'rose', label: 'Cancelled', dot: '#f43f5e' },
+  rejected: { color: 'orange', label: 'Rejected', dot: '#f97316' },
 };
 
 /* ── order status colour map ── */
 const ORDER_STATUS_CONFIG = {
-  paid:        { label: 'Order Placed',  icon: CheckCircle2, color: '#16a34a', bg: '#f0fdf4', border: '#bbf7d0' },
-  processing:  { label: 'Processing',    icon: Clock,        color: '#d97706', bg: '#fffbeb', border: '#fde68a' },
-  delivered:   { label: 'Delivered',     icon: Truck,        color: '#2563eb', bg: '#eff6ff', border: '#bfdbfe' },
-  cancelled:   { label: 'Cancelled',     icon: XCircle,      color: '#dc2626', bg: '#fef2f2', border: '#fecaca' },
-  pending:     { label: 'Pending',       icon: Clock,        color: '#64748b', bg: '#f8fafc', border: '#e2e8f0' },
+  paid: { label: 'Order Placed', icon: CheckCircle2, color: '#16a34a', bg: '#f0fdf4', border: '#bbf7d0' },
+  processing: { label: 'Processing', icon: Clock, color: '#d97706', bg: '#fffbeb', border: '#fde68a' },
+  delivered: { label: 'Delivered', icon: Truck, color: '#2563eb', bg: '#eff6ff', border: '#bfdbfe' },
+  cancelled: { label: 'Cancelled', icon: XCircle, color: '#dc2626', bg: '#fef2f2', border: '#fecaca' },
+  pending: { label: 'Pending', icon: Clock, color: '#64748b', bg: '#f8fafc', border: '#e2e8f0' },
 };
 
 /* ── views ── */
@@ -51,17 +51,10 @@ const UserDashboard = () => {
   /* ── API data ── */
   const [appointments, setAppointments] = useState([]);
   const [patients, setPatients] = useState([]);
-<<<<<<< HEAD
   const [orders, setOrders] = useState([]);
   const [apptLoading, setApptLoading] = useState(false);
   const [patientLoading, setPatientLoading] = useState(false);
   const [ordersLoading, setOrdersLoading] = useState(false);
-=======
-  const [medicalRecords, setMedicalRecords] = useState([]);
-  const [apptLoading, setApptLoading] = useState(false);
-  const [patientLoading, setPatientLoading] = useState(false);
-  const [recordsLoading, setRecordsLoading] = useState(false);
->>>>>>> b9379630105c774da540e33a91a74b53c122ecbc
   const [userProfile, setUserProfile] = useState(null);
 
   /* ── auth ── */
@@ -119,7 +112,6 @@ const UserDashboard = () => {
     } catch { /* silent */ }
   }, []);
 
-<<<<<<< HEAD
   const fetchOrders = useCallback(async () => {
     const token = getToken();
     if (!token) return;
@@ -155,34 +147,12 @@ const UserDashboard = () => {
     }
   };
 
-=======
-  /* ── fetch records ── */
-  const fetchRecords = useCallback(async () => {
-    const token = getToken();
-    if (!token) return;
-    setRecordsLoading(true);
-    try {
-      const res = await fetch(`${API}/med-rec/patient-records`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      const data = await res.json();
-      if (res.ok) setMedicalRecords(data.data || []);
-    } catch { /* silent */ }
-    finally { setRecordsLoading(false); }
-  }, []);
-
->>>>>>> b9379630105c774da540e33a91a74b53c122ecbc
   useEffect(() => {
     fetchAppointments();
     fetchPatients();
     fetchProfile();
-<<<<<<< HEAD
     fetchOrders();
   }, [fetchAppointments, fetchPatients, fetchProfile, fetchOrders]);
-=======
-    fetchRecords();
-  }, [fetchAppointments, fetchPatients, fetchProfile, fetchRecords]);
->>>>>>> b9379630105c774da540e33a91a74b53c122ecbc
 
   /* refresh after booking */
   const handleBookClose = () => {
@@ -207,7 +177,7 @@ const UserDashboard = () => {
         const data = await res.json();
         toast.error(data.message || 'Failed to cancel appointment');
       }
-    } catch { 
+    } catch {
       toast.error('An error occurred while cancelling');
     }
   };
@@ -228,16 +198,16 @@ const UserDashboard = () => {
 
   const stats = [
     { icon: <CalendarCheck size={22} />, label: 'Total Appointments', value: apptLoading ? '…' : totalAppts, trend: `${pendingAppts} pending`, color: 'teal' },
-    { icon: <Users size={22} />,         label: 'Family Members',     value: patientLoading ? '…' : activePatients, trend: 'Patients',    color: 'blue' },
-    { icon: <CheckCircle2 size={22} />,  label: 'Completed',          value: apptLoading ? '…' : completedAppts, trend: 'Visits done', color: 'purple' },
-    { icon: <Heart size={22} />,         label: 'Health Score',       value: '92%',  trend: '+5%',         color: 'rose' },
+    { icon: <Users size={22} />, label: 'Family Members', value: patientLoading ? '…' : activePatients, trend: 'Patients', color: 'blue' },
+    { icon: <CheckCircle2 size={22} />, label: 'Completed', value: apptLoading ? '…' : completedAppts, trend: 'Visits done', color: 'purple' },
+    { icon: <Heart size={22} />, label: 'Health Score', value: '92%', trend: '+5%', color: 'rose' },
   ];
 
   const quickActions = [
     { icon: <CalendarCheck size={20} />, label: 'Book Appointment', desc: 'Schedule with a doctor', action: () => setIsBookModalOpen(true), color: 'teal' },
-    { icon: <Stethoscope size={20} />,   label: 'Find Doctors',     desc: 'Browse specialists',    to: '/doctors',                          color: 'blue' },
-    { icon: <Pill size={20} />,          label: 'Order Medicine',   desc: 'From our pharmacy',     to: '/pharmacy',                         color: 'purple' },
-    { icon: <ShieldCheck size={20} />,   label: 'Health Records',   desc: 'View your history',     action: () => setView(VIEWS.RECORDS),    color: 'green' },
+    { icon: <Stethoscope size={20} />, label: 'Find Doctors', desc: 'Browse specialists', to: '/doctors', color: 'blue' },
+    { icon: <Pill size={20} />, label: 'Order Medicine', desc: 'From our pharmacy', to: '/pharmacy', color: 'purple' },
+    { icon: <ShieldCheck size={20} />, label: 'Health Records', desc: 'View your history', action: () => setView(VIEWS.RECORDS), color: 'green' },
   ];
 
   /* ── helpers ── */
@@ -282,15 +252,9 @@ const UserDashboard = () => {
             )}
           </button>
 
-<<<<<<< HEAD
           <button className={`ud-nav-item${view === VIEWS.ORDERS ? ' active' : ''}`}
             onClick={() => setView(VIEWS.ORDERS)} style={{ background: 'none', border: 'none', font: 'inherit', cursor: 'pointer', width: '100%', textAlign: 'left' }}>
             <Package size={18} /> My Orders
-=======
-          <button className={`ud-nav-item${view === VIEWS.RECORDS ? ' active' : ''}`}
-            onClick={() => setView(VIEWS.RECORDS)} style={{ background: 'none', border: 'none', font: 'inherit', cursor: 'pointer', width: '100%', textAlign: 'left' }}>
-            <ShieldCheck size={18} /> Health Records
->>>>>>> b9379630105c774da540e33a91a74b53c122ecbc
           </button>
 
           {/* ── Book Appointment — sidebar CTA ── */}
@@ -602,7 +566,6 @@ const UserDashboard = () => {
           </section>
         )}
 
-<<<<<<< HEAD
         {/* ════════════ ORDERS VIEW ════════════ */}
         {view === VIEWS.ORDERS && (
           <section className="ud-section">
@@ -633,10 +596,10 @@ const UserDashboard = () => {
                     return (
                       <div className="pp-medicine-card" key={order._id} style={{ display: 'flex', flexDirection: 'column' }}>
                         <div className="pp-medicine-image-wrapper" style={{ height: '160px', padding: '16px' }}>
-                          <img 
-                            src={firstItem?.medicine_image || '/img/medicine_bottle.png'} 
-                            alt={firstItem?.medicine_name || 'Order'} 
-                            className="pp-medicine-image" 
+                          <img
+                            src={firstItem?.medicine_image || '/img/medicine_bottle.png'}
+                            alt={firstItem?.medicine_name || 'Order'}
+                            className="pp-medicine-image"
                             style={{ maxHeight: '100px' }}
                             onError={(e) => {
                               e.target.onerror = null;
@@ -652,12 +615,12 @@ const UserDashboard = () => {
                           <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '12px' }}>
                             {formatDate(order.placed_at || order.createdAt)}
                           </div>
-                          
+
                           <div className="pp-medicine-pricing" style={{ marginTop: 'auto', marginBottom: '16px' }}>
                             <span className="pp-price" style={{ fontSize: '18px' }}>₹{order.grand_total?.toFixed(2)}</span>
                             <span className="pp-stock" style={{ fontSize: '12px' }}>{order.total_quantity} item{order.total_quantity !== 1 ? 's' : ''}</span>
                           </div>
-                          
+
                           <div style={{ display: 'flex', gap: '8px' }}>
                             <button className="pp-buy-btn" style={{ background: '#0d9488', flex: 1, padding: '10px' }}>
                               VIEW ORDER
@@ -670,103 +633,6 @@ const UserDashboard = () => {
                       </div>
                     );
                   })}
-=======
-        {/* ════════════ RECORDS VIEW ════════════ */}
-        {view === VIEWS.RECORDS && (
-          <section className="ud-section">
-            <div className="ud-section-header">
-              <h2 className="ud-section-title">My Health Records</h2>
-            </div>
-            <div className="ud-section-body">
-              {recordsLoading ? (
-                <div style={{ textAlign: 'center', color: '#94a3b8', padding: '3rem' }}>
-                  <Loader2 size={32} style={{ animation: 'spin 1s linear infinite', marginBottom: '1rem' }} />
-                  <p>Loading your medical history…</p>
-                </div>
-              ) : medicalRecords.length === 0 ? (
-                <div style={{ textAlign: 'center', color: '#94a3b8', padding: '3rem' }}>
-                  <ShieldCheck size={60} style={{ marginBottom: '1rem', opacity: 0.3 }} />
-                  <h3 style={{ color: '#374151', marginBottom: '0.5rem' }}>No medical records found</h3>
-                  <p>Your consultation notes and prescriptions will appear here after a doctor visit.</p>
-                </div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                  {medicalRecords.map((record) => (
-                    <div key={record._id} style={{
-                      background: '#fff',
-                      border: '1.5px solid #e2e8f0',
-                      borderRadius: '16px',
-                      padding: '1.5rem',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '1rem'
-                    }}>
-                      {/* Header */}
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem', borderBottom: '1px solid #f1f5f9', paddingBottom: '1rem' }}>
-                        <div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
-                            <span style={{ padding: '4px 10px', background: '#eff6ff', color: '#2563eb', borderRadius: '8px', fontSize: '12px', fontWeight: 700 }}>
-                              {formatDate(record.visit_date)}
-                            </span>
-                            {record.follow_up_date && (
-                              <span style={{ fontSize: '12px', color: '#f59e0b', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                <CalendarCheck size={12} /> Follow up: {formatDate(record.follow_up_date)}
-                              </span>
-                            )}
-                          </div>
-                          <h3 style={{ margin: 0, fontSize: '1.15rem', color: '#0f172a', fontWeight: 800 }}>
-                            {record.diagnosis}
-                          </h3>
-                        </div>
-                        <div style={{ textAlign: 'right' }}>
-                          <div style={{ fontWeight: 700, color: '#334155' }}>
-                            Dr. {record.doctor_id?.first_name} {record.doctor_id?.last_name}
-                          </div>
-                          <div style={{ fontSize: '12px', color: '#64748b' }}>
-                            {record.doctor_id?.specialization}
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Body */}
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.5rem' }}>
-                        <div>
-                          <h4 style={{ margin: '0 0 6px 0', fontSize: '12px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Symptoms</h4>
-                          <p style={{ margin: 0, fontSize: '14px', color: '#334155', lineHeight: '1.5' }}>{record.symptoms}</p>
-                        </div>
-                        {record.doctor_notes && (
-                          <div>
-                            <h4 style={{ margin: '0 0 6px 0', fontSize: '12px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Doctor's Notes</h4>
-                            <p style={{ margin: 0, fontSize: '14px', color: '#334155', lineHeight: '1.5' }}>{record.doctor_notes}</p>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Prescriptions */}
-                      {record.medicines_prescribed && record.medicines_prescribed.length > 0 && (
-                        <div style={{ background: '#f8fafc', padding: '1.25rem', borderRadius: '12px', marginTop: '0.5rem' }}>
-                          <h4 style={{ margin: '0 0 12px 0', fontSize: '13px', color: '#0f172a', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                            <Pill size={15} color="#0d9488" /> Prescribed Medicines
-                          </h4>
-                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '10px' }}>
-                            {record.medicines_prescribed.map((med, idx) => (
-                              <div key={idx} style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '10px 14px' }}>
-                                <div style={{ fontWeight: 700, color: '#0f172a', fontSize: '14px', marginBottom: '2px' }}>
-                                  {med.medicine_id?.medicine_name} {med.medicine_id?.strength ? `(${med.medicine_id?.strength})` : ''}
-                                </div>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: '#64748b' }}>
-                                  <span>{med.dosage}</span>
-                                  <span>{med.duration}</span>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                    </div>
-                  ))}
->>>>>>> b9379630105c774da540e33a91a74b53c122ecbc
                 </div>
               )}
             </div>
@@ -796,14 +662,14 @@ const UserDashboard = () => {
                   {/* Info grid */}
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem' }}>
                     {[
-                      { label: 'First Name',  value: userProfile.first_name },
-                      { label: 'Last Name',   value: userProfile.last_name },
-                      { label: 'Email',       value: userProfile.email },
-                      { label: 'Phone',       value: userProfile.phone || '—' },
-                      { label: 'Address',     value: userProfile.address || '—' },
+                      { label: 'First Name', value: userProfile.first_name },
+                      { label: 'Last Name', value: userProfile.last_name },
+                      { label: 'Email', value: userProfile.email },
+                      { label: 'Phone', value: userProfile.phone || '—' },
+                      { label: 'Address', value: userProfile.address || '—' },
                       { label: 'Account Status', value: userProfile.status || 'active' },
                       { label: 'Member Since', value: formatDate(userProfile.createdAt) },
-                      { label: 'Last Login',   value: userProfile.last_login ? formatDate(userProfile.last_login) : '—' },
+                      { label: 'Last Login', value: userProfile.last_login ? formatDate(userProfile.last_login) : '—' },
                     ].map((row) => (
                       <div key={row.label} style={{ background: '#f8fafc', borderRadius: '10px', padding: '0.85rem 1.1rem', border: '1px solid #e2e8f0' }}>
                         <div style={{ fontSize: '11px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: '4px' }}>{row.label}</div>

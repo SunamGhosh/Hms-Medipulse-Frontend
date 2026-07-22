@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Activity, Mail, Lock, ArrowRight, AlertCircle, Eye, EyeOff } from 'lucide-react';
-import SignupModal from '../components/SignupModal';
+
 import './Login.css';
 
 import Header from '../components/Header';
@@ -12,7 +12,7 @@ const Login = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [isSignupModalOpen, setIsSignupModalOpen] = useState(false);
+
   const navigate = useNavigate();
 
   const handleLogin = async (e) => {
@@ -104,7 +104,6 @@ const Login = () => {
             </button>
           </div>
 
-          <a href="#" className="forgot-password">Forgot password?</a>
 
           <button type="submit" className="login-button" disabled={isLoading}>
             {isLoading ? 'Signing in...' : 'Sign In'}
@@ -112,16 +111,7 @@ const Login = () => {
           </button>
         </form>
 
-        <p className="login-signup-redirect">
-          Don&apos;t have an account?{' '}
-          <button type="button" className="login-signup-link" onClick={() => setIsSignupModalOpen(true)} style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', cursor: 'pointer' }}>Sign Up</button>
-        </p>
       </div>
-
-      <SignupModal
-        isOpen={isSignupModalOpen}
-        onClose={() => setIsSignupModalOpen(false)}
-      />
     </div>
   );
 };

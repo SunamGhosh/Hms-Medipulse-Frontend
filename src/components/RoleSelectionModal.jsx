@@ -91,7 +91,13 @@ const RoleSelectionModal = ({ isOpen, onClose }) => {
           </div>
 
           <div className="forgot-password-modal">
-            <a href="#">Forgot password?</a>
+            <button 
+              type="button" 
+              onClick={() => { navigate('/login', { state: { forgotPassword: true } }); onClose(); }}
+              style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', cursor: 'pointer', color: '#14b8a6', fontWeight: 500 }}
+            >
+              Forgot password?
+            </button>
           </div>
 
           <button type="submit" className="login-button" disabled={isLoading}>
