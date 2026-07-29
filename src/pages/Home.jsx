@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { Activity, HeartPulse, Shield, Users, ArrowRight, Stethoscope, Leaf, Search, Clock, Star, Loader2 } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { Activity, HeartPulse, Shield, Users, ArrowRight, Stethoscope, Leaf, Search, Clock, Star, Loader2, ShoppingCart } from 'lucide-react';
+import toast from 'react-hot-toast';
 import RoleSelectionModal from '../components/RoleSelectionModal';
 import SignupModal from '../components/SignupModal';
 import BookAppointmentModal from '../components/BookAppointmentModal';
@@ -9,64 +10,36 @@ import './Home.css';
 
 const API = import.meta.env.VITE_URL || 'http://localhost:4000/api';
 
-const medicines = [
-  {
-    id: 1,
-    name: 'Paracetamol 500mg',
-    type: 'PAIN RELIEF',
-    price: '₹400',
-    stock: '150 in stock',
-    image: '/img/medicine_bottle.png'
-  },
-  {
-    id: 2,
-    name: 'Amoxicillin 250mg',
-    type: 'ANTIBIOTICS',
-    price: '₹1000',
-    stock: '80 in stock',
-    image: 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?q=80&w=600&auto=format&fit=crop'
-  },
-  {
-    id: 3,
-    name: 'Cetirizine 10mg',
-    type: 'ALLERGY',
-    price: '₹500',
-    stock: '200 in stock',
-    image: 'https://images.unsplash.com/photo-1585435557343-3b092031a831?q=80&w=600&auto=format&fit=crop'
-  },
-  {
-    id: 4,
-    name: 'Vitamin D3 1000IU',
-    type: 'VITAMINS',
-    price: '₹800',
-    stock: '150 in stock',
-    image: 'https://images.unsplash.com/photo-1471864190281-a93a3070b6de?q=80&w=600&auto=format&fit=crop'
-  },
-  {
-    id: 5,
-    name: 'Omeprazole 20mg',
-    type: 'DIGESTIVE',
-    price: '₹700',
-    stock: '90 in stock',
-    image: 'https://images.unsplash.com/photo-1587854692152-cbe660dbde88?q=80&w=600&auto=format&fit=crop'
-  },
-  {
-    id: 6,
-    name: 'Ibuprofen 400mg',
-    type: 'PAIN RELIEF',
-    price: '₹450',
-    stock: '110 in stock',
-    image: 'https://images.unsplash.com/photo-1628771065518-0d82f1938462?q=80&w=600&auto=format&fit=crop'
-  }
-];
-
 const Home = () => {
+  const navigate = useNavigate();
   const [isRoleModalOpen, setIsRoleModalOpen] = useState(false);
   const [isSignupModalOpen, setIsSignupModalOpen] = useState(false);
   const [isBookModalOpen, setIsBookModalOpen] = useState(false);
   const [bookDoctorId, setBookDoctorId] = useState(null);
   const [allDoctors, setAllDoctors] = useState([]);
   const [doctorsLoading, setDoctorsLoading] = useState(true);
+  const [medicines, setMedicines] = useState([]);
+  const [searchMedQuery, setSearchMedQuery] = useState('');
+  const [medicinesLoading, setMedicinesLoading] = useState(true);
+  const [cartTotalItems, setCartTotalItems] = useState(0);
+  const token = localStorage.getItem('userToken');
+
+  const fetchCart = async () => {
+    if (!token) return;
+    try {
+      const response = await fetch('http://localhost:5000/cart', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await response.json();
+      if (data.success && data.cart) {
+        setCartTotalItems(data.total_items || 0);
+      } else {
+        setCartTotalItems(0);
+      }
+    } catch (err) {
+      console.error('Error fetching cart:', err);
+    }
+  };
 
   useEffect(() => {
     const fetchDoctors = async () => {
@@ -95,7 +68,57 @@ const Home = () => {
       }
     };
     fetchDoctors();
-  }, []);
+    
+    const fetchMedicines = async () => {
+      try {
+        const res = await fetch('http://localhost:5000/medicine');
+        const data = await res.json();
+        if (data.success) {
+          setMedicines(data.data || []);
+        }
+      } catch (error) {
+        console.error("Failed to fetch medicines:", error);
+      } finally {
+        setMedicinesLoading(false);
+      }
+    };
+    fetchMedicines();
+    fetchCart();
+  }, [token]);
+
+  const handleAddToCart = async (medicineId) => {
+    if (!token) {
+      toast.error('Please login to add items to your cart.');
+      setIsRoleModalOpen(true);
+      return;
+    }
+    
+    try {
+      const response = await fetch('http://localhost:5000/cart/add', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ medicine_id: medicineId, quantity: 1 })
+      });
+      const data = await response.json();
+      if (data.success) {
+        toast.success('Added to cart!');
+        fetchCart();
+      } else {
+        toast.error(data.message || 'Error adding to cart');
+      }
+    } catch (error) {
+      console.error('Error adding to cart:', error);
+      toast.error('Failed to add item to cart');
+    }
+  };
+
+  const filteredMedicines = medicines.filter(med => 
+    (med.medicine_name && med.medicine_name.toLowerCase().includes(searchMedQuery.toLowerCase())) || 
+    (med.category && med.category.toLowerCase().includes(searchMedQuery.toLowerCase()))
+  ).slice(0, 8);
 
   const handleBookAppointment = (doctorId = null) => {
     const token = localStorage.getItem('userToken');
@@ -179,7 +202,13 @@ const Home = () => {
         </div>
         <div className="nav-actions">
           {localStorage.getItem('userToken') ? (
-            <ProfileDropdown />
+            <>
+              <Link to="/cart" className="nav-cart-icon">
+                <ShoppingCart size={22} />
+                {cartTotalItems > 0 && <span className="cart-badge">{cartTotalItems}</span>}
+              </Link>
+              <ProfileDropdown />
+            </>
           ) : (
             <>
               <button className="btn-outline" onClick={() => setIsSignupModalOpen(true)}>
@@ -340,25 +369,45 @@ const Home = () => {
             </div>
             <div className="mg-search-bar">
               <Search size={18} color="#a0aec0" />
-              <input type="text" placeholder="Search medicines..." />
+              <input 
+                type="text" 
+                placeholder="Search medicines..." 
+                value={searchMedQuery}
+                onChange={(e) => setSearchMedQuery(e.target.value)}
+              />
             </div>
           </div>
 
           <div className="mg-pharmacy-grid">
-            {medicines.map(med => (
-              <div key={med.id} className="mg-card">
-                <img src={med.image} alt={med.name} className="mg-card-image" style={{ objectFit: 'contain', padding: '1rem' }} />
-                <div className="mg-card-content">
-                  <span className="mg-card-tag" style={{ background: '#fff3e0', color: '#e65100' }}>{med.type}</span>
-                  <h3 className="mg-card-title" style={{ fontSize: '1.1rem' }}>{med.name}</h3>
-                  <div className="mg-price-row">
-                    <span className="mg-price">{med.price}</span>
-                    <span className="mg-stock">{med.stock}</span>
+            {medicinesLoading ? (
+              <div style={{ padding: '2rem', textAlign: 'center', width: '100%', gridColumn: '1 / -1' }}>Loading medicines...</div>
+            ) : filteredMedicines.length > 0 ? (
+              filteredMedicines.map(med => (
+                <div key={med._id} className="mg-card">
+                  <img 
+                    src={med.medicine_image || '/img/medicine_bottle.png'} 
+                    alt={med.medicine_name} 
+                    className="mg-card-image" 
+                    style={{ objectFit: 'contain', padding: '1rem' }} 
+                    onError={(e) => {
+                      e.target.onerror = null;
+                      e.target.src = '/img/medicine_bottle.png';
+                    }}
+                  />
+                  <div className="mg-card-content">
+                    <span className="mg-card-tag" style={{ background: '#fff3e0', color: '#e65100' }}>{med.category}</span>
+                    <h3 className="mg-card-title" style={{ fontSize: '1.1rem' }}>{med.medicine_name}</h3>
+                    <div className="mg-price-row">
+                      <span className="mg-price">₹{med.price}</span>
+                      <span className="mg-stock">{med.stock_available} in stock</span>
+                    </div>
+                    <button className="mg-card-btn-light" onClick={() => handleAddToCart(med._id)}>Buy</button>
                   </div>
-                  <button className="mg-card-btn-light">🛒 Buy</button>
                 </div>
-              </div>
-            ))}
+              ))
+            ) : (
+              <div style={{ padding: '2rem', textAlign: 'center', width: '100%', gridColumn: '1 / -1' }}>No medicines found.</div>
+            )}
           </div>
         </section>
       </div>
