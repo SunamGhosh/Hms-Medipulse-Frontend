@@ -44,6 +44,25 @@ const BookAppointmentModal = ({ isOpen, onClose, preselectedDoctorId = null }) =
   const [availableSlots, setAvailableSlots] = useState([]);
   const [slotsLoading, setSlotsLoading] = useState(false);
 
+  /* ── Real-time clock: tick every minute so past slots auto-grey ── */
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 60_000);
+    return () => clearInterval(timer);
+  }, []);
+
+  /* ── Returns true if `time` ("HH:mm") is in the past when date is today ── */
+  const isPastSlot = (time) => {
+    if (!appt.appointment_date) return false;
+    const todayStr = now.toISOString().split('T')[0];
+    if (appt.appointment_date !== todayStr) return false; // future date → never past
+    // parse slot time e.g. "09:00" or "14:30"
+    const [h, m] = time.split(':').map(Number);
+    const slotDate = new Date(now);
+    slotDate.setHours(h, m, 0, 0);
+    return slotDate <= now; // slot is at or before current moment
+  };
+
   /* slot generation helper */
   const generateTimeSlots = (start, end) => {
     if (!start || !end) return [];
@@ -510,23 +529,37 @@ const BookAppointmentModal = ({ isOpen, onClose, preselectedDoctorId = null }) =
                     }}>
                       {availableSlots.map(time => {
                         const isBooked = bookedSlots.includes(time);
+                        const isPast   = isPastSlot(time);
                         const isSelected = appt.appointment_time === time;
+                        const isDisabled = isBooked || isPast;
                         return (
                           <button
                             key={time}
                             type="button"
-                            disabled={isBooked}
-                            onClick={() => setAppt(a => ({ ...a, appointment_time: time }))}
+                            disabled={isDisabled}
+                            title={isPast ? 'This time has already passed' : isBooked ? 'Already booked' : ''}
+                            onClick={() => !isDisabled && setAppt(a => ({ ...a, appointment_time: time }))}
                             style={{
-                              padding: '8px 4px', borderRadius: '8px', border: '1px solid', fontSize: '13px', fontWeight: 600, 
-                              cursor: isBooked ? 'not-allowed' : 'pointer', transition: 'all 0.2s',
-                              background: isSelected ? '#0d9488' : isBooked ? '#f1f5f9' : '#fff',
-                              color: isSelected ? '#fff' : isBooked ? '#94a3b8' : '#334155',
-                              borderColor: isSelected ? '#0d9488' : isBooked ? '#e2e8f0' : '#cbd5e1',
-                              textDecoration: isBooked ? 'line-through' : 'none'
+                              position: 'relative',
+                              padding: '8px 4px', borderRadius: '8px', border: '1px solid', fontSize: '13px', fontWeight: 600,
+                              cursor: isDisabled ? 'not-allowed' : 'pointer', transition: 'all 0.2s',
+                              background: isSelected ? '#0d9488' : isPast ? '#fef2f2' : isBooked ? '#f1f5f9' : '#fff',
+                              color: isSelected ? '#fff' : isPast ? '#fca5a5' : isBooked ? '#94a3b8' : '#334155',
+                              borderColor: isSelected ? '#0d9488' : isPast ? '#fecaca' : isBooked ? '#e2e8f0' : '#cbd5e1',
+                              textDecoration: isBooked ? 'line-through' : 'none',
+                              opacity: isPast ? 0.75 : 1,
                             }}
                           >
                             {time}
+                            {/* ✕ overlay for past slots */}
+                            {isPast && !isBooked && (
+                              <span style={{
+                                position: 'absolute', top: '50%', left: '50%',
+                                transform: 'translate(-50%, -50%)',
+                                fontSize: '18px', fontWeight: 900, color: '#ef4444', lineHeight: 1,
+                                pointerEvents: 'none', mixBlendMode: 'multiply'
+                              }}>✕</span>
+                            )}
                           </button>
                         );
                       })}

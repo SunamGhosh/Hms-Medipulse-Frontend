@@ -35,8 +35,8 @@ const PharmacistsList = () => {
   const toggleStatus = async (id, currentStatus) => {
     const newStatus = currentStatus === 'active' ? 'inactive' : 'active';
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`${import.meta.env.VITE_URL}/api/admin/pharmacists/${id}/status`, {
+      const token = localStorage.getItem('token') || localStorage.getItem('adminToken');
+      const response = await fetch(`${import.meta.env.VITE_URL}/pharmacist/${id}/status`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -47,6 +47,7 @@ const PharmacistsList = () => {
       const data = await response.json();
       if (response.ok) {
         setPharmacists(pharmacists.map(ph => ph._id === id ? { ...ph, status: newStatus } : ph));
+        toast.success(`Pharmacist status updated to ${newStatus}`);
       } else {
         toast.error(data.message || 'Failed to update status');
       }

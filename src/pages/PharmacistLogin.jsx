@@ -13,6 +13,15 @@ const PharmacistLogin = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
+  // --- Forgot Password States ---
+  const [showForgot, setShowForgot] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [forgotError, setForgotError] = useState('');
+  const [forgotSuccess, setForgotSuccess] = useState('');
+  const [isForgotLoading, setIsForgotLoading] = useState(false);
+
   const handleLogin = async (e) => {
     e.preventDefault();
     if (!email || !password) {
@@ -47,6 +56,52 @@ const PharmacistLogin = () => {
     }
   };
 
+  // --- Forgot Password Submit Handler ---
+  const handleForgotSubmit = async (e) => {
+    e.preventDefault();
+    setForgotError('');
+    setForgotSuccess('');
+
+    if (!forgotEmail || !newPassword) {
+      setForgotError('Please enter both your registered email and a new password.');
+      return;
+    }
+
+    if (newPassword.length < 6) {
+      setForgotError('New password must be at least 6 characters long.');
+      return;
+    }
+
+    setIsForgotLoading(true);
+
+    try {
+      const res = await fetch(`${import.meta.env.VITE_URL}/pharmacist/reset-password`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: forgotEmail, newPassword })
+      });
+      const data = await res.json();
+
+      if (res.ok) {
+        setForgotSuccess(data.message || 'Password reset successfully! Auto-switching to login...');
+        setEmail(forgotEmail);
+        setPassword(newPassword);
+        setTimeout(() => {
+          setShowForgot(false);
+          setForgotEmail('');
+          setNewPassword('');
+          setForgotSuccess('');
+        }, 1400);
+      } else {
+        setForgotError(data.message || 'Failed to reset password');
+      }
+    } catch {
+      setForgotError('Connection error. Please check server connection.');
+    } finally {
+      setIsForgotLoading(false);
+    }
+  };
+
   return (
     <div className="pl-container">
       <Header />
@@ -62,81 +117,178 @@ const PharmacistLogin = () => {
           <span className="pl-brand-name">MediPulse Pharmacist Portal</span>
         </div>
 
-        <div className="pl-header">
-          <h1>Welcome, Pharmacist</h1>
-          <p>Sign in to manage pharmacy tasks and view appointments</p>
-        </div>
+        {!showForgot ? (
+          /* ── Login Form ── */
+          <>
+            <div className="pl-header">
+              <h1>Welcome, Pharmacist</h1>
+              <p>Sign in to manage pharmacy tasks and view appointments</p>
+            </div>
 
-        {errorMsg && (
-          <div className="pl-alert" role="alert">
-            <AlertCircle size={16} style={{ flexShrink: 0 }} />
-            <span>{errorMsg}</span>
+            {errorMsg && (
+              <div className="pl-alert" role="alert">
+                <AlertCircle size={16} style={{ flexShrink: 0 }} />
+                <span>{errorMsg}</span>
+              </div>
+            )}
+
+            <form className="pl-form" onSubmit={handleLogin} noValidate>
+              <div className="pl-field">
+                <label htmlFor="pl-email">Email Address</label>
+                <div className="pl-field-wrap">
+                  <Mail size={15} className="pl-field-icon" />
+                  <input
+                    id="pl-email"
+                    type="email"
+                    placeholder="pharmacist@medipulse.com"
+                    value={email}
+                    onChange={(e) => { setEmail(e.target.value); setErrorMsg(''); }}
+                    required
+                    autoComplete="email"
+                  />
+                </div>
+              </div>
+
+              <div className="pl-field">
+                <div className="pl-label-row">
+                  <label htmlFor="pl-password">Password</label>
+                  <button
+                    type="button"
+                    className="pl-forgot"
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                    onClick={() => {
+                      setShowForgot(true);
+                      setForgotEmail(email);
+                      setErrorMsg('');
+                    }}
+                  >
+                    Forgot password?
+                  </button>
+                </div>
+                <div className="pl-field-wrap">
+                  <Lock size={15} className="pl-field-icon" />
+                  <input
+                    id="pl-password"
+                    type={showPassword ? 'text' : 'password'}
+                    placeholder="Your password"
+                    value={password}
+                    onChange={(e) => { setPassword(e.target.value); setErrorMsg(''); }}
+                    required
+                    autoComplete="current-password"
+                  />
+                  <button
+                    type="button"
+                    className="pl-eye-btn"
+                    onClick={() => setShowPassword(v => !v)}
+                    aria-label="Toggle password visibility"
+                  >
+                    {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                  </button>
+                </div>
+              </div>
+
+              <button
+                id="pharmacist-login-submit-btn"
+                type="submit"
+                className="pl-button"
+                disabled={isLoading}
+              >
+                {isLoading
+                  ? <><span className="pl-spinner" /> Signing in…</>
+                  : <>Sign In <ArrowRight size={17} /></>
+                }
+              </button>
+            </form>
+          </>
+        ) : (
+          /* ── Forgot Password Form ── */
+          <div className="pl-forgot-flow">
+            <div className="pl-header">
+              <h1>Reset Password</h1>
+              <p>Enter your registered pharmacist email and a new password</p>
+            </div>
+
+            {forgotError && (
+              <div className="pl-alert" role="alert">
+                <AlertCircle size={16} style={{ flexShrink: 0 }} />
+                <span>{forgotError}</span>
+              </div>
+            )}
+            {forgotSuccess && (
+              <div className="pl-alert pl-alert-success" role="alert">
+                <CheckCircle2 size={16} style={{ flexShrink: 0 }} />
+                <span>{forgotSuccess}</span>
+              </div>
+            )}
+
+            <form className="pl-form" onSubmit={handleForgotSubmit} noValidate>
+              <div className="pl-field">
+                <label htmlFor="pl-forgot-email">Registered Email Address</label>
+                <div className="pl-field-wrap">
+                  <Mail size={15} className="pl-field-icon" />
+                  <input
+                    id="pl-forgot-email"
+                    type="email"
+                    placeholder="pharmacist@medipulse.com"
+                    value={forgotEmail}
+                    onChange={(e) => { setForgotEmail(e.target.value); setForgotError(''); }}
+                    required
+                    autoComplete="email"
+                  />
+                </div>
+              </div>
+
+              <div className="pl-field">
+                <label htmlFor="pl-new-password">New Password</label>
+                <div className="pl-field-wrap">
+                  <Lock size={15} className="pl-field-icon" />
+                  <input
+                    id="pl-new-password"
+                    type={showNewPassword ? 'text' : 'password'}
+                    placeholder="Minimum 6 characters"
+                    value={newPassword}
+                    onChange={(e) => { setNewPassword(e.target.value); setForgotError(''); }}
+                    required
+                  />
+                  <button
+                    type="button"
+                    className="pl-eye-btn"
+                    onClick={() => setShowNewPassword(v => !v)}
+                    aria-label="Toggle password visibility"
+                  >
+                    {showNewPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                  </button>
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                className="pl-button"
+                disabled={isForgotLoading}
+              >
+                {isForgotLoading
+                  ? <><span className="pl-spinner" /> Updating password…</>
+                  : <>Set New Password <ArrowRight size={17} /></>
+                }
+              </button>
+
+              <button
+                type="button"
+                className="pl-btn-text"
+                onClick={() => { setShowForgot(false); setForgotError(''); setForgotSuccess(''); }}
+              >
+                ← Back to Sign In
+              </button>
+            </form>
           </div>
         )}
 
-        <form className="pl-form" onSubmit={handleLogin} noValidate>
-          <div className="pl-field">
-            <label htmlFor="pl-email">Email Address</label>
-            <div className="pl-field-wrap">
-              <Mail size={15} className="pl-field-icon" />
-              <input
-                id="pl-email"
-                type="email"
-                placeholder="pharmacist@medipulse.com"
-                value={email}
-                onChange={(e) => { setEmail(e.target.value); setErrorMsg(''); }}
-                required
-                autoComplete="email"
-              />
-            </div>
-          </div>
-
-          <div className="pl-field">
-            <div className="pl-label-row">
-              <label htmlFor="pl-password">Password</label>
-              <a href="#" className="pl-forgot">Forgot password?</a>
-            </div>
-            <div className="pl-field-wrap">
-              <Lock size={15} className="pl-field-icon" />
-              <input
-                id="pl-password"
-                type={showPassword ? 'text' : 'password'}
-                placeholder="Your password"
-                value={password}
-                onChange={(e) => { setPassword(e.target.value); setErrorMsg(''); }}
-                required
-                autoComplete="current-password"
-              />
-              <button
-                type="button"
-                className="pl-eye-btn"
-                onClick={() => setShowPassword(v => !v)}
-                aria-label="Toggle password visibility"
-              >
-                {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
-              </button>
-            </div>
-          </div>
-
-          <button
-            id="pharmacist-login-submit-btn"
-            type="submit"
-            className="pl-button"
-            disabled={isLoading}
-          >
-            {isLoading
-              ? <><span className="pl-spinner" /> Signing in…</>
-              : <>Sign In <ArrowRight size={17} /></>
-            }
-          </button>
-        </form>
-
         <div className="pl-trust-row">
           <span className="pl-trust-badge">
-            <ShieldCheck size={12} color="#6d28d9" /> Verified Portal
+            <ShieldCheck size={12} color="#0d9488" /> Verified Portal
           </span>
           <span className="pl-trust-badge">
-            <CheckCircle2 size={12} color="#6d28d9" /> Staff Only
+            <CheckCircle2 size={12} color="#0d9488" /> Staff Only
           </span>
         </div>
       </div>

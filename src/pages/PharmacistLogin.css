@@ -291,8 +291,38 @@
   font-weight: 600;
 }
 
+.pl-alert-success {
+  background: #ecfdf5;
+  color: #047857;
+  border-color: #a7f3d0;
+  border-left-color: #10b981;
+}
+
+.pl-btn-text {
+  background: none;
+  border: none;
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-top: 10px;
+  width: 100%;
+  text-align: center;
+  transition: color 0.2s;
+}
+
+.pl-btn-text:hover {
+  color: #0d9488;
+  text-decoration: underline;
+}
+
+.pl-forgot-flow {
+  animation: ulAlertIn 0.3s ease both;
+}
+
 /* ── Responsive ── */
 @media (max-width: 480px) {
   .pl-card { padding: 30px 22px 28px; border-radius: 22px; }
   .pl-header h1 { font-size: 22px; }
 }
+

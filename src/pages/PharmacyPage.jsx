@@ -18,6 +18,8 @@ const categories = [
   'Other'
 ];
 
+const API = import.meta.env.VITE_URL || 'http://localhost:5000';
+
 const PharmacyPage = () => {
   const [selectedCategory, setSelectedCategory] = useState('');
   const [isRoleModalOpen, setIsRoleModalOpen] = useState(false);
@@ -35,7 +37,7 @@ const PharmacyPage = () => {
   useEffect(() => {
     const fetchMedicines = async () => {
       try {
-        const response = await fetch('http://localhost:5000/medicine');
+        const response = await fetch(`${API}/medicine`);
         const data = await response.json();
         if (data.success) {
           setMedicines(data.data || []);
@@ -53,7 +55,7 @@ const PharmacyPage = () => {
 
   const fetchCart = async () => {
     try {
-      const response = await fetch('http://localhost:5000/cart', {
+      const response = await fetch(`${API}/cart`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const data = await response.json();
@@ -81,7 +83,7 @@ const PharmacyPage = () => {
     }
     
     try {
-      const response = await fetch('http://localhost:5000/cart/add', {
+      const response = await fetch(`${API}/cart/add`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -107,7 +109,7 @@ const PharmacyPage = () => {
     try {
       if (action === 'decrease' && cartItems[medicineId] === 1) {
         // Remove item if quantity becomes 0
-        const response = await fetch(`http://localhost:5000/cart/remove/${medicineId}`, {
+        const response = await fetch(`${API}/cart/remove/${medicineId}`, {
           method: 'DELETE',
           headers: { 'Authorization': `Bearer ${token}` }
         });
@@ -116,8 +118,8 @@ const PharmacyPage = () => {
       }
 
       const endpoint = action === 'increase' 
-        ? `http://localhost:5000/cart/increase/${medicineId}`
-        : `http://localhost:5000/cart/decrease/${medicineId}`;
+        ? `${API}/cart/increase/${medicineId}`
+        : `${API}/cart/decrease/${medicineId}`;
         
       const response = await fetch(endpoint, {
         method: 'PUT',
