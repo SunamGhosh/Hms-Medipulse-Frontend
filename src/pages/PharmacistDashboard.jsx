@@ -67,7 +67,17 @@ const PharmacistDashboard = () => {
   const [appointments, setAppointments] = useState([]);
   const [apptLoading, setApptLoading] = useState(false);
   const [apptFilter, setApptFilter] = useState('all');
+  const [apptTimeFilter, setApptTimeFilter] = useState('all'); // 'all', 'today', 'upcoming', 'past'
   const [apptSearch, setApptSearch] = useState('');
+
+  // Booked Slots state for dynamic slot availability
+  const [bookedSlots, setBookedSlots] = useState([]);
+  const [loadingSlots, setLoadingSlots] = useState(false);
+
+  // Prescription View state for completed consultations
+  const [showPrescriptionModal, setShowPrescriptionModal] = useState(false);
+  const [selectedPrescription, setSelectedPrescription] = useState(null);
+  const [prescriptionLoading, setPrescriptionLoading] = useState(false);
 
   // Doctor Consultation Booking state (10% Discount)
   const [showBookModal, setShowBookModal] = useState(false);
@@ -83,6 +93,22 @@ const PharmacistDashboard = () => {
     disease: '',
     symptoms: ''
   });
+
+  // Dynamically fetch booked slots when selected doctor or date changes
+  useEffect(() => {
+    if (bookForm.doctor_id && bookForm.appointment_date) {
+      setLoadingSlots(true);
+      fetch(`${API}/appointment/slots/${bookForm.doctor_id}/${bookForm.appointment_date}`)
+        .then(res => res.json())
+        .then(data => {
+          setBookedSlots(data.bookedTimes || []);
+        })
+        .catch(err => console.error("Error fetching booked slots:", err))
+        .finally(() => setLoadingSlots(false));
+    } else {
+      setBookedSlots([]);
+    }
+  }, [bookForm.doctor_id, bookForm.appointment_date]);
 
   // Real-time clock — updates every minute for live slot restriction
   const [nowTime, setNowTime] = useState(() => new Date());
@@ -128,6 +154,10 @@ const PharmacistDashboard = () => {
   const [reqLoading, setReqLoading] = useState(false);
   const [showReqModal, setShowReqModal] = useState(false);
   const [submittingReq, setSubmittingReq] = useState(false);
+  const [reqFilter, setReqFilter] = useState('all'); // 'all', 'Pending', 'Approved', 'Rejected', 'Cancelled'
+  const [reqSearch, setReqSearch] = useState('');
+  const [showReqDetailsModal, setShowReqDetailsModal] = useState(false);
+  const [selectedReqDetails, setSelectedReqDetails] = useState(null);
   const [reqForm, setReqForm] = useState({
     medicine_name: '',
     generic_name: '',
@@ -301,10 +331,10 @@ const PharmacistDashboard = () => {
   }, []);
 
   // Fetch Medicine Requests
-  const fetchMedicineRequests = useCallback(async () => {
+  const fetchMedicineRequests = useCallback(async (isPolling = false) => {
     const token = getToken();
     if (!token) return;
-    setReqLoading(true);
+    if (!isPolling) setReqLoading(true);
     try {
       const res = await fetch(`${API}/med-req/my-requests`, {
         headers: { Authorization: `Bearer ${token}` }
@@ -314,7 +344,7 @@ const PharmacistDashboard = () => {
         setMedRequests(data.data || []);
       }
     } catch { /* silent */ }
-    finally { setReqLoading(false); }
+    finally { if (!isPolling) setReqLoading(false); }
   }, []);
 
   // Fetch Pharmacy Sales
@@ -342,8 +372,11 @@ const PharmacistDashboard = () => {
     fetchSales();
     fetchActiveDoctors();
 
-    // Live polling every 3 seconds for real-time status updates
-    const intervalId = setInterval(() => fetchAppointments(true), 3000);
+    // Live polling every 3 seconds for real-time status updates (Appointments & Stock Requests)
+    const intervalId = setInterval(() => {
+      fetchAppointments(true);
+      fetchMedicineRequests(true);
+    }, 3000);
     return () => clearInterval(intervalId);
   }, [fetchProfile, fetchAppointments, fetchMedicines, fetchMedicineRequests, fetchSales, fetchActiveDoctors]);
 
@@ -485,7 +518,8 @@ const PharmacistDashboard = () => {
         });
         fetchAppointments();
         setView(VIEWS.APPOINTMENTS);
-        setApptFilter('pending');
+        setApptFilter('all');
+        setApptTimeFilter('all');
       } else {
         toast.error(data.message || 'Failed to book doctor appointment');
       }
@@ -567,6 +601,30 @@ const PharmacistDashboard = () => {
     }
   };
 
+  // View Doctor Prescription for Completed Consultations
+  const handleViewPrescription = async (apptId) => {
+    setShowPrescriptionModal(true);
+    setPrescriptionLoading(true);
+    setSelectedPrescription(null);
+    try {
+      const res = await fetch(`${API}/prescription/appointment/${apptId}`, {
+        headers: { Authorization: `Bearer ${getToken()}` }
+      });
+      const data = await res.json();
+      if (res.ok && data.prescription) {
+        setSelectedPrescription(data.prescription);
+      } else {
+        toast.error(data.message || 'Prescription record not found for this consultation.');
+        setShowPrescriptionModal(false);
+      }
+    } catch (err) {
+      toast.error('Failed to load prescription record.');
+      setShowPrescriptionModal(false);
+    } finally {
+      setPrescriptionLoading(false);
+    }
+  };
+
 
   // Submit Create Medicine Request
   const handleCreateMedicineRequest = async (e) => {
@@ -624,7 +682,19 @@ const PharmacistDashboard = () => {
       return false;
     }
 
-    // 2. Search Query Filter
+    // 2. Time Filter (Today, Upcoming, Past)
+    if (apptTimeFilter !== 'all') {
+      const isToday = isSameDay(a.appointment_date, new Date());
+      const apptDateObj = new Date(a.appointment_date);
+      const todayObj = new Date();
+      todayObj.setHours(0, 0, 0, 0);
+
+      if (apptTimeFilter === 'today' && !isToday) return false;
+      if (apptTimeFilter === 'upcoming' && apptDateObj < todayObj && !isToday) return false;
+      if (apptTimeFilter === 'past' && apptDateObj >= todayObj && !isToday) return false;
+    }
+
+    // 3. Search Query Filter
     if (!apptSearch || !apptSearch.trim()) return true;
 
     const rawQ = apptSearch.toLowerCase().trim();
@@ -673,6 +743,50 @@ const PharmacistDashboard = () => {
       (m.generic_name || '').toLowerCase().includes(q) ||
       (m.category || '').toLowerCase().includes(q) ||
       (m.manufacturer || '').toLowerCase().includes(q)
+    );
+  });
+
+  // Cancel a pending medicine stock request
+  const handleCancelStockRequest = async (reqId, medName) => {
+    const reason = window.prompt(`Reason for cancelling stock request for "${medName}" (optional):`) ?? '';
+    if (reason === null) return; // User clicked Cancel on prompt
+
+    try {
+      const res = await fetch(`${API}/med-req/cancel/${reqId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${getToken()}`
+        },
+        body: JSON.stringify({ cancellation_reason: reason || 'Cancelled by pharmacist' })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        toast.success('Stock request cancelled successfully.');
+        fetchMedicineRequests();
+      } else {
+        toast.error(data.message || 'Failed to cancel stock request');
+      }
+    } catch (err) {
+      toast.error('Server error cancelling stock request');
+    }
+  };
+
+  // Filtered Medicine Requests — dynamic search & status filter
+  const filteredMedRequests = medRequests.filter(r => {
+    const rStatus = (r.status || 'Pending').toLowerCase();
+    const filterStatus = (reqFilter || 'all').toLowerCase();
+    if (filterStatus !== 'all' && rStatus !== filterStatus) return false;
+
+    if (!reqSearch || !reqSearch.trim()) return true;
+    const q = reqSearch.toLowerCase().trim();
+    return (
+      (r.medicine_name || '').toLowerCase().includes(q) ||
+      (r.generic_name || '').toLowerCase().includes(q) ||
+      (r.category || '').toLowerCase().includes(q) ||
+      (r.manufacturer || '').toLowerCase().includes(q) ||
+      (r.strength || '').toLowerCase().includes(q) ||
+      (r._id || '').toLowerCase().includes(q)
     );
   });
 
@@ -959,9 +1073,9 @@ const PharmacistDashboard = () => {
                   )}
                 </div>
 
-                {(apptSearch || apptFilter !== 'all') && (
+                {(apptSearch || apptFilter !== 'all' || apptTimeFilter !== 'all') && (
                   <button
-                    onClick={() => { setApptSearch(''); setApptFilter('all'); }}
+                    onClick={() => { setApptSearch(''); setApptFilter('all'); setApptTimeFilter('all'); }}
                     style={{ padding: '8px 14px', borderRadius: 8, background: '#fee2e2', border: '1px solid #fca5a5', color: '#dc2626', fontSize: 12, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
                   >
                     <X size={13} /> Reset Filters
@@ -969,51 +1083,85 @@ const PharmacistDashboard = () => {
                 )}
               </div>
 
-              {/* Status Filter Pills Tabs */}
-              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
-                {[
-                  { key: 'all', label: 'All Consultations', count: appointments.length, color: '#0d9488' },
-                  { key: 'pending', label: 'Pending', count: appointments.filter(a => (a.status||'').toLowerCase() === 'pending').length, color: '#3b82f6' },
-                  { key: 'confirmed', label: 'Confirmed', count: appointments.filter(a => (a.status||'').toLowerCase() === 'confirmed').length, color: '#0d9488' },
-                  { key: 'completed', label: 'Completed', count: appointments.filter(a => (a.status||'').toLowerCase() === 'completed').length, color: '#10b981' },
-                  { key: 'cancelled', label: 'Cancelled', count: appointments.filter(a => (a.status||'').toLowerCase() === 'cancelled').length, color: '#f43f5e' },
-                  { key: 'rejected', label: 'Rejected', count: appointments.filter(a => (a.status||'').toLowerCase() === 'rejected').length, color: '#f97316' }
-                ].map(tab => {
-                  const isActive = apptFilter.toLowerCase() === tab.key;
-                  return (
-                    <button
-                      key={tab.key}
-                      onClick={() => setApptFilter(tab.key)}
-                      style={{
-                        padding: '6px 14px',
-                        borderRadius: '20px',
-                        fontSize: '12px',
-                        fontWeight: 700,
-                        border: `1.5px solid ${isActive ? tab.color : '#cbd5e1'}`,
-                        background: isActive ? tab.color : '#ffffff',
-                        color: isActive ? '#ffffff' : '#475569',
-                        cursor: 'pointer',
-                        transition: 'all 0.15s ease-in-out',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '6px',
-                        boxShadow: isActive ? `0 2px 8px ${tab.color}40` : 'none'
-                      }}
-                    >
-                      <span>{tab.label}</span>
-                      <span style={{
-                        background: isActive ? 'rgba(255,255,255,0.25)' : '#f1f5f9',
-                        color: isActive ? '#ffffff' : '#64748b',
-                        padding: '1px 6px',
-                        borderRadius: '10px',
-                        fontSize: '11px',
-                        fontWeight: 800
-                      }}>
-                        {tab.count}
-                      </span>
-                    </button>
-                  );
-                })}
+              {/* Status Filter Pills & Date Filter Pills Tabs */}
+              <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid #e2e8f0', paddingTop: '0.75rem' }}>
+                <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                  <span style={{ fontSize: 12, fontWeight: 800, color: '#475569', marginRight: 4 }}>Status:</span>
+                  {[
+                    { key: 'all', label: 'All', count: appointments.length, color: '#0d9488' },
+                    { key: 'pending', label: 'Pending', count: appointments.filter(a => (a.status||'').toLowerCase() === 'pending').length, color: '#3b82f6' },
+                    { key: 'confirmed', label: 'Confirmed', count: appointments.filter(a => (a.status||'').toLowerCase() === 'confirmed').length, color: '#0d9488' },
+                    { key: 'completed', label: 'Completed', count: appointments.filter(a => (a.status||'').toLowerCase() === 'completed').length, color: '#10b981' },
+                    { key: 'cancelled', label: 'Cancelled', count: appointments.filter(a => (a.status||'').toLowerCase() === 'cancelled').length, color: '#f43f5e' },
+                    { key: 'rejected', label: 'Rejected', count: appointments.filter(a => (a.status||'').toLowerCase() === 'rejected').length, color: '#f97316' }
+                  ].map(tab => {
+                    const isActive = apptFilter.toLowerCase() === tab.key;
+                    return (
+                      <button
+                        key={tab.key}
+                        onClick={() => setApptFilter(tab.key)}
+                        style={{
+                          padding: '5px 12px',
+                          borderRadius: '20px',
+                          fontSize: '12px',
+                          fontWeight: 700,
+                          border: `1.5px solid ${isActive ? tab.color : '#cbd5e1'}`,
+                          background: isActive ? tab.color : '#ffffff',
+                          color: isActive ? '#ffffff' : '#475569',
+                          cursor: 'pointer',
+                          transition: 'all 0.15s ease-in-out',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          boxShadow: isActive ? `0 2px 8px ${tab.color}40` : 'none'
+                        }}
+                      >
+                        <span>{tab.label}</span>
+                        <span style={{
+                          background: isActive ? 'rgba(255,255,255,0.25)' : '#f1f5f9',
+                          color: isActive ? '#ffffff' : '#64748b',
+                          padding: '1px 6px',
+                          borderRadius: '10px',
+                          fontSize: '11px',
+                          fontWeight: 800
+                        }}>
+                          {tab.count}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                  <span style={{ fontSize: 12, fontWeight: 800, color: '#475569', marginRight: 4 }}>Date:</span>
+                  {[
+                    { key: 'all', label: 'All Dates' },
+                    { key: 'today', label: 'Today' },
+                    { key: 'upcoming', label: 'Upcoming' },
+                    { key: 'past', label: 'Past / History' }
+                  ].map(tab => {
+                    const isActive = apptTimeFilter === tab.key;
+                    return (
+                      <button
+                        key={tab.key}
+                        onClick={() => setApptTimeFilter(tab.key)}
+                        style={{
+                          padding: '5px 12px',
+                          borderRadius: '8px',
+                          fontSize: '12px',
+                          fontWeight: 700,
+                          border: `1.5px solid ${isActive ? '#0f766e' : '#cbd5e1'}`,
+                          background: isActive ? '#0f766e' : '#ffffff',
+                          color: isActive ? '#ffffff' : '#475569',
+                          cursor: 'pointer',
+                          transition: 'all 0.15s'
+                        }}
+                      >
+                        {tab.label}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             </div>
 
@@ -1145,6 +1293,22 @@ const PharmacistDashboard = () => {
                                 style={{ padding: '6px 14px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}
                               >
                                 <ArrowRight size={14} /> Join Video Call Room
+                              </button>
+                            </div>
+                          )}
+
+                          {/* Completed Consultation Prescription CTA */}
+                          {statusKey === 'completed' && (
+                            <div style={{ marginTop: '0.75rem', padding: '0.6rem 1rem', background: '#f0fdf4', borderRadius: 8, display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                              <FileText size={16} color="#0d9488" />
+                              <span style={{ fontSize: 13, color: '#0f766e', fontWeight: 600 }}>
+                                Consultation completed. View doctor's diagnosis, notes & prescribed medicines.
+                              </span>
+                              <button
+                                onClick={() => handleViewPrescription(appt._id)}
+                                style={{ padding: '6px 14px', background: '#0d9488', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}
+                              >
+                                <FileText size={14} /> View Doctor Prescription
                               </button>
                             </div>
                           )}
@@ -1284,15 +1448,169 @@ const PharmacistDashboard = () => {
         {/* ==================== MEDICINE STOCK REQUESTS VIEW ==================== */}
         {view === VIEWS.REQUESTS && (
           <section className="pd-section">
-            <div className="pd-section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div className="pd-section-header" style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', marginBottom: '1.25rem' }}>
               <div>
                 <h2 className="pd-section-title">Medicine Stock Requests</h2>
-                <p style={{ margin: '2px 0 0', fontSize: 13, color: '#64748b' }}>Stock approval requests submitted to Admin</p>
+                <p style={{ margin: '2px 0 0', fontSize: 13, color: '#64748b' }}>
+                  Track, submit & manage medicine stock requests dynamically with Admin approval status
+                </p>
               </div>
 
               <button onClick={() => setShowReqModal(true)} className="pd-btn-primary">
                 <Plus size={16} /> Request New Stock
               </button>
+            </div>
+
+            {/* Dynamic Status Metric Cards for Stock Requests */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1rem', marginBottom: '1.25rem' }}>
+              <div onClick={() => setReqFilter('all')} style={{
+                background: reqFilter === 'all' ? 'linear-gradient(135deg, #f0fdf9, #ccfbf1)' : '#ffffff',
+                border: `1.5px solid ${reqFilter === 'all' ? '#0d9488' : '#e2e8f0'}`,
+                borderRadius: '12px', padding: '1rem', cursor: 'pointer', transition: 'all 0.15s'
+              }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#64748b', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span>Total Requests</span>
+                  <FileText size={16} color="#0d9488" />
+                </div>
+                <div style={{ fontSize: 22, fontWeight: 800, color: '#0f172a', marginTop: 6 }}>
+                  {medRequests.length}
+                </div>
+              </div>
+
+              <div onClick={() => setReqFilter('Pending')} style={{
+                background: reqFilter === 'Pending' ? 'linear-gradient(135deg, #eff6ff, #dbeafe)' : '#ffffff',
+                border: `1.5px solid ${reqFilter === 'Pending' ? '#3b82f6' : '#e2e8f0'}`,
+                borderRadius: '12px', padding: '1rem', cursor: 'pointer', transition: 'all 0.15s'
+              }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#64748b', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span>Pending Admin</span>
+                  <Clock size={16} color="#3b82f6" />
+                </div>
+                <div style={{ fontSize: 22, fontWeight: 800, color: '#1d4ed8', marginTop: 6 }}>
+                  {medRequests.filter(r => (r.status || 'Pending') === 'Pending').length}
+                </div>
+              </div>
+
+              <div onClick={() => setReqFilter('Approved')} style={{
+                background: reqFilter === 'Approved' ? 'linear-gradient(135deg, #f0fdf4, #dcfce7)' : '#ffffff',
+                border: `1.5px solid ${reqFilter === 'Approved' ? '#10b981' : '#e2e8f0'}`,
+                borderRadius: '12px', padding: '1rem', cursor: 'pointer', transition: 'all 0.15s'
+              }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#64748b', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span>Approved & Added</span>
+                  <CheckCircle2 size={16} color="#10b981" />
+                </div>
+                <div style={{ fontSize: 22, fontWeight: 800, color: '#047857', marginTop: 6 }}>
+                  {medRequests.filter(r => r.status === 'Approved').length}
+                </div>
+              </div>
+
+              <div onClick={() => setReqFilter('Rejected')} style={{
+                background: reqFilter === 'Rejected' ? 'linear-gradient(135deg, #fff1f2, #ffe4e6)' : '#ffffff',
+                border: `1.5px solid ${reqFilter === 'Rejected' ? '#f43f5e' : '#e2e8f0'}`,
+                borderRadius: '12px', padding: '1rem', cursor: 'pointer', transition: 'all 0.15s'
+              }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#64748b', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span>Rejected</span>
+                  <X size={16} color="#f43f5e" />
+                </div>
+                <div style={{ fontSize: 22, fontWeight: 800, color: '#be123c', marginTop: 6 }}>
+                  {medRequests.filter(r => r.status === 'Rejected').length}
+                </div>
+              </div>
+
+              <div onClick={() => setReqFilter('Cancelled')} style={{
+                background: reqFilter === 'Cancelled' ? 'linear-gradient(135deg, #f8fafc, #f1f5f9)' : '#ffffff',
+                border: `1.5px solid ${reqFilter === 'Cancelled' ? '#64748b' : '#e2e8f0'}`,
+                borderRadius: '12px', padding: '1rem', cursor: 'pointer', transition: 'all 0.15s'
+              }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#64748b', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span>Cancelled</span>
+                  <AlertCircle size={16} color="#64748b" />
+                </div>
+                <div style={{ fontSize: 22, fontWeight: 800, color: '#475569', marginTop: 6 }}>
+                  {medRequests.filter(r => r.status === 'Cancelled').length}
+                </div>
+              </div>
+            </div>
+
+            {/* Search Bar & Status Filter Pills */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '1.5rem', background: '#f8fafc', padding: '1rem', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+              <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ position: 'relative', flex: 1, minWidth: 260 }}>
+                  <Search size={16} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+                  <input
+                    type="text"
+                    placeholder="Search stock request by medicine name, generic name, category, or manufacturer..."
+                    value={reqSearch}
+                    onChange={e => setReqSearch(e.target.value)}
+                    style={{ width: '100%', padding: '9px 32px 9px 36px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13, outline: 'none', background: '#fff', boxSizing: 'border-box' }}
+                  />
+                  {reqSearch && (
+                    <button
+                      onClick={() => setReqSearch('')}
+                      style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: 2, display: 'flex' }}
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
+                </div>
+
+                {(reqSearch || reqFilter !== 'all') && (
+                  <button
+                    onClick={() => { setReqSearch(''); setReqFilter('all'); }}
+                    style={{ padding: '8px 14px', borderRadius: 8, background: '#fee2e2', border: '1px solid #fca5a5', color: '#dc2626', fontSize: 12, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
+                  >
+                    <X size={13} /> Reset Filters
+                  </button>
+                )}
+              </div>
+
+              {/* Status Filter Tabs */}
+              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                {[
+                  { key: 'all', label: 'All Requests', count: medRequests.length, color: '#0d9488' },
+                  { key: 'Pending', label: 'Pending Admin', count: medRequests.filter(r => (r.status || 'Pending') === 'Pending').length, color: '#3b82f6' },
+                  { key: 'Approved', label: 'Approved', count: medRequests.filter(r => r.status === 'Approved').length, color: '#10b981' },
+                  { key: 'Rejected', label: 'Rejected', count: medRequests.filter(r => r.status === 'Rejected').length, color: '#f43f5e' },
+                  { key: 'Cancelled', label: 'Cancelled', count: medRequests.filter(r => r.status === 'Cancelled').length, color: '#64748b' }
+                ].map(tab => {
+                  const isActive = reqFilter.toLowerCase() === tab.key.toLowerCase();
+                  return (
+                    <button
+                      key={tab.key}
+                      onClick={() => setReqFilter(tab.key)}
+                      style={{
+                        padding: '6px 14px',
+                        borderRadius: '20px',
+                        fontSize: '12px',
+                        fontWeight: 700,
+                        border: `1.5px solid ${isActive ? tab.color : '#cbd5e1'}`,
+                        background: isActive ? tab.color : '#ffffff',
+                        color: isActive ? '#ffffff' : '#475569',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease-in-out',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        boxShadow: isActive ? `0 2px 8px ${tab.color}40` : 'none'
+                      }}
+                    >
+                      <span>{tab.label}</span>
+                      <span style={{
+                        background: isActive ? 'rgba(255,255,255,0.25)' : '#f1f5f9',
+                        color: isActive ? '#ffffff' : '#64748b',
+                        padding: '1px 6px',
+                        borderRadius: '10px',
+                        fontSize: '11px',
+                        fontWeight: 800
+                      }}>
+                        {tab.count}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
             <div className="pd-section-body">
@@ -1301,13 +1619,26 @@ const PharmacistDashboard = () => {
                   <Loader2 size={32} style={{ animation: 'spin 1s linear infinite', marginBottom: '1rem' }} />
                   <p>Loading stock requests…</p>
                 </div>
-              ) : medRequests.length === 0 ? (
-                <div style={{ textAlign: 'center', color: '#94a3b8', padding: '3rem' }}>
+              ) : filteredMedRequests.length === 0 ? (
+                <div style={{ textAlign: 'center', color: '#94a3b8', padding: '3rem', background: '#fff', borderRadius: '12px', border: '1px dashed #cbd5e1' }}>
                   <FileText size={60} style={{ marginBottom: '1rem', opacity: 0.3 }} />
-                  <h3 style={{ color: '#374151', marginBottom: '0.5rem' }}>No stock requests submitted yet</h3>
-                  <button onClick={() => setShowReqModal(true)} className="pd-btn-primary" style={{ marginTop: '1rem' }}>
-                    <Plus size={16} /> Submit Your First Request
-                  </button>
+                  <h3 style={{ color: '#374151', marginBottom: '0.5rem' }}>
+                    {reqSearch || reqFilter !== 'all' ? 'No matching stock requests found' : 'No stock requests submitted yet'}
+                  </h3>
+                  <p style={{ fontSize: 14, color: '#64748b', marginBottom: '1rem' }}>
+                    {reqSearch || reqFilter !== 'all'
+                      ? 'Try clearing your search query or switching status tabs.'
+                      : 'Submit stock approval requests to Admin when new medicines are needed.'}
+                  </p>
+                  {reqSearch || reqFilter !== 'all' ? (
+                    <button onClick={() => { setReqSearch(''); setReqFilter('all'); }} className="pd-btn-secondary" style={{ fontSize: 13 }}>
+                      Clear Search & Filters
+                    </button>
+                  ) : (
+                    <button onClick={() => setShowReqModal(true)} className="pd-btn-primary">
+                      <Plus size={16} /> Submit Your First Request
+                    </button>
+                  )}
                 </div>
               ) : (
                 <div className="pd-table-wrapper">
@@ -1320,41 +1651,61 @@ const PharmacistDashboard = () => {
                         <th>Qty / Price</th>
                         <th>Status</th>
                         <th>Submitted On</th>
-                        <th>Details</th>
+                        <th style={{ textAlign: 'right' }}>Actions</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {medRequests.map((req) => (
-                        <tr key={req._id}>
-                          <td>
-                            <div style={{ fontWeight: 700, color: '#0f172a' }}>{req.medicine_name}</div>
-                            {req.generic_name && <div style={{ fontSize: 11, color: '#64748b' }}>{req.generic_name}</div>}
-                          </td>
-                          <td><span className="pd-tag">{req.category}</span></td>
-                          <td>{req.strength} ({req.unit})</td>
-                          <td>
-                            <div>Qty: <strong>{req.stock_available}</strong></div>
-                            <div style={{ fontSize: 12, color: '#059669' }}>₹{req.price}</div>
-                          </td>
-                          <td>
-                            {req.status === 'Approved' ? (
-                              <span className="pd-badge pd-badge-green"><CheckCircle2 size={12} /> Approved</span>
-                            ) : req.status === 'Rejected' ? (
-                              <span className="pd-badge pd-badge-rose"><X size={12} /> Rejected</span>
-                            ) : (
-                              <span className="pd-badge pd-badge-blue"><Clock size={12} /> Pending Admin</span>
-                            )}
-                          </td>
-                          <td>{formatDate(req.createdAt)}</td>
-                          <td>
-                            {req.rejection_reason && (
-                              <span style={{ fontSize: 12, color: '#ef4444' }} title={req.rejection_reason}>
-                                Reason: {req.rejection_reason}
-                              </span>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
+                      {filteredMedRequests.map((req) => {
+                        const statusKey = (req.status || 'Pending').toLowerCase();
+                        const isPending = statusKey === 'pending';
+                        return (
+                          <tr key={req._id}>
+                            <td>
+                              <div style={{ fontWeight: 700, color: '#0f172a' }}>{req.medicine_name}</div>
+                              {req.generic_name && <div style={{ fontSize: 11, color: '#64748b' }}>{req.generic_name}</div>}
+                            </td>
+                            <td><span className="pd-tag">{req.category}</span></td>
+                            <td>{req.strength} ({req.unit})</td>
+                            <td>
+                              <div>Qty: <strong>{req.stock_available}</strong></div>
+                              <div style={{ fontSize: 12, color: '#059669', fontWeight: 700 }}>₹{req.price}</div>
+                            </td>
+                            <td>
+                              {req.status === 'Approved' ? (
+                                <span className="pd-badge pd-badge-green"><CheckCircle2 size={12} /> Approved</span>
+                              ) : req.status === 'Rejected' ? (
+                                <span className="pd-badge pd-badge-rose"><X size={12} /> Rejected</span>
+                              ) : req.status === 'Cancelled' ? (
+                                <span className="pd-badge" style={{ background: '#f1f5f9', color: '#64748b', border: '1px solid #cbd5e1' }}>
+                                  Cancelled
+                                </span>
+                              ) : (
+                                <span className="pd-badge pd-badge-blue"><Clock size={12} /> Pending Admin</span>
+                              )}
+                            </td>
+                            <td>{formatDate(req.createdAt)}</td>
+                            <td>
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.5rem' }}>
+                                <button
+                                  onClick={() => { setSelectedReqDetails(req); setShowReqDetailsModal(true); }}
+                                  style={{ padding: '4px 10px', background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: 6, fontSize: 12, fontWeight: 600, color: '#334155', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
+                                >
+                                  <Eye size={13} /> View Specs
+                                </button>
+                                {isPending && (
+                                  <button
+                                    onClick={() => handleCancelStockRequest(req._id, req.medicine_name)}
+                                    style={{ padding: '4px 10px', background: '#fee2e2', border: '1px solid #fca5a5', borderRadius: 6, fontSize: 12, fontWeight: 700, color: '#dc2626', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
+                                    title="Cancel this pending stock request"
+                                  >
+                                    <X size={13} /> Cancel
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -1756,32 +2107,46 @@ const PharmacistDashboard = () => {
                   </div>
                 </div>
 
-                {/* Time slot grid — past slots greyed with ✕ */}
+                {/* Time slot grid — past slots greyed with ✕, booked slots marked */}
                 {bookForm.appointment_date && (
                   <div className="pd-form-group" style={{ width: '100%' }}>
-                    <label>Select Time Slot *</label>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                      <label style={{ margin: 0 }}>Select Time Slot *</label>
+                      {loadingSlots && (
+                        <span style={{ fontSize: 11, color: '#0d9488', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <Loader2 size={12} style={{ animation: 'spin 1s linear infinite' }} /> Checking live slots...
+                        </span>
+                      )}
+                    </div>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(90px, 1fr))', gap: '8px', marginTop: '0.5rem' }}>
                       {SLOT_TIMES.map(t24 => {
                         const isPast = isPastTimeSlot(t24);
+                        const isBooked = bookedSlots.includes(t24);
+                        const isDisabled = isPast || isBooked;
                         const isSelected = bookForm.appointment_time === t24;
+
+                        let titleText = '';
+                        if (isPast) titleText = 'This time has already passed today';
+                        else if (isBooked) titleText = 'This time slot is already booked for this doctor';
+
                         return (
                           <button
                             key={t24}
                             type="button"
-                            disabled={isPast}
-                            title={isPast ? 'This time has already passed' : ''}
-                            onClick={() => !isPast && setBookForm({ ...bookForm, appointment_time: t24 })}
+                            disabled={isDisabled}
+                            title={titleText}
+                            onClick={() => !isDisabled && setBookForm({ ...bookForm, appointment_time: t24 })}
                             style={{
                               position: 'relative',
                               padding: '8px 4px',
                               borderRadius: '8px',
-                              border: `1.5px solid ${isSelected ? '#0d9488' : isPast ? '#fecaca' : '#cbd5e1'}`,
+                              border: `1.5px solid ${isSelected ? '#0d9488' : isBooked ? '#fdba74' : isPast ? '#fecaca' : '#cbd5e1'}`,
                               fontSize: '12px',
                               fontWeight: 600,
-                              cursor: isPast ? 'not-allowed' : 'pointer',
-                              background: isSelected ? '#0d9488' : isPast ? '#fef2f2' : '#fff',
-                              color: isSelected ? '#fff' : isPast ? '#fca5a5' : '#334155',
-                              opacity: isPast ? 0.75 : 1,
+                              cursor: isDisabled ? 'not-allowed' : 'pointer',
+                              background: isSelected ? '#0d9488' : isBooked ? '#fff7ed' : isPast ? '#fef2f2' : '#fff',
+                              color: isSelected ? '#fff' : isBooked ? '#c2410c' : isPast ? '#fca5a5' : '#334155',
+                              opacity: isDisabled ? 0.75 : 1,
                               transition: 'all 0.15s',
                             }}
                           >
@@ -1794,12 +2159,19 @@ const PharmacistDashboard = () => {
                                 lineHeight: 1, pointerEvents: 'none'
                               }}>✕</span>
                             )}
+                            {isBooked && !isPast && (
+                              <span style={{
+                                display: 'block', fontSize: '9px', fontWeight: 800, color: '#ea580c'
+                              }}>
+                                BOOKED
+                              </span>
+                            )}
                           </button>
                         );
                       })}
                     </div>
                     {!bookForm.appointment_time && (
-                      <p style={{ fontSize: 12, color: '#ef4444', marginTop: 4 }}>Please select a time slot</p>
+                      <p style={{ fontSize: 12, color: '#ef4444', marginTop: 4 }}>Please select an available time slot</p>
                     )}
                   </div>
                 )}
@@ -2203,6 +2575,198 @@ const PharmacistDashboard = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ==================== VIEW PRESCRIPTION / CONSULTATION RECORD MODAL ==================== */}
+      {showPrescriptionModal && (
+        <div className="pd-modal-overlay">
+          <div className="pd-modal-content" style={{ maxWidth: 640 }}>
+            <div className="pd-modal-header" style={{ background: 'linear-gradient(135deg, #0d9488, #0f766e)', color: '#fff', borderRadius: '12px 12px 0 0', padding: '1rem 1.25rem' }}>
+              <h3 style={{ color: '#fff', margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <FileText size={20} /> Doctor Consultation Record & Prescription
+              </h3>
+              <button className="pd-modal-close" style={{ color: '#fff' }} onClick={() => setShowPrescriptionModal(false)}>
+                <X size={18} />
+              </button>
+            </div>
+            
+            <div className="pd-modal-body" style={{ padding: '1.25rem' }}>
+              {prescriptionLoading ? (
+                <div style={{ textAlign: 'center', padding: '2.5rem', color: '#94a3b8' }}>
+                  <Loader2 size={32} style={{ animation: 'spin 1s linear infinite', marginBottom: '0.75rem' }} />
+                  <p>Fetching prescription record details…</p>
+                </div>
+              ) : selectedPrescription ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                  {/* Doctor & Patient Info Header */}
+                  <div style={{ background: '#f8fafc', padding: '1rem', borderRadius: '10px', border: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
+                    <div>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>Attending Specialist</div>
+                      <div style={{ fontSize: 15, fontWeight: 800, color: '#0f172a', marginTop: 2 }}>
+                        Dr. {selectedPrescription.doctor_id?.first_name} {selectedPrescription.doctor_id?.last_name}
+                      </div>
+                      <div style={{ fontSize: 12, color: '#0d9488', fontWeight: 600 }}>
+                        {selectedPrescription.doctor_id?.specialization || 'Specialist'} {selectedPrescription.doctor_id?.department ? `(${selectedPrescription.doctor_id.department})` : ''}
+                      </div>
+                    </div>
+
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>Prescribed Date</div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: '#334155', marginTop: 2 }}>
+                        {formatDate(selectedPrescription.prescribed_date || selectedPrescription.createdAt)}
+                      </div>
+                      {selectedPrescription.follow_up_date && (
+                        <div style={{ fontSize: 12, color: '#2563eb', fontWeight: 600, marginTop: 2 }}>
+                          Follow-up: {formatDate(selectedPrescription.follow_up_date)}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* General Instructions */}
+                  {selectedPrescription.general_instructions && (
+                    <div style={{ background: '#f0fdf4', padding: '0.85rem 1rem', borderRadius: 8, border: '1px solid #bbf7d0' }}>
+                      <div style={{ fontSize: 12, fontWeight: 800, color: '#166534', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 5 }}>
+                        <Stethoscope size={14} /> Doctor's Instructions
+                      </div>
+                      <div style={{ fontSize: 13, color: '#15803d' }}>
+                        {selectedPrescription.general_instructions}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Prescribed Medicines List */}
+                  <div>
+                    <h4 style={{ fontSize: 14, fontWeight: 800, color: '#0f172a', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <Pill size={16} color="#0d9488" /> Prescribed Medication List ({selectedPrescription.medicines?.length || 0})
+                    </h4>
+
+                    {selectedPrescription.medicines && selectedPrescription.medicines.length > 0 ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                        {selectedPrescription.medicines.map((med, idx) => (
+                          <div key={idx} style={{ background: '#fff', border: '1px solid #cbd5e1', borderRadius: 8, padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+                            <div>
+                              <div style={{ fontWeight: 800, fontSize: 14, color: '#0f172a' }}>
+                                {idx + 1}. {med.medicine_name} {med.strength ? `(${med.strength})` : ''}
+                              </div>
+                              <div style={{ fontSize: 12, color: '#64748b' }}>
+                                Generic: {med.generic_name || 'N/A'} {med.instructions ? `• ${med.instructions}` : ''}
+                              </div>
+                            </div>
+
+                            <div style={{ display: 'flex', gap: 12, fontSize: 12, fontWeight: 700 }}>
+                              <span style={{ background: '#f1f5f9', color: '#334155', padding: '3px 8px', borderRadius: 6 }}>
+                                Dose: {med.dosage}
+                              </span>
+                              <span style={{ background: '#eff6ff', color: '#1d4ed8', padding: '3px 8px', borderRadius: 6 }}>
+                                Freq: {med.frequency}
+                              </span>
+                              <span style={{ background: '#f0fdf4', color: '#15803d', padding: '3px 8px', borderRadius: 6 }}>
+                                Duration: {med.duration}
+                              </span>
+                              <span style={{ background: '#fef3c7', color: '#b45309', padding: '3px 8px', borderRadius: 6 }}>
+                                Qty: {med.quantity}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div style={{ textAlign: 'center', padding: '1rem', color: '#94a3b8', fontSize: 13 }}>
+                        No medications listed in this record.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div style={{ textAlign: 'center', padding: '2rem', color: '#94a3b8' }}>
+                  No prescription record details found.
+                </div>
+              )}
+            </div>
+
+            <div className="pd-modal-footer" style={{ padding: '0.75rem 1.25rem', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end' }}>
+              <button className="pd-btn-secondary" onClick={() => setShowPrescriptionModal(false)}>
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ==================== STOCK REQUEST DETAILS MODAL ==================== */}
+      {showReqDetailsModal && selectedReqDetails && (
+        <div className="pd-modal-overlay">
+          <div className="pd-modal-content" style={{ maxWidth: 560 }}>
+            <div className="pd-modal-header" style={{ background: 'linear-gradient(135deg, #0d9488, #0f766e)', color: '#fff', borderRadius: '12px 12px 0 0' }}>
+              <h3 style={{ color: '#fff', margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Package size={20} /> Stock Request Specifications
+              </h3>
+              <button className="pd-modal-close" style={{ color: '#fff' }} onClick={() => setShowReqDetailsModal(false)}><X size={18} /></button>
+            </div>
+            
+            <div className="pd-modal-body" style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f8fafc', padding: '12px 16px', borderRadius: 10, border: '1px solid #e2e8f0' }}>
+                <div>
+                  <div style={{ fontSize: 16, fontWeight: 800, color: '#0f172a' }}>{selectedReqDetails.medicine_name}</div>
+                  <div style={{ fontSize: 12, color: '#64748b' }}>Generic: {selectedReqDetails.generic_name || 'N/A'}</div>
+                </div>
+                <span className={`pd-badge pd-badge-${selectedReqDetails.status === 'Approved' ? 'green' : selectedReqDetails.status === 'Rejected' ? 'rose' : selectedReqDetails.status === 'Cancelled' ? 'slate' : 'blue'}`}>
+                  {selectedReqDetails.status}
+                </span>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', fontSize: 13 }}>
+                <div><strong>Category:</strong> {selectedReqDetails.category}</div>
+                <div><strong>Manufacturer:</strong> {selectedReqDetails.manufacturer}</div>
+                <div><strong>Strength:</strong> {selectedReqDetails.strength}</div>
+                <div><strong>Packaging Unit:</strong> {selectedReqDetails.unit}</div>
+                <div><strong>Price per Unit:</strong> ₹{selectedReqDetails.price}</div>
+                <div><strong>Requested Stock:</strong> {selectedReqDetails.stock_available} units</div>
+                <div><strong>Mfg Date:</strong> {formatDate(selectedReqDetails.mfg_date)}</div>
+                <div><strong>Expiry Date:</strong> {formatDate(selectedReqDetails.expiry_date)}</div>
+                <div><strong>Prescription Rx:</strong> {selectedReqDetails.requires_prescription ? 'Required' : 'Not Required (OTC)'}</div>
+                <div><strong>Submitted On:</strong> {formatDate(selectedReqDetails.createdAt)}</div>
+              </div>
+
+              {selectedReqDetails.description && (
+                <div style={{ background: '#f8fafc', padding: '10px 14px', borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 13 }}>
+                  <strong>Description / Notes:</strong> {selectedReqDetails.description}
+                </div>
+              )}
+
+              {selectedReqDetails.rejection_reason && (
+                <div style={{ background: '#fff1f2', padding: '10px 14px', borderRadius: 8, border: '1px solid #fecdd3', fontSize: 13, color: '#be123c' }}>
+                  <strong>Admin Rejection Reason:</strong> {selectedReqDetails.rejection_reason}
+                </div>
+              )}
+
+              {selectedReqDetails.cancellation_reason && (
+                <div style={{ background: '#f8fafc', padding: '10px 14px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13, color: '#475569' }}>
+                  <strong>Pharmacist Cancellation Reason:</strong> {selectedReqDetails.cancellation_reason}
+                </div>
+              )}
+            </div>
+
+            <div className="pd-modal-footer" style={{ padding: '0.75rem 1.25rem', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              {selectedReqDetails.status === 'Pending' && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowReqDetailsModal(false);
+                    handleCancelStockRequest(selectedReqDetails._id, selectedReqDetails.medicine_name);
+                  }}
+                  style={{ padding: '6px 14px', background: '#fee2e2', color: '#dc2626', border: '1px solid #fca5a5', borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}
+                >
+                  <X size={14} /> Cancel Stock Request
+                </button>
+              )}
+              <button type="button" className="pd-btn-secondary" onClick={() => setShowReqDetailsModal(false)} style={{ marginLeft: 'auto' }}>
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}
