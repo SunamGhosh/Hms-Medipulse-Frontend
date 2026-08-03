@@ -93,7 +93,10 @@ const DoctorDashboard = () => {
           setTimeout(() => setNotification(''), 5000);
         }
         pendingCountRef.current = newPendingCount;
-        setAppointments(appts);
+        const sorted = appts.sort(
+          (a, b) => new Date(b.appointment_date) - new Date(a.appointment_date)
+        );
+        setAppointments(sorted);
       }
     } catch { /* silent */ }
     finally { if (!isPolling) setApptLoading(false); }
