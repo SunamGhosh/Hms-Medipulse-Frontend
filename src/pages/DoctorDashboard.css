@@ -6,7 +6,7 @@
 
 .dd-container {
   display: flex;
-  min-height: 100vh;
+  height: 100vh;
   background: linear-gradient(135deg, #f0fdf9 0%, #ecfdf5 40%, #f0fafa 100%);
   font-family: var(--font-main);
   position: relative;

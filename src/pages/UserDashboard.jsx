@@ -3,7 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import {
   Activity, CalendarCheck, Stethoscope, Pill, Bell, User, LogOut,
   ArrowRight, Clock, Heart, ShieldCheck, ArrowUpRight, Users,
-  X, CheckCircle2, AlertCircle, XCircle, Loader2, Plus, Video, Package, Truck, Trash2
+  X, CheckCircle2, AlertCircle, XCircle, Loader2, Plus, Video, Package, Truck, Trash2, CreditCard
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import './UserDashboard.css';
@@ -79,7 +79,12 @@ const UserDashboard = () => {
         headers: { Authorization: `Bearer ${token}` }
       });
       const data = await res.json();
-      if (res.ok) setAppointments(data.appointments || []);
+      if (res.ok) {
+        const sorted = (data.appointments || []).sort(
+          (a, b) => new Date(b.appointment_date) - new Date(a.appointment_date)
+        );
+        setAppointments(sorted);
+      }
     } catch { /* silent */ }
     finally { setApptLoading(false); }
   }, []);
@@ -179,6 +184,72 @@ const UserDashboard = () => {
       }
     } catch {
       toast.error('An error occurred while cancelling');
+    }
+  };
+
+  /* ── pay for confirmed appointment via Razorpay ── */
+  const handleApptPayment = async (appt) => {
+    const token = getToken();
+    if (!token) return;
+    try {
+      // Create a Razorpay order for the appointment fee
+      const res = await fetch(`${API}/api/payment/create-order`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ amount: appt.consultation_fee, appointment_id: appt._id })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        toast.error(data.message || 'Failed to initiate payment');
+        return;
+      }
+
+      const options = {
+        key: import.meta.env.VITE_RAZORPAY_KEY_ID,
+        amount: data.order.amount,
+        currency: data.order.currency || 'INR',
+        name: 'MediPulse Healthcare',
+        description: `Consultation with Dr. ${appt.doctor_id?.first_name} ${appt.doctor_id?.last_name}`,
+        order_id: data.order.id,
+        handler: async (response) => {
+          try {
+            const verifyRes = await fetch(`${API}/api/payment/verify-appointment-payment`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+              body: JSON.stringify({
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature,
+                appointment_id: appt._id
+              })
+            });
+            const verifyData = await verifyRes.json();
+            if (verifyRes.ok && verifyData.success) {
+              toast.success('Payment successful! Your appointment is confirmed.');
+              fetchAppointments();
+            } else {
+              toast.error(verifyData.message || 'Payment verification failed');
+            }
+          } catch (err) {
+            console.error('Payment verification error:', err);
+            toast.error('Error verifying payment: ' + err.message);
+          }
+        },
+        prefill: {
+          name: userName,
+          email: userProfile?.email || ''
+        },
+        theme: { color: '#0d9488' }
+      };
+
+      if (!window.Razorpay) {
+        toast.error('Razorpay not loaded. Please refresh the page.');
+        return;
+      }
+      const rzp = new window.Razorpay(options);
+      rzp.open();
+    } catch {
+      toast.error('Error initiating payment');
     }
   };
 
@@ -542,8 +613,21 @@ const UserDashboard = () => {
                           {cfg.label}
                         </span>
 
-                        <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
-                          {appt.status === 'confirmed' && appt.consult_mode === 'online' && (
+                        <div style={{ display: 'flex', gap: '8px', flexShrink: 0, flexWrap: 'wrap', alignItems: 'center' }}>
+                          {/* Payment Done badge */}
+                          {appt.payment_status === 'paid' && (
+                            <span style={{ background: '#f0fdf4', border: '1.5px solid #86efac', color: '#16a34a', borderRadius: '20px', padding: '5px 13px', fontSize: '12px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                              <CheckCircle2 size={12} /> Payment Done
+                            </span>
+                          )}
+                          {/* Pay Now button — only for confirmed + unpaid */}
+                          {appt.status === 'confirmed' && appt.payment_status !== 'paid' && appt.consultation_fee && (
+                            <button onClick={() => handleApptPayment(appt)}
+                              style={{ background: 'linear-gradient(135deg,#0d9488,#14b8a6)', border: 'none', color: '#fff', borderRadius: '8px', padding: '6px 14px', fontWeight: 700, fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', boxShadow: '0 4px 10px rgba(13,148,136,0.35)' }}>
+                              <CreditCard size={13} /> Pay Now
+                            </button>
+                          )}
+                          {appt.status === 'confirmed' && appt.payment_status === 'paid' && appt.consult_mode === 'online' && (
                             <button onClick={() => navigate(`/video-call/MediPulse_${appt._id}`)}
                               style={{ background: '#eff6ff', border: '1px solid #bfdbfe', color: '#2563eb', borderRadius: '8px', padding: '6px 14px', fontWeight: 700, fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}>
                               <Video size={13} /> Join Video Call
