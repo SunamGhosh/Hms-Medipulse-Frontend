@@ -10,7 +10,8 @@ const initialOptions = [
   { label: 'Help me book an appointment.', value: 'book_appointment' },
   { label: 'Help me sign up', value: 'sign_up' },
   { label: 'Find a doctor', value: 'find_doctor' },
-  { label: 'Buy a medicine', value: 'buy_medicine' }
+  { label: 'Buy a medicine', value: 'buy_medicine' },
+  { label: 'Know about MEDIPULSE', value: 'about_medipulse' }
 ];
 
 const categoryOptions = [
@@ -32,6 +33,29 @@ const yesNoOptions = [
   { label: 'No', value: 'no' }
 ];
 
+const bookingRelatedOptions = [
+  { label: 'Find a doctor', value: 'find_doctor' },
+  { label: 'View My Appointments', value: 'view_appointments' },
+  { label: 'Back to main menu', value: 'yes' }
+];
+
+const signUpRelatedOptions = [
+  { label: 'Register/Signup Now', value: 'go_signup' },
+  { label: 'Back to main menu', value: 'yes' }
+];
+
+const pharmacyRelatedOptions = [
+  { label: 'Browse Pharmacy', value: 'go_pharmacy' },
+  { label: 'View My Orders', value: 'view_orders' },
+  { label: 'Back to main menu', value: 'yes' }
+];
+
+const aboutRelatedOptions = [
+  { label: 'Go to About Us page', value: 'go_about' },
+  { label: 'Find a doctor', value: 'find_doctor' },
+  { label: 'Back to main menu', value: 'yes' }
+];
+
 const Chatbot = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState([
@@ -51,11 +75,25 @@ const Chatbot = () => {
   const messagesEndRef = useRef(null);
 
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: "smooth", block: "end" });
+      // Force scrollTop adjustment on the parent container to handle button rendering delays
+      const container = messagesEndRef.current.parentElement;
+      if (container) {
+        container.scrollTop = container.scrollHeight;
+      }
+    }
   };
 
   useEffect(() => {
     scrollToBottom();
+    // Re-trigger scroll after layout updates
+    const timer1 = setTimeout(scrollToBottom, 50);
+    const timer2 = setTimeout(scrollToBottom, 150);
+    return () => {
+      clearTimeout(timer1);
+      clearTimeout(timer2);
+    };
   }, [messages, isLoading]);
 
   const addMessage = (role, text, options = null, data = null) => {
@@ -83,21 +121,61 @@ const Chatbot = () => {
     // Simulate slight delay for natural feeling
     await new Promise(resolve => setTimeout(resolve, 600));
     
-    if (option.value === 'book_appointment') {
-      const text = `Hello! I can certainly help you with that. Booking an appointment at MEDIPULSE is a straightforward process. Here are the steps:\n1. Login to your MEDIPULSE account.\n2. Click on the 'Book Appointment' button.\n3. Select or Add the patient for whom the appointment is being booked.\n4. Choose your preferred doctor or specialist.\n5. Pick a convenient date and time, select the mode of consultation (Online or In-person), and you can also add any symptoms you're experiencing.\n6. Finally, confirm your appointment.\n\nIt's that simple! Let me know if you have any other questions.`;
-      addMessage('bot', text);
-      setTimeout(() => addMessage('bot', 'Do you have some other query?', yesNoOptions), 500);
-    } else if (option.value === 'sign_up') {
-      const text = `Welcome to MEDIPULSE!\nSigning up is a straightforward, 3-step process:\n1. Click the 'Signup' button.\n2. Verify your email address using the One-Time Password (OTP) sent to you.\n3. Fill in your details such as your name, phone number, and preferred password.\n\nOnce done, you'll have access to all our services!`;
-      addMessage('bot', text);
-      setTimeout(() => addMessage('bot', 'Do you have some other query?', yesNoOptions), 500);
-    } else if (option.value === 'find_doctor') {
+    if (option.value === 'yes') {
+      addMessage('bot', 'Certainly. Please choose an option below or type your query directly, and I will assist you further.', initialOptions);
+      setIsLoading(false);
+      return;
+    }
+    
+    if (option.value === 'no') {
+      addMessage('bot', 'Thank you for chatting with MediBot! If you have any more questions in the future, feel free to ask. Have a great day!');
+      setIsFinished(true);
+      setIsLoading(false);
+      return;
+    }
+
+    if (option.value === 'find_doctor') {
       addMessage('bot', 'Choose a category of doctor!', categoryOptions);
-    } else if (option.value === 'buy_medicine') {
-      const text = `To buy medicine, simply go to the 'Pharmacy' page on our website. You can browse medicines categorized by type, add them to your cart, and proceed to checkout for delivery.`;
-      addMessage('bot', text);
-      setTimeout(() => addMessage('bot', 'Do you have any other query?', yesNoOptions), 500);
-    } else if (categoryOptions.some(cat => cat.value === option.value)) {
+      setIsLoading(false);
+      return;
+    }
+
+    if (option.value === 'view_appointments') {
+      addMessage('bot', 'To view your scheduled consultations, simply click on the **Appointments** link in the left navigation sidebar of your dashboard.');
+      setTimeout(() => addMessage('bot', 'Do you have some other query?', yesNoOptions), 1000);
+      setIsLoading(false);
+      return;
+    }
+
+    if (option.value === 'go_signup') {
+      addMessage('bot', 'To sign up, click the **Signup** button in the top navigation bar of the homepage. If you are on the Login page, click **Create one free →** at the bottom of the card.');
+      setTimeout(() => addMessage('bot', 'Do you have some other query?', yesNoOptions), 1000);
+      setIsLoading(false);
+      return;
+    }
+
+    if (option.value === 'go_pharmacy') {
+      addMessage('bot', 'You can browse and buy medicines directly from our integrated Pharmacy. Navigate to the **Pharmacy** tab in the main navigation menu or sidebar.');
+      setTimeout(() => addMessage('bot', 'Do you have some other query?', yesNoOptions), 1000);
+      setIsLoading(false);
+      return;
+    }
+
+    if (option.value === 'view_orders') {
+      addMessage('bot', 'To check the status of your orders, click on **My Orders** in the left sidebar menu of your user dashboard.');
+      setTimeout(() => addMessage('bot', 'Do you have some other query?', yesNoOptions), 1000);
+      setIsLoading(false);
+      return;
+    }
+
+    if (option.value === 'go_about') {
+      addMessage('bot', 'You can read more about our vision, values, stats, and founders on the [About Us](/about) page.');
+      setTimeout(() => addMessage('bot', 'Do you have some other query?', yesNoOptions), 1000);
+      setIsLoading(false);
+      return;
+    }
+
+    if (categoryOptions.some(cat => cat.value === option.value)) {
       // User selected a category
       try {
         const res = await fetch(`${API}/doctor/active`);
@@ -119,18 +197,59 @@ const Chatbot = () => {
         const roleDesc = `A ${option.label.toLowerCase()} is a medical specialist who focuses on specific health areas related to their field of study.`;
         addMessage('bot', roleDesc, null, { type: 'doctors', doctors: doctorsData });
         
-        setTimeout(() => addMessage('bot', 'Do you have some other query?', yesNoOptions), 500);
+        setTimeout(() => addMessage('bot', 'Do you have some other query?', yesNoOptions), 1000);
       } catch (err) {
         addMessage('bot', 'Sorry, I had trouble fetching doctors. Do you have some other query?', yesNoOptions);
       }
-    } else if (option.value === 'yes') {
-      addMessage('bot', 'Certainly. Please choose an option below or type your query directly, and I will assist you further.', initialOptions);
-    } else if (option.value === 'no') {
-      addMessage('bot', 'Thank you for chatting with MediBot! If you have any more questions in the future, feel free to ask. Have a great day!');
-      setIsFinished(true);
+      setIsLoading(false);
+      return;
     }
-    
-    setIsLoading(false);
+
+    // Query backend real-time for any other options (like book_appointment, sign_up, buy_medicine)
+    try {
+      const historyToSend = messages.map(msg => ({
+        role: msg.role === 'user' ? 'user' : 'model',
+        text: msg.text
+      }));
+
+      const res = await fetch(`${API}/chatbot`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          prompt: option.label,
+          history: historyToSend
+        })
+      });
+      
+      const data = await res.json();
+      if (res.ok) {
+        addMessage('bot', data.reply);
+      } else {
+        addMessage('bot', data.message || 'Sorry, I am having trouble connecting right now.');
+      }
+      
+      const isBooking = option.value === 'book_appointment' || option.label.toLowerCase().includes('appoint') || option.label.toLowerCase().includes('book');
+      const isSignUp = option.value === 'sign_up' || option.label.toLowerCase().includes('sign up') || option.label.toLowerCase().includes('signup') || option.label.toLowerCase().includes('register');
+      const isPharmacy = option.value === 'buy_medicine' || option.label.toLowerCase().includes('medicine') || option.label.toLowerCase().includes('pharmacy') || option.label.toLowerCase().includes('buy');
+      const isAbout = option.value === 'about_medipulse' || option.label.toLowerCase().includes('about') || option.label.toLowerCase().includes('medipulse');
+
+      if (isBooking) {
+        setTimeout(() => addMessage('bot', 'How would you like to proceed with your booking?', bookingRelatedOptions), 1000);
+      } else if (isSignUp) {
+        setTimeout(() => addMessage('bot', 'Would you like to open the registration page?', signUpRelatedOptions), 1000);
+      } else if (isPharmacy) {
+        setTimeout(() => addMessage('bot', 'How would you like to proceed with the Pharmacy?', pharmacyRelatedOptions), 1000);
+      } else if (isAbout) {
+        setTimeout(() => addMessage('bot', 'What would you like to do next regarding MEDIPULSE information?', aboutRelatedOptions), 1000);
+      } else {
+        setTimeout(() => addMessage('bot', 'Do you have some other query?', yesNoOptions), 1000);
+      }
+    } catch (error) {
+      addMessage('bot', 'Network error. Please try again later.');
+      setTimeout(() => addMessage('bot', 'Do you have some other query?', yesNoOptions), 1000);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleSend = async (e) => {
@@ -144,19 +263,101 @@ const Chatbot = () => {
     // Clear options from previous bot message if user types
     setMessages(prev => prev.map(msg => ({ ...msg, options: null })));
 
+    // Normalize text for quick checking
+    const cleanText = userText.toLowerCase().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, "").trim();
+
+    // Check if the user typed confirmation to continue or end the chat
+    if (['yes', 'yeah', 'yep', 'y', 'sure', 'yes please', 'continue'].includes(cleanText)) {
+      setIsLoading(true);
+      await new Promise(resolve => setTimeout(resolve, 600));
+      addMessage('bot', 'Certainly. Please choose an option below or type your query directly, and I will assist you further.', initialOptions);
+      setIsLoading(false);
+      return;
+    }
+
+    if (['no', 'nope', 'n', 'no thanks', 'exit', 'stop', 'bye'].includes(cleanText)) {
+      setIsLoading(true);
+      await new Promise(resolve => setTimeout(resolve, 600));
+      addMessage('bot', 'Thank you for chatting with MediBot! If you have any more questions in the future, feel free to ask. Have a great day!');
+      setIsFinished(true);
+      setIsLoading(false);
+      return;
+    }
+
+    // Symptom detection keywords
+    const symptomKeywords = ['fever', 'cough', 'cold', 'flu', 'headache', 'pain', 'stomach', 'vomit', 'chest', 'symptom', 'weakness', 'injury'];
+    const isSymptomQuery = symptomKeywords.some(keyword => cleanText.includes(keyword));
+
     setIsLoading(true);
 
     try {
+      const historyToSend = messages.map(msg => ({
+        role: msg.role === 'user' ? 'user' : 'model',
+        text: msg.text
+      }));
+
       const res = await fetch(`${API}/chatbot`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: userText })
+        body: JSON.stringify({ 
+          prompt: userText,
+          history: historyToSend
+        })
       });
       
       const data = await res.json();
-      addMessage('bot', res.ok ? data.reply : (data.message || 'Sorry, I am having trouble connecting right now.'));
+      if (res.ok) {
+        addMessage('bot', data.reply);
+      } else {
+        addMessage('bot', data.message || 'Sorry, I am having trouble connecting right now.');
+      }
+      
+      if (isSymptomQuery) {
+        try {
+          const docRes = await fetch(`${API}/doctor/active`);
+          const docData = await docRes.json();
+          let gpDoctors = [];
+          if (docRes.ok && docData.doctors) {
+            const filtered = docData.doctors.filter(d => d.specialization?.toLowerCase() === 'general physician');
+            gpDoctors = filtered.slice(0, 3).map(doc => ({
+              id: doc._id,
+              name: `Dr. ${doc.first_name} ${doc.last_name}`,
+              specialty: doc.specialization,
+              image: (doc.profile_img && !doc.profile_img.includes('placeholder')) 
+                ? doc.profile_img 
+                : `https://ui-avatars.com/api/?name=${encodeURIComponent(doc.first_name)}+${encodeURIComponent(doc.last_name)}&background=0d9488&color=fff`
+            }));
+          }
+          
+          if (gpDoctors.length > 0) {
+            addMessage('bot', 'We have expert General Physicians available at MEDIPULSE to consult. Here are some of our specialists:', null, { type: 'doctors', doctors: gpDoctors });
+          }
+        } catch (docErr) {
+          console.error("Failed to fetch GP doctors:", docErr);
+        }
+        
+        setTimeout(() => addMessage('bot', 'How would you like to proceed with your booking?', bookingRelatedOptions), 1500);
+      } else {
+        const isBooking = userText.toLowerCase().includes('appoint') || userText.toLowerCase().includes('book');
+        const isSignUp = userText.toLowerCase().includes('sign up') || userText.toLowerCase().includes('signup') || userText.toLowerCase().includes('register');
+        const isPharmacy = userText.toLowerCase().includes('medicine') || userText.toLowerCase().includes('pharmacy') || userText.toLowerCase().includes('buy');
+        const isAbout = userText.toLowerCase().includes('about') || userText.toLowerCase().includes('medipulse');
+
+        if (isBooking) {
+          setTimeout(() => addMessage('bot', 'How would you like to proceed with your booking?', bookingRelatedOptions), 1000);
+        } else if (isSignUp) {
+          setTimeout(() => addMessage('bot', 'Would you like to open the registration page?', signUpRelatedOptions), 1000);
+        } else if (isPharmacy) {
+          setTimeout(() => addMessage('bot', 'How would you like to proceed with the Pharmacy?', pharmacyRelatedOptions), 1000);
+        } else if (isAbout) {
+          setTimeout(() => addMessage('bot', 'What would you like to do next regarding MEDIPULSE information?', aboutRelatedOptions), 1000);
+        } else {
+          setTimeout(() => addMessage('bot', 'Do you have some other query?', yesNoOptions), 1000);
+        }
+      }
     } catch (error) {
       addMessage('bot', 'Network error. Please try again later.');
+      setTimeout(() => addMessage('bot', 'Do you have some other query?', yesNoOptions), 1000);
     } finally {
       setIsLoading(false);
     }

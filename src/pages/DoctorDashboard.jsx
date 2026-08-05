@@ -172,6 +172,19 @@ const DoctorDashboard = () => {
     } catch { /* silent */ }
   };
 
+  const handleJoinVideoCall = async (apptId) => {
+    const token = getToken();
+    fetch(`${API}/appointment/${apptId}/video-call-reminder`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`
+      }
+    }).catch(err => console.error('Video call reminder failed:', err));
+
+    navigate(`/video-call/MediPulse_${apptId}`);
+  };
+
   const handleProfileSave = async (e) => {
     e.preventDefault();
     setProfileSaving(true);
@@ -448,7 +461,7 @@ const DoctorDashboard = () => {
                         {appt.status === 'confirmed' && (
                           <div style={{display: 'flex', gap: '8px', flexShrink: 0}}>
                             {appt.consult_mode === 'online' && (
-                              <button onClick={() => navigate(`/video-call/MediPulse_${appt._id}`)}
+                              <button onClick={() => handleJoinVideoCall(appt._id)}
                                 style={{ background: '#eff6ff', border: '1px solid #bfdbfe', color: '#2563eb', borderRadius: '8px', padding: '6px 14px', fontWeight: 700, fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}>
                                 <Video size={13} /> Start Video Call
                               </button>

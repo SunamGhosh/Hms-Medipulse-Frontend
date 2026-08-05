@@ -10,6 +10,9 @@ const About = () => {
   const [isRoleModalOpen, setIsRoleModalOpen] = useState(false);
   const [isSignupModalOpen, setIsSignupModalOpen] = useState(false);
 
+  const dashboardPath = localStorage.getItem('userToken') ? '/user/dashboard' : null;
+
+
   useEffect(() => {
     const handleScroll = () => {
       const navbar = document.querySelector('.about-nav');
@@ -65,7 +68,16 @@ const About = () => {
         </div>
         <div className="nav-actions">
           {localStorage.getItem('userToken') ? (
-            <ProfileDropdown />
+            <>
+              {dashboardPath && (
+                <Link to={dashboardPath} className="btn-dashboard">Dashboard</Link>
+              )}
+              <ProfileDropdown />
+            </>
+          ) : dashboardPath ? (
+            <>
+              <Link to={dashboardPath} className="btn-dashboard">Dashboard</Link>
+            </>
           ) : (
             <>
               <button className="btn-outline" onClick={() => setIsSignupModalOpen(true)}>

@@ -20,6 +20,9 @@ const DoctorsPage = () => {
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
+  const dashboardPath = localStorage.getItem('userToken') ? '/user/dashboard' : null;
+
+
   const handleBookAppointment = (doctorId) => {
     const token = localStorage.getItem('userToken');
     if (!token) {
@@ -83,7 +86,16 @@ const DoctorsPage = () => {
         </div>
         <div className="nav-actions">
           {localStorage.getItem('userToken') ? (
-            <ProfileDropdown />
+            <>
+              {dashboardPath && (
+                <Link to={dashboardPath} className="btn-dashboard">Dashboard</Link>
+              )}
+              <ProfileDropdown />
+            </>
+          ) : dashboardPath ? (
+            <>
+              <Link to={dashboardPath} className="btn-dashboard">Dashboard</Link>
+            </>
           ) : (
             <>
               <button className="btn-outline" onClick={() => setIsSignupModalOpen(true)}>
