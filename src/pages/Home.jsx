@@ -24,6 +24,8 @@ const Home = () => {
   const [cartTotalItems, setCartTotalItems] = useState(0);
   const token = localStorage.getItem('userToken');
 
+  const dashboardPath = token ? '/user/dashboard' : null;
+
   const fetchCart = async () => {
     if (!token) return;
     try {
@@ -203,11 +205,18 @@ const Home = () => {
         <div className="nav-actions">
           {localStorage.getItem('userToken') ? (
             <>
+              {dashboardPath && (
+                <Link to={dashboardPath} className="btn-dashboard">Dashboard</Link>
+              )}
               <Link to="/cart" className="nav-cart-icon">
                 <ShoppingCart size={22} />
                 {cartTotalItems > 0 && <span className="cart-badge">{cartTotalItems}</span>}
               </Link>
               <ProfileDropdown />
+            </>
+          ) : dashboardPath ? (
+            <>
+              <Link to={dashboardPath} className="btn-dashboard">Dashboard</Link>
             </>
           ) : (
             <>

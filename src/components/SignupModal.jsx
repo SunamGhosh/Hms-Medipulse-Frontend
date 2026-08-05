@@ -134,10 +134,13 @@ const SignupModal = ({ isOpen, onClose }) => {
       });
       const data = await response.json();
       if (response.ok) {
-        setSuccessMsg('Account created successfully! You can now login.');
+        setSuccessMsg('Account created successfully! Logging you in...');
+        localStorage.setItem('userToken', data.token);
+        localStorage.setItem('userEmail', payload.email);
+        localStorage.setItem('userName', data.user?.first_name || payload.email.split('@')[0]);
         setTimeout(() => {
           onClose();
-          navigate('/login');
+          navigate('/user/dashboard');
         }, 2000);
       } else {
         setErrorMsg(data.message || 'Registration failed. Please try again.');

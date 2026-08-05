@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { User, LogOut, Settings, Gift, Package } from 'lucide-react';
+import { User, LogOut, Settings, Gift, Package, LayoutDashboard } from 'lucide-react';
 import toast from 'react-hot-toast';
 import './ProfileDropdown.css';
 
@@ -61,7 +61,7 @@ const ProfileDropdown = () => {
           <div className="profile-dropdown-divider"></div>
           
           <Link to="/user/dashboard" className="profile-dropdown-item" onClick={() => setIsOpen(false)}>
-            <User size={18} /> My profile
+            <LayoutDashboard size={18} /> Dashboard
           </Link>
           <Link to="/my-orders" className="profile-dropdown-item" onClick={() => setIsOpen(false)}>
             <Package size={18} /> My Orders

@@ -187,6 +187,20 @@ const UserDashboard = () => {
     }
   };
 
+  /* ── join video call & send reminder email ── */
+  const handleJoinVideoCall = async (apptId) => {
+    const token = getToken();
+    fetch(`${API}/appointment/${apptId}/video-call-reminder`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`
+      }
+    }).catch(err => console.error('Video call reminder failed:', err));
+
+    navigate(`/video-call/MediPulse_${apptId}`);
+  };
+
   /* ── pay for confirmed appointment via Razorpay ── */
   const handleApptPayment = async (appt) => {
     const token = getToken();
@@ -628,7 +642,7 @@ const UserDashboard = () => {
                             </button>
                           )}
                           {appt.status === 'confirmed' && appt.payment_status === 'paid' && appt.consult_mode === 'online' && (
-                            <button onClick={() => navigate(`/video-call/MediPulse_${appt._id}`)}
+                            <button onClick={() => handleJoinVideoCall(appt._id)}
                               style={{ background: '#eff6ff', border: '1px solid #bfdbfe', color: '#2563eb', borderRadius: '8px', padding: '6px 14px', fontWeight: 700, fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}>
                               <Video size={13} /> Join Video Call
                             </button>
