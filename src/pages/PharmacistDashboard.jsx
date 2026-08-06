@@ -3,8 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import {
   Activity, CalendarCheck, User, LogOut, ArrowRight, Clock, ShieldCheck, ArrowUpRight, CheckCircle2,
   AlertCircle, Loader2, Users, Check, Pill, Edit3, Lock, Plus, Search, Package,
-  ShoppingCart, X, Building2, Phone, Award, FileCheck, MapPin, Calendar, DollarSign,
-  AlertTriangle, Eye, RefreshCw, FileText, Stethoscope, Tag, Percent
+  ShoppingCart, X, Building2, Phone, Award, FileCheck, MapPin, Calendar,
+  AlertTriangle, Eye, RefreshCw, FileText, Stethoscope, Tag, Percent, ChevronLeft, ChevronRight
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import './PharmacistDashboard.css';
@@ -18,6 +18,7 @@ const STATUS_CONFIG = {
   completed: { color: 'green',  label: 'Completed', dot: '#10b981' },
   cancelled: { color: 'rose',   label: 'Cancelled', dot: '#f43f5e' },
   rejected:  { color: 'orange', label: 'Rejected',  dot: '#f97316' },
+  expired:   { color: 'amber',  label: 'Expired',   dot: '#d97706' },
 };
 
 const VIEWS = {
@@ -34,6 +35,7 @@ const PharmacistDashboard = () => {
   const [pharmacistName, setPharmacistName] = useState('');
   const [greeting, setGreeting] = useState('');
   const [view, setView] = useState(VIEWS.DASHBOARD);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   
   // Profile state
   const profileFileInputRef = useRef(null);
@@ -42,6 +44,7 @@ const PharmacistDashboard = () => {
   const [profileLoading, setProfileLoading] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [updatingProfile, setUpdatingProfile] = useState(false);
+  const [showProfilePicModal, setShowProfilePicModal] = useState(false);
   const [editForm, setEditForm] = useState({
     first_name: '',
     last_name: '',
@@ -78,6 +81,20 @@ const PharmacistDashboard = () => {
   const [showPrescriptionModal, setShowPrescriptionModal] = useState(false);
   const [selectedPrescription, setSelectedPrescription] = useState(null);
   const [prescriptionLoading, setPrescriptionLoading] = useState(false);
+
+  // Cancellation Modal state (Appointments)
+  const [showCancelApptModal, setShowCancelApptModal] = useState(false);
+  const [apptToCancel, setApptToCancel] = useState(null);
+  const [apptCancelCategory, setApptCancelCategory] = useState('Schedule Conflict');
+  const [apptCancelReasonText, setApptCancelReasonText] = useState('');
+  const [cancellingAppt, setCancellingAppt] = useState(false);
+
+  // Cancellation Modal state (Stock Requests)
+  const [showCancelReqModal, setShowCancelReqModal] = useState(false);
+  const [reqToCancel, setReqToCancel] = useState(null);
+  const [reqCancelCategory, setReqCancelCategory] = useState('Stock No Longer Required');
+  const [reqCancelReasonText, setReqCancelReasonText] = useState('');
+  const [cancellingReq, setCancellingReq] = useState(false);
 
   // Doctor Consultation Booking state (10% Discount)
   const [showBookModal, setShowBookModal] = useState(false);
@@ -576,28 +593,44 @@ const PharmacistDashboard = () => {
     }
   };
 
-  // Cancel pharmacist appointment
-  const handleCancelAppointment = async (apptId) => {
-    const reason = window.prompt('Reason for cancellation (optional):') ?? '';
-    if (reason === null) return; // user clicked Cancel on prompt
+  // Open Appointment Cancellation Modal
+  const openCancelApptModal = (appt) => {
+    setApptToCancel(appt);
+    setApptCancelCategory('Schedule Conflict');
+    setApptCancelReasonText('');
+    setShowCancelApptModal(true);
+  };
+
+  // Submit Appointment Cancellation Form
+  const submitCancelAppointment = async (e) => {
+    e.preventDefault();
+    if (!apptToCancel) return;
+    setCancellingAppt(true);
+    const finalReason = apptCancelReasonText.trim()
+      ? `${apptCancelCategory}: ${apptCancelReasonText.trim()}`
+      : apptCancelCategory;
     try {
-      const res = await fetch(`${API}/appointment/pharmacist/${apptId}/cancel`, {
+      const res = await fetch(`${API}/appointment/pharmacist/${apptToCancel._id}/cancel`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${getToken()}`
         },
-        body: JSON.stringify({ cancel_reason: reason || 'Cancelled by pharmacist' })
+        body: JSON.stringify({ cancel_reason: finalReason })
       });
       const data = await res.json();
       if (res.ok && data.success) {
         toast.success('Appointment cancelled successfully.');
+        setShowCancelApptModal(false);
+        setApptToCancel(null);
         fetchAppointments();
       } else {
         toast.error(data.message || 'Cancellation failed');
       }
     } catch {
       toast.error('Server error cancelling appointment');
+    } finally {
+      setCancellingAppt(false);
     }
   };
 
@@ -673,10 +706,23 @@ const PharmacistDashboard = () => {
 
   const formatDate = (d) => d ? new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
 
+  // Get effective status considering real-time expiration
+  const getEffectiveStatus = useCallback((a) => {
+    const st = (a?.status || 'pending').toLowerCase().trim();
+    if (st === 'cancelled') return 'cancelled';
+    if (st === 'pending' && a?.appointment_date && a?.appointment_time) {
+      const d = new Date(a.appointment_date);
+      const [h, m] = (a.appointment_time || '00:00').split(':').map(Number);
+      d.setHours(h || 0, m || 0, 0, 0);
+      if (d <= nowTime) return 'expired';
+    }
+    return st;
+  }, [nowTime]);
+
   // Filtered Pharmacist Appointments — dynamic search across Doctor Name, Specialization, Dept, Disease, ID, Patient
   const filteredAppointments = appointments.filter(a => {
     // 1. Status Filter
-    const apptStatus = (a.status || 'pending').toLowerCase().trim();
+    const apptStatus = getEffectiveStatus(a);
     const filterStatus = (apptFilter || 'all').toLowerCase().trim();
     if (filterStatus !== 'all' && apptStatus !== filterStatus) {
       return false;
@@ -746,29 +792,45 @@ const PharmacistDashboard = () => {
     );
   });
 
-  // Cancel a pending medicine stock request
-  const handleCancelStockRequest = async (reqId, medName) => {
-    const reason = window.prompt(`Reason for cancelling stock request for "${medName}" (optional):`) ?? '';
-    if (reason === null) return; // User clicked Cancel on prompt
+  // Open Stock Request Cancellation Modal
+  const openCancelReqModal = (req) => {
+    setReqToCancel(req);
+    setReqCancelCategory('Stock No Longer Required');
+    setReqCancelReasonText('');
+    setShowCancelReqModal(true);
+  };
 
+  // Submit Stock Request Cancellation Form
+  const submitCancelStockRequest = async (e) => {
+    e.preventDefault();
+    if (!reqToCancel) return;
+    setCancellingReq(true);
+    const finalReason = reqCancelReasonText.trim()
+      ? `${reqCancelCategory}: ${reqCancelReasonText.trim()}`
+      : reqCancelCategory;
     try {
-      const res = await fetch(`${API}/med-req/cancel/${reqId}`, {
+      const res = await fetch(`${API}/med-req/cancel/${reqToCancel._id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${getToken()}`
         },
-        body: JSON.stringify({ cancellation_reason: reason || 'Cancelled by pharmacist' })
+        body: JSON.stringify({ cancellation_reason: finalReason })
       });
       const data = await res.json();
       if (res.ok && data.success) {
         toast.success('Stock request cancelled successfully.');
+        setShowCancelReqModal(false);
+        setShowReqDetailsModal(false);
+        setReqToCancel(null);
         fetchMedicineRequests();
       } else {
         toast.error(data.message || 'Failed to cancel stock request');
       }
-    } catch (err) {
+    } catch {
       toast.error('Server error cancelling stock request');
+    } finally {
+      setCancellingReq(false);
     }
   };
 
@@ -802,55 +864,98 @@ const PharmacistDashboard = () => {
       <div className="pd-blob pd-blob-2" />
       
       {/* ── SIDEBAR ── */}
-      <aside className="pd-sidebar">
-        <div className="pd-sidebar-brand">
-          <div className="pd-sidebar-logo">
-            <Pill size={20} strokeWidth={2.5} color="#fff" />
+      <aside className={`pd-sidebar${sidebarCollapsed ? ' collapsed' : ''}`}>
+        <div className="pd-sidebar-brand" style={{ justifyContent: sidebarCollapsed ? 'center' : 'space-between', padding: sidebarCollapsed ? '20px 10px' : '24px 20px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', overflow: 'hidden' }}>
+            <div className="pd-sidebar-logo">
+              <Pill size={20} strokeWidth={2.5} color="#fff" />
+            </div>
+            {!sidebarCollapsed && <span style={{ whiteSpace: 'nowrap' }}>Pharmacy Portal</span>}
           </div>
-          <span>Pharmacy Portal</span>
+
+          <button
+            onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+            title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            style={{
+              background: '#f1f5f9',
+              border: '1px solid #cbd5e1',
+              borderRadius: '8px',
+              width: 32,
+              height: 32,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              color: '#475569',
+              transition: 'all 0.2s ease-in-out',
+              flexShrink: 0
+            }}
+            onMouseOver={(e) => { e.currentTarget.style.background = '#0d9488'; e.currentTarget.style.color = '#ffffff'; e.currentTarget.style.borderColor = '#0d9488'; }}
+            onMouseOut={(e) => { e.currentTarget.style.background = '#f1f5f9'; e.currentTarget.style.color = '#475569'; e.currentTarget.style.borderColor = '#cbd5e1'; }}
+          >
+            {sidebarCollapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
+          </button>
         </div>
 
         <nav className="pd-nav">
           <button className={`pd-nav-item${view === VIEWS.DASHBOARD ? ' active' : ''}`}
-            onClick={() => setView(VIEWS.DASHBOARD)}>
-            <Activity size={18} /> Dashboard
+            onClick={() => setView(VIEWS.DASHBOARD)}
+            title={sidebarCollapsed ? "Dashboard" : ""}>
+            <Activity size={18} />
+            {!sidebarCollapsed && <span>Dashboard</span>}
           </button>
 
           <button className={`pd-nav-item${view === VIEWS.APPOINTMENTS ? ' active' : ''}`}
-            onClick={() => setView(VIEWS.APPOINTMENTS)}>
-            <CalendarCheck size={18} /> Doctor Consultations
+            onClick={() => setView(VIEWS.APPOINTMENTS)}
+            title={sidebarCollapsed ? "Doctor Consultations" : ""}>
+            <CalendarCheck size={18} />
+            {!sidebarCollapsed && <span>Doctor Consultations</span>}
           </button>
 
           <button className={`pd-nav-item${view === VIEWS.INVENTORY ? ' active' : ''}`}
-            onClick={() => setView(VIEWS.INVENTORY)}>
-            <Package size={18} /> Medicine Inventory
+            onClick={() => setView(VIEWS.INVENTORY)}
+            title={sidebarCollapsed ? "Medicine Inventory" : ""}>
+            <Package size={18} />
+            {!sidebarCollapsed && <span>Medicine Inventory</span>}
           </button>
 
           <button className={`pd-nav-item${view === VIEWS.REQUESTS ? ' active' : ''}`}
-            onClick={() => setView(VIEWS.REQUESTS)}>
-            <FileText size={18} /> Stock Requests
+            onClick={() => setView(VIEWS.REQUESTS)}
+            title={sidebarCollapsed ? "Stock Requests" : ""}>
+            <FileText size={18} />
+            {!sidebarCollapsed && <span>Stock Requests</span>}
           </button>
 
           <button className={`pd-nav-item${view === VIEWS.SALES ? ' active' : ''}`}
-            onClick={() => setView(VIEWS.SALES)}>
-            <ShoppingCart size={18} /> Sales History
+            onClick={() => setView(VIEWS.SALES)}
+            title={sidebarCollapsed ? "Sales History" : ""}>
+            <ShoppingCart size={18} />
+            {!sidebarCollapsed && <span>Sales History</span>}
           </button>
 
           <div className="pd-nav-divider" />
 
           <button className={`pd-nav-item${view === VIEWS.PROFILE ? ' active' : ''}`}
-            onClick={() => setView(VIEWS.PROFILE)}>
-            <User size={18} /> My Profile
+            onClick={() => setView(VIEWS.PROFILE)}
+            title={sidebarCollapsed ? "My Profile" : ""}>
+            <User size={18} />
+            {!sidebarCollapsed && <span>My Profile</span>}
           </button>
         </nav>
 
-        <button className="pd-logout-btn" onClick={handleLogout}>
-          <LogOut size={17} /> Sign Out
+        <button
+          className="pd-logout-btn"
+          onClick={handleLogout}
+          title={sidebarCollapsed ? "Sign Out" : ""}
+          style={{ justifyContent: sidebarCollapsed ? 'center' : 'flex-start', padding: sidebarCollapsed ? '16px 0' : '16px 24px' }}
+        >
+          <LogOut size={17} />
+          {!sidebarCollapsed && <span>Sign Out</span>}
         </button>
       </aside>
 
       {/* ── MAIN CONTENT ── */}
-      <main className="pd-main">
+      <main className={`pd-main${sidebarCollapsed ? ' collapsed' : ''}`}>
         {/* HERO BANNER */}
         <div className="pd-hero">
           <div className="pd-hero-accent" />
@@ -991,64 +1096,6 @@ const PharmacistDashboard = () => {
               </button>
             </div>
 
-            {/* ── Dynamic Status Metrics Overview Cards ── */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1rem', marginBottom: '1.25rem' }}>
-              <div onClick={() => setApptFilter('all')} style={{
-                background: apptFilter === 'all' ? 'linear-gradient(135deg, #f0fdf9, #ccfbf1)' : '#ffffff',
-                border: `1.5px solid ${apptFilter === 'all' ? '#0d9488' : '#e2e8f0'}`,
-                borderRadius: '12px', padding: '1rem', cursor: 'pointer', transition: 'all 0.15s', boxShadow: '0 2px 6px rgba(0,0,0,0.02)'
-              }}>
-                <div style={{ fontSize: 12, fontWeight: 700, color: '#64748b', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <span>All Consultations</span>
-                  <Stethoscope size={16} color="#0d9488" />
-                </div>
-                <div style={{ fontSize: 22, fontWeight: 800, color: '#0f172a', marginTop: 6 }}>
-                  {appointments.length}
-                </div>
-              </div>
-
-              <div onClick={() => setApptFilter('pending')} style={{
-                background: apptFilter === 'pending' ? 'linear-gradient(135deg, #eff6ff, #dbeafe)' : '#ffffff',
-                border: `1.5px solid ${apptFilter === 'pending' ? '#3b82f6' : '#e2e8f0'}`,
-                borderRadius: '12px', padding: '1rem', cursor: 'pointer', transition: 'all 0.15s', boxShadow: '0 2px 6px rgba(0,0,0,0.02)'
-              }}>
-                <div style={{ fontSize: 12, fontWeight: 700, color: '#64748b', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <span>Pending Approval</span>
-                  <Clock size={16} color="#3b82f6" />
-                </div>
-                <div style={{ fontSize: 22, fontWeight: 800, color: '#1d4ed8', marginTop: 6 }}>
-                  {appointments.filter(a => (a.status||'').toLowerCase() === 'pending').length}
-                </div>
-              </div>
-
-              <div onClick={() => setApptFilter('confirmed')} style={{
-                background: apptFilter === 'confirmed' ? 'linear-gradient(135deg, #f0fdf4, #dcfce7)' : '#ffffff',
-                border: `1.5px solid ${apptFilter === 'confirmed' ? '#0d9488' : '#e2e8f0'}`,
-                borderRadius: '12px', padding: '1rem', cursor: 'pointer', transition: 'all 0.15s', boxShadow: '0 2px 6px rgba(0,0,0,0.02)'
-              }}>
-                <div style={{ fontSize: 12, fontWeight: 700, color: '#64748b', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <span>Confirmed & Active</span>
-                  <CalendarCheck size={16} color="#0d9488" />
-                </div>
-                <div style={{ fontSize: 22, fontWeight: 800, color: '#0f766e', marginTop: 6 }}>
-                  {appointments.filter(a => (a.status||'').toLowerCase() === 'confirmed').length}
-                </div>
-              </div>
-
-              <div onClick={() => setApptFilter('completed')} style={{
-                background: apptFilter === 'completed' ? 'linear-gradient(135deg, #ecfdf5, #d1fae5)' : '#ffffff',
-                border: `1.5px solid ${apptFilter === 'completed' ? '#10b981' : '#e2e8f0'}`,
-                borderRadius: '12px', padding: '1rem', cursor: 'pointer', transition: 'all 0.15s', boxShadow: '0 2px 6px rgba(0,0,0,0.02)'
-              }}>
-                <div style={{ fontSize: 12, fontWeight: 700, color: '#64748b', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <span>Completed</span>
-                  <CheckCircle2 size={16} color="#10b981" />
-                </div>
-                <div style={{ fontSize: 22, fontWeight: 800, color: '#047857', marginTop: 6 }}>
-                  {appointments.filter(a => (a.status||'').toLowerCase() === 'completed').length}
-                </div>
-              </div>
-            </div>
 
             {/* ── Search & Status Pills Filter Bar ── */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '1.5rem', background: '#f8fafc', padding: '1rem', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
@@ -1089,11 +1136,12 @@ const PharmacistDashboard = () => {
                   <span style={{ fontSize: 12, fontWeight: 800, color: '#475569', marginRight: 4 }}>Status:</span>
                   {[
                     { key: 'all', label: 'All', count: appointments.length, color: '#0d9488' },
-                    { key: 'pending', label: 'Pending', count: appointments.filter(a => (a.status||'').toLowerCase() === 'pending').length, color: '#3b82f6' },
-                    { key: 'confirmed', label: 'Confirmed', count: appointments.filter(a => (a.status||'').toLowerCase() === 'confirmed').length, color: '#0d9488' },
-                    { key: 'completed', label: 'Completed', count: appointments.filter(a => (a.status||'').toLowerCase() === 'completed').length, color: '#10b981' },
-                    { key: 'cancelled', label: 'Cancelled', count: appointments.filter(a => (a.status||'').toLowerCase() === 'cancelled').length, color: '#f43f5e' },
-                    { key: 'rejected', label: 'Rejected', count: appointments.filter(a => (a.status||'').toLowerCase() === 'rejected').length, color: '#f97316' }
+                    { key: 'pending', label: 'Pending', count: appointments.filter(a => getEffectiveStatus(a) === 'pending').length, color: '#3b82f6' },
+                    { key: 'confirmed', label: 'Confirmed', count: appointments.filter(a => getEffectiveStatus(a) === 'confirmed').length, color: '#0d9488' },
+                    { key: 'completed', label: 'Completed', count: appointments.filter(a => getEffectiveStatus(a) === 'completed').length, color: '#10b981' },
+                    { key: 'expired', label: 'Expired', count: appointments.filter(a => getEffectiveStatus(a) === 'expired').length, color: '#d97706' },
+                    { key: 'cancelled', label: 'Cancelled', count: appointments.filter(a => getEffectiveStatus(a) === 'cancelled').length, color: '#f43f5e' },
+                    { key: 'rejected', label: 'Rejected', count: appointments.filter(a => getEffectiveStatus(a) === 'rejected').length, color: '#f97316' }
                   ].map(tab => {
                     const isActive = apptFilter.toLowerCase() === tab.key;
                     return (
@@ -1195,11 +1243,11 @@ const PharmacistDashboard = () => {
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                   {filteredAppointments.map((appt) => {
-                    const statusKey = (appt.status || 'pending').toLowerCase();
+                    const statusKey = getEffectiveStatus(appt);
                     const paymentKey = (appt.payment_status || 'pending').toLowerCase();
                     const cfg = STATUS_CONFIG[statusKey] || STATUS_CONFIG.pending;
                     const needsPayment = statusKey === 'confirmed' && paymentKey !== 'paid';
-                    const canCancel = ['pending', 'confirmed'].includes(statusKey) && paymentKey !== 'paid';
+                    const canCancel = ['pending', 'confirmed'].includes(statusKey) && paymentKey !== 'paid' && statusKey !== 'expired';
                     const docObj = (typeof appt.doctor_id === 'object' && appt.doctor_id) 
                       ? appt.doctor_id 
                       : (doctorsList.find(d => d._id === appt.doctor_id) || {});
@@ -1210,6 +1258,7 @@ const PharmacistDashboard = () => {
                     if (statusKey === 'pending') statusBadgeLabel = 'Pending Approval';
                     if (statusKey === 'confirmed' && needsPayment) statusBadgeLabel = 'Confirmed (Pay Fee)';
                     if (statusKey === 'completed') statusBadgeLabel = 'Completed ✓';
+                    if (statusKey === 'expired') statusBadgeLabel = 'Expired (Time Passed)';
 
                     return (
                       <div key={appt._id} style={{
@@ -1276,8 +1325,16 @@ const PharmacistDashboard = () => {
                                 onClick={() => handlePayAppointment(appt._id)}
                                 style={{ padding: '6px 14px', background: '#10b981', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}
                               >
-                                <DollarSign size={14} /> Pay ₹{appt.consultation_fee}
+                                Pay ₹{appt.consultation_fee}
                               </button>
+                            </div>
+                          )}
+
+                          {/* Expired status alert */}
+                          {statusKey === 'expired' && (
+                            <div style={{ marginTop: '0.6rem', padding: '0.5rem 0.8rem', background: '#fff7ed', borderRadius: 8, border: '1px solid #fed7aa', fontSize: 12, color: '#c2410c', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <Clock size={14} color="#d97706" />
+                              Scheduled appointment time passed without doctor confirmation. Status marked as Expired.
                             </div>
                           )}
 
@@ -1335,7 +1392,7 @@ const PharmacistDashboard = () => {
                           </span>
                           {canCancel && (
                             <button
-                              onClick={() => handleCancelAppointment(appt._id)}
+                              onClick={() => openCancelApptModal(appt)}
                               style={{ padding: '5px 12px', background: '#fee2e2', color: '#dc2626', border: '1px solid #fca5a5', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
                             >
                               <X size={12} /> Cancel
@@ -1461,78 +1518,7 @@ const PharmacistDashboard = () => {
               </button>
             </div>
 
-            {/* Dynamic Status Metric Cards for Stock Requests */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1rem', marginBottom: '1.25rem' }}>
-              <div onClick={() => setReqFilter('all')} style={{
-                background: reqFilter === 'all' ? 'linear-gradient(135deg, #f0fdf9, #ccfbf1)' : '#ffffff',
-                border: `1.5px solid ${reqFilter === 'all' ? '#0d9488' : '#e2e8f0'}`,
-                borderRadius: '12px', padding: '1rem', cursor: 'pointer', transition: 'all 0.15s'
-              }}>
-                <div style={{ fontSize: 12, fontWeight: 700, color: '#64748b', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <span>Total Requests</span>
-                  <FileText size={16} color="#0d9488" />
-                </div>
-                <div style={{ fontSize: 22, fontWeight: 800, color: '#0f172a', marginTop: 6 }}>
-                  {medRequests.length}
-                </div>
-              </div>
 
-              <div onClick={() => setReqFilter('Pending')} style={{
-                background: reqFilter === 'Pending' ? 'linear-gradient(135deg, #eff6ff, #dbeafe)' : '#ffffff',
-                border: `1.5px solid ${reqFilter === 'Pending' ? '#3b82f6' : '#e2e8f0'}`,
-                borderRadius: '12px', padding: '1rem', cursor: 'pointer', transition: 'all 0.15s'
-              }}>
-                <div style={{ fontSize: 12, fontWeight: 700, color: '#64748b', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <span>Pending Admin</span>
-                  <Clock size={16} color="#3b82f6" />
-                </div>
-                <div style={{ fontSize: 22, fontWeight: 800, color: '#1d4ed8', marginTop: 6 }}>
-                  {medRequests.filter(r => (r.status || 'Pending') === 'Pending').length}
-                </div>
-              </div>
-
-              <div onClick={() => setReqFilter('Approved')} style={{
-                background: reqFilter === 'Approved' ? 'linear-gradient(135deg, #f0fdf4, #dcfce7)' : '#ffffff',
-                border: `1.5px solid ${reqFilter === 'Approved' ? '#10b981' : '#e2e8f0'}`,
-                borderRadius: '12px', padding: '1rem', cursor: 'pointer', transition: 'all 0.15s'
-              }}>
-                <div style={{ fontSize: 12, fontWeight: 700, color: '#64748b', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <span>Approved & Added</span>
-                  <CheckCircle2 size={16} color="#10b981" />
-                </div>
-                <div style={{ fontSize: 22, fontWeight: 800, color: '#047857', marginTop: 6 }}>
-                  {medRequests.filter(r => r.status === 'Approved').length}
-                </div>
-              </div>
-
-              <div onClick={() => setReqFilter('Rejected')} style={{
-                background: reqFilter === 'Rejected' ? 'linear-gradient(135deg, #fff1f2, #ffe4e6)' : '#ffffff',
-                border: `1.5px solid ${reqFilter === 'Rejected' ? '#f43f5e' : '#e2e8f0'}`,
-                borderRadius: '12px', padding: '1rem', cursor: 'pointer', transition: 'all 0.15s'
-              }}>
-                <div style={{ fontSize: 12, fontWeight: 700, color: '#64748b', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <span>Rejected</span>
-                  <X size={16} color="#f43f5e" />
-                </div>
-                <div style={{ fontSize: 22, fontWeight: 800, color: '#be123c', marginTop: 6 }}>
-                  {medRequests.filter(r => r.status === 'Rejected').length}
-                </div>
-              </div>
-
-              <div onClick={() => setReqFilter('Cancelled')} style={{
-                background: reqFilter === 'Cancelled' ? 'linear-gradient(135deg, #f8fafc, #f1f5f9)' : '#ffffff',
-                border: `1.5px solid ${reqFilter === 'Cancelled' ? '#64748b' : '#e2e8f0'}`,
-                borderRadius: '12px', padding: '1rem', cursor: 'pointer', transition: 'all 0.15s'
-              }}>
-                <div style={{ fontSize: 12, fontWeight: 700, color: '#64748b', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <span>Cancelled</span>
-                  <AlertCircle size={16} color="#64748b" />
-                </div>
-                <div style={{ fontSize: 22, fontWeight: 800, color: '#475569', marginTop: 6 }}>
-                  {medRequests.filter(r => r.status === 'Cancelled').length}
-                </div>
-              </div>
-            </div>
 
             {/* Search Bar & Status Filter Pills */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '1.5rem', background: '#f8fafc', padding: '1rem', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
@@ -1694,7 +1680,7 @@ const PharmacistDashboard = () => {
                                 </button>
                                 {isPending && (
                                   <button
-                                    onClick={() => handleCancelStockRequest(req._id, req.medicine_name)}
+                                    onClick={() => openCancelReqModal(req)}
                                     style={{ padding: '4px 10px', background: '#fee2e2', border: '1px solid #fca5a5', borderRadius: 6, fontSize: 12, fontWeight: 700, color: '#dc2626', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
                                     title="Cancel this pending stock request"
                                   >
@@ -1860,6 +1846,35 @@ const PharmacistDashboard = () => {
                           style={{ display: 'none' }}
                         />
                       </div>
+
+                      {/* View Profile Picture Button */}
+                      {pharmacistProfile.profile_img && (
+                        <button
+                          type="button"
+                          onClick={() => setShowProfilePicModal(true)}
+                          title="View profile picture"
+                          style={{
+                            marginTop: '8px',
+                            padding: '5px 14px',
+                            borderRadius: '8px',
+                            background: 'linear-gradient(135deg, #0d9488, #10b981)',
+                            color: '#ffffff',
+                            border: 'none',
+                            fontSize: '12px',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '5px',
+                            boxShadow: '0 2px 8px rgba(13,148,136,0.3)',
+                            transition: 'all 0.15s ease-in-out',
+                          }}
+                          onMouseOver={(e) => { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(13,148,136,0.4)'; }}
+                          onMouseOut={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 2px 8px rgba(13,148,136,0.3)'; }}
+                        >
+                          <Eye size={14} /> View Photo
+                        </button>
+                      )}
 
                       <div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -2217,7 +2232,7 @@ const PharmacistDashboard = () => {
                   Cancel
                 </button>
                 <button type="submit" className="pd-btn-primary" disabled={submittingBook}>
-                  {submittingBook ? <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> : `Confirm & Pay ₹${discountedFee || 0}`}
+                  {submittingBook ? <><Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> Submitting...</> : 'Submit'}
                 </button>
               </div>
             </form>
@@ -2754,10 +2769,7 @@ const PharmacistDashboard = () => {
               {selectedReqDetails.status === 'Pending' && (
                 <button
                   type="button"
-                  onClick={() => {
-                    setShowReqDetailsModal(false);
-                    handleCancelStockRequest(selectedReqDetails._id, selectedReqDetails.medicine_name);
-                  }}
+                  onClick={() => openCancelReqModal(selectedReqDetails)}
                   style={{ padding: '6px 14px', background: '#fee2e2', color: '#dc2626', border: '1px solid #fca5a5', borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}
                 >
                   <X size={14} /> Cancel Stock Request
@@ -2771,8 +2783,241 @@ const PharmacistDashboard = () => {
         </div>
       )}
 
+      {/* ==================== VIEW PROFILE PICTURE MODAL ==================== */}
+      {showProfilePicModal && pharmacistProfile?.profile_img && (
+        <div
+          onClick={() => setShowProfilePicModal(false)}
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '100vw',
+            height: '100vh',
+            background: 'rgba(0, 0, 0, 0.85)',
+            zIndex: 9999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            backdropFilter: 'blur(8px)',
+            cursor: 'pointer',
+            animation: 'fadeIn 0.2s ease-out'
+          }}
+        >
+          <button
+            onClick={() => setShowProfilePicModal(false)}
+            style={{
+              position: 'absolute',
+              top: 20,
+              right: 24,
+              background: 'rgba(255,255,255,0.15)',
+              border: '1px solid rgba(255,255,255,0.25)',
+              borderRadius: '50%',
+              width: 40,
+              height: 40,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              color: '#ffffff',
+              transition: 'all 0.15s'
+            }}
+            onMouseOver={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.3)'}
+            onMouseOut={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.15)'}
+          >
+            <X size={20} />
+          </button>
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: '1rem'
+            }}
+          >
+            <img
+              src={pharmacistProfile.profile_img}
+              alt="Profile Picture"
+              style={{
+                maxWidth: '90vw',
+                maxHeight: '80vh',
+                borderRadius: '16px',
+                objectFit: 'contain',
+                boxShadow: '0 20px 60px rgba(0,0,0,0.5)',
+                border: '3px solid rgba(255,255,255,0.15)',
+              }}
+            />
+            <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13, fontWeight: 600, margin: 0 }}>
+              {pharmacistProfile.first_name} {pharmacistProfile.last_name} — Profile Picture
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* ==================== CANCEL DOCTOR CONSULTATION MODAL ==================== */}
+      {showCancelApptModal && apptToCancel && (
+        <div className="pd-modal-overlay" onClick={() => setShowCancelApptModal(false)}>
+          <div className="pd-modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 520, border: '2px solid #cbd5e1', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.35)' }}>
+            <div className="pd-modal-header" style={{ background: '#fef2f2', borderBottom: '1px solid #fecaca' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{ background: '#fee2e2', padding: 8, borderRadius: 8, color: '#dc2626' }}>
+                  <AlertTriangle size={20} />
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: '#991b1b' }}>Cancel Doctor Consultation</h3>
+                  <p style={{ margin: 0, fontSize: 12, color: '#b91c1c' }}>Are you sure you want to cancel this appointment?</p>
+                </div>
+              </div>
+              <button onClick={() => setShowCancelApptModal(false)} className="pd-modal-close">
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={submitCancelAppointment}>
+              <div className="pd-modal-body" style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <div style={{ background: '#f8fafc', padding: '12px 14px', borderRadius: 10, border: '1.5px solid #cbd5e1', fontSize: 13, boxShadow: '0 2px 6px rgba(0,0,0,0.03)' }}>
+                  <div style={{ fontWeight: 700, color: '#0f172a', marginBottom: 4 }}>
+                    Doctor: Dr. {apptToCancel.doctor_id?.first_name} {apptToCancel.doctor_id?.last_name} ({apptToCancel.doctor_id?.specialization || 'General'})
+                  </div>
+                  <div style={{ color: '#64748b', fontSize: 12 }}>
+                    Date & Time: <strong>{formatDate(apptToCancel.appointment_date)} at {apptToCancel.appointment_time}</strong>
+                  </div>
+                  {apptToCancel.consultation_fee && (
+                    <div style={{ color: '#059669', fontSize: 12, fontWeight: 700, marginTop: 2 }}>
+                      Fee: ₹{apptToCancel.consultation_fee} (10% Discount)
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#475569', marginBottom: 6 }}>
+                    Reason Category *
+                  </label>
+                  <select
+                    value={apptCancelCategory}
+                    onChange={(e) => setApptCancelCategory(e.target.value)}
+                    style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1.5px solid #cbd5e1', fontSize: 13, outline: 'none', background: '#fff' }}
+                  >
+                    <option value="Schedule Conflict">Schedule Conflict</option>
+                    <option value="Doctor Unresponsive / Slot Busy">Doctor Unresponsive / Slot Busy</option>
+                    <option value="Patient No Longer Needed">Patient No Longer Needed</option>
+                    <option value="Booked By Mistake">Booked By Mistake</option>
+                    <option value="Other Reason">Other Reason</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#475569', marginBottom: 6 }}>
+                    Additional Remarks / Notes (Optional)
+                  </label>
+                  <textarea
+                    rows={3}
+                    placeholder="Provide additional details for cancelling this appointment..."
+                    value={apptCancelReasonText}
+                    onChange={(e) => setApptCancelReasonText(e.target.value)}
+                    style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1.5px solid #cbd5e1', fontSize: 13, outline: 'none', background: '#fff', boxSizing: 'border-box' }}
+                  />
+                </div>
+              </div>
+
+              <div className="pd-modal-footer" style={{ padding: '16px 24px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', background: '#f8fafc' }}>
+                <button type="button" className="pd-btn-secondary" onClick={() => setShowCancelApptModal(false)}>
+                  Keep Appointment
+                </button>
+                <button
+                  type="submit"
+                  disabled={cancellingAppt}
+                  style={{ padding: '9px 18px', background: '#dc2626', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
+                >
+                  {cancellingAppt ? <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> : <><X size={15} /> Confirm Cancellation</>}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ==================== CANCEL STOCK REQUEST MODAL ==================== */}
+      {showCancelReqModal && reqToCancel && (
+        <div className="pd-modal-overlay" onClick={() => setShowCancelReqModal(false)}>
+          <div className="pd-modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 520, border: '2px solid #cbd5e1', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.35)' }}>
+            <div className="pd-modal-header" style={{ background: '#fef2f2', borderBottom: '1px solid #fecaca' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{ background: '#fee2e2', padding: 8, borderRadius: 8, color: '#dc2626' }}>
+                  <AlertTriangle size={20} />
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: '#991b1b' }}>Cancel Medicine Stock Request</h3>
+                  <p style={{ margin: 0, fontSize: 12, color: '#b91c1c' }}>Cancel pending stock request for "{reqToCancel.medicine_name}"</p>
+                </div>
+              </div>
+              <button onClick={() => setShowCancelReqModal(false)} className="pd-modal-close">
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={submitCancelStockRequest}>
+              <div className="pd-modal-body" style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <div style={{ background: '#f8fafc', padding: '12px 14px', borderRadius: 10, border: '1.5px solid #cbd5e1', fontSize: 13, boxShadow: '0 2px 6px rgba(0,0,0,0.03)' }}>
+                  <div style={{ fontWeight: 700, color: '#0f172a', marginBottom: 2 }}>
+                    {reqToCancel.medicine_name} {reqToCancel.generic_name ? `(${reqToCancel.generic_name})` : ''}
+                  </div>
+                  <div style={{ color: '#64748b', fontSize: 12 }}>
+                    Category: <strong>{reqToCancel.category}</strong> | Quantity: <strong>{reqToCancel.stock_available} {reqToCancel.unit}</strong> | Price: <strong>₹{reqToCancel.price}</strong>
+                  </div>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#475569', marginBottom: 6 }}>
+                    Cancellation Reason Category *
+                  </label>
+                  <select
+                    value={reqCancelCategory}
+                    onChange={(e) => setReqCancelCategory(e.target.value)}
+                    style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1.5px solid #cbd5e1', fontSize: 13, outline: 'none', background: '#fff' }}
+                  >
+                    <option value="Stock No Longer Required">Stock No Longer Required</option>
+                    <option value="Sourced From Alternative Supplier">Sourced From Alternative Supplier</option>
+                    <option value="Incorrect Item or Quantity Entered">Incorrect Item or Quantity Entered</option>
+                    <option value="Budget / Price Revision Needed">Budget / Price Revision Needed</option>
+                    <option value="Other Reason">Other Reason</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#475569', marginBottom: 6 }}>
+                    Additional Remarks / Reason Details (Optional)
+                  </label>
+                  <textarea
+                    rows={3}
+                    placeholder="Provide reasons for cancelling this stock request..."
+                    value={reqCancelReasonText}
+                    onChange={(e) => setReqCancelReasonText(e.target.value)}
+                    style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1.5px solid #cbd5e1', fontSize: 13, outline: 'none', background: '#fff', boxSizing: 'border-box' }}
+                  />
+                </div>
+              </div>
+
+              <div className="pd-modal-footer" style={{ padding: '16px 24px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', background: '#f8fafc' }}>
+                <button type="button" className="pd-btn-secondary" onClick={() => setShowCancelReqModal(false)}>
+                  Keep Request
+                </button>
+                <button
+                  type="submit"
+                  disabled={cancellingReq}
+                  style={{ padding: '9px 18px', background: '#dc2626', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
+                >
+                  {cancellingReq ? <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> : <><X size={15} /> Confirm Cancellation</>}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       <style>{`
         @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
       `}</style>
     </div>
   );
