@@ -205,6 +205,19 @@ const PharmacistDashboard = () => {
     else setGreeting('Good evening');
   }, [navigate]);
 
+  const handleJoinVideoCall = async (apptId) => {
+    const token = getToken();
+    fetch(`${API}/appointment/${apptId}/video-call-reminder`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`
+      }
+    }).catch(err => console.error('Video call reminder failed:', err));
+
+    navigate(`/video-call/${apptId}`);
+  };
+
   // Fetch Profile
   const fetchProfile = useCallback(async () => {
     const token = getToken();
@@ -1346,7 +1359,7 @@ const PharmacistDashboard = () => {
                                 Online Consultation Scheduled! Click below to enter the video call room.
                               </span>
                               <button
-                                onClick={() => navigate(`/video-call/${appt._id}`)}
+                                onClick={() => handleJoinVideoCall(appt._id)}
                                 style={{ padding: '6px 14px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}
                               >
                                 <ArrowRight size={14} /> Join Video Call Room

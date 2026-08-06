@@ -34,6 +34,9 @@ const PharmacyPage = () => {
   const token = localStorage.getItem('userToken');
   const navigate = useNavigate();
 
+  const dashboardPath = token ? '/user/dashboard' : null;
+
+
   useEffect(() => {
     const fetchMedicines = async () => {
       try {
@@ -158,11 +161,18 @@ const PharmacyPage = () => {
         <div className="nav-actions">
           {token ? (
             <>
+              {dashboardPath && (
+                <Link to={dashboardPath} className="btn-dashboard">Dashboard</Link>
+              )}
               <Link to="/cart" className="nav-cart-icon">
                 <ShoppingCart size={22} />
                 {cartTotalItems > 0 && <span className="cart-badge">{cartTotalItems}</span>}
               </Link>
               <ProfileDropdown />
+            </>
+          ) : dashboardPath ? (
+            <>
+              <Link to={dashboardPath} className="btn-dashboard">Dashboard</Link>
             </>
           ) : (
             <>

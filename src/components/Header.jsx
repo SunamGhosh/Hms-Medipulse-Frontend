@@ -3,6 +3,9 @@ import { Link } from 'react-router-dom';
 import './Header.css';
 
 const Header = () => {
+  const dashboardPath = localStorage.getItem('userToken') ? '/user/dashboard' : null;
+
+
   return (
     <nav className="home-navbar" style={{ position: 'absolute', top: 0, left: 0, right: 0, background: 'transparent' }}>
       <Link to="/" className="nav-logo">
@@ -17,6 +20,9 @@ const Header = () => {
         <a href="#contact" className="nav-link">Contact</a>
       </div>
       <div className="nav-actions">
+        {dashboardPath && (
+          <Link to={dashboardPath} className="btn-dashboard">Dashboard</Link>
+        )}
       </div>
     </nav>
   );
