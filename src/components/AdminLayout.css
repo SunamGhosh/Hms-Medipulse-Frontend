@@ -6,9 +6,15 @@
 
 .main-wrapper {
   flex: 1;
+  margin-left: 260px;
   display: flex;
   flex-direction: column;
-  min-width: 0; /* Important for preventing flex children from overflowing */
+  min-width: 0;
+  transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.main-wrapper.collapsed {
+  margin-left: 76px;
 }
 
 .main-content {

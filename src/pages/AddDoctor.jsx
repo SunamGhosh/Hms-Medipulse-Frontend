@@ -1,9 +1,9 @@
 import React, { useState, useRef } from 'react';
 import {
   User, Mail, Lock, Phone, CreditCard, Award,
-  Briefcase, MapPin, DollarSign, Calendar, Clock,
+  Briefcase, MapPin, IndianRupee, Calendar, Clock,
   CheckCircle2, AlertCircle, ArrowRight, ArrowLeft,
-  Stethoscope, Upload
+  Stethoscope, Upload, Eye, EyeOff, ShieldCheck
 } from 'lucide-react';
 import './AddDoctor.css';
 
@@ -26,6 +26,9 @@ const DAYS_OF_WEEK = [
 
 const AddDoctor = () => {
   const [step, setStep] = useState(1);
+  const [showPassword, setShowPassword] = useState(false);
+  const [successModal, setSuccessModal] = useState({ open: false, doctorName: '' });
+
   const [form, setForm] = useState({
     first_name: '',
     last_name: '',
@@ -187,7 +190,9 @@ const AddDoctor = () => {
       const data = await response.json();
 
       if (response.ok) {
+        const addedDoctorName = `Dr. ${form.first_name} ${form.last_name}`;
         setMessage('Doctor registered successfully!');
+        setSuccessModal({ open: true, doctorName: addedDoctorName });
         // Reset form and return to step 1
         setForm({
           first_name: '', last_name: '', email: '', password: '', phone: '',
@@ -314,40 +319,6 @@ const AddDoctor = () => {
 
               <div className="form-grid">
                 <div className="form-group">
-                  <label className="field-label">Email Address <span className="req">*</span></label>
-                  <div className="input-with-icon">
-                    <Mail className="input-icon" size={18} />
-                    <input
-                      name="email"
-                      type="email"
-                      value={form.email}
-                      onChange={handleChange}
-                      placeholder="doctor@medipulse.com"
-                      className={formErrors.email ? 'input-error' : ''}
-                      required
-                    />
-                  </div>
-                  {formErrors.email && <span className="error-text">{formErrors.email}</span>}
-                </div>
-
-                <div className="form-group">
-                  <label className="field-label">Password <span className="req">*</span></label>
-                  <div className="input-with-icon">
-                    <Lock className="input-icon" size={18} />
-                    <input
-                      name="password"
-                      type="password"
-                      value={form.password}
-                      onChange={handleChange}
-                      placeholder="••••••••"
-                      className={formErrors.password ? 'input-error' : ''}
-                      required
-                    />
-                  </div>
-                  {formErrors.password && <span className="error-text">{formErrors.password}</span>}
-                </div>
-
-                <div className="form-group">
                   <label className="field-label">First Name <span className="req">*</span></label>
                   <div className="input-with-icon">
                     <User className="input-icon" size={18} />
@@ -377,6 +348,63 @@ const AddDoctor = () => {
                     />
                   </div>
                   {formErrors.last_name && <span className="error-text">{formErrors.last_name}</span>}
+                </div>
+
+                <div className="form-group">
+                  <label className="field-label">Email Address <span className="req">*</span></label>
+                  <div className="input-with-icon">
+                    <Mail className="input-icon" size={18} />
+                    <input
+                      name="email"
+                      type="email"
+                      value={form.email}
+                      onChange={handleChange}
+                      placeholder="doctor@medipulse.com"
+                      className={formErrors.email ? 'input-error' : ''}
+                      required
+                    />
+                  </div>
+                  {formErrors.email && <span className="error-text">{formErrors.email}</span>}
+                </div>
+
+                <div className="form-group">
+                  <label className="field-label">Password <span className="req">*</span></label>
+                  <div className="input-with-icon" style={{ position: 'relative' }}>
+                    <Lock className="input-icon" size={18} />
+                    <input
+                      name="password"
+                      type={showPassword ? 'text' : 'password'}
+                      value={form.password}
+                      onChange={handleChange}
+                      placeholder="••••••••"
+                      className={formErrors.password ? 'input-error' : ''}
+                      style={{ paddingRight: '42px' }}
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      style={{
+                        position: 'absolute',
+                        right: '12px',
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        background: 'none',
+                        border: 'none',
+                        color: '#94a3b8',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: '4px',
+                        borderRadius: '6px'
+                      }}
+                      title={showPassword ? "Hide Password" : "Show Password"}
+                    >
+                      {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </button>
+                  </div>
+                  {formErrors.password && <span className="error-text">{formErrors.password}</span>}
                 </div>
 
                 <div className="form-group">
@@ -483,8 +511,15 @@ const AddDoctor = () => {
                     <input
                       name="experience_year"
                       type="number"
+                      min="0"
+                      onKeyDown={(e) => { if (e.key === '-' || e.key === 'e' || e.key === 'E' || e.key === '+') e.preventDefault(); }}
                       value={form.experience_year}
-                      onChange={handleChange}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val === '' || Number(val) >= 0) {
+                          handleChange(e);
+                        }
+                      }}
                       placeholder="e.g. 12"
                       className={formErrors.experience_year ? 'input-error' : ''}
                       required
@@ -546,9 +581,9 @@ const AddDoctor = () => {
 
               <div className="form-grid">
                 <div className="form-group">
-                  <label className="field-label">Consultation Fee ($) <span className="req">*</span></label>
+                  <label className="field-label">Consultation Fee (₹) <span className="req">*</span></label>
                   <div className="input-with-icon">
-                    <DollarSign className="input-icon" size={18} />
+                    <IndianRupee className="input-icon" size={18} />
                     <input
                       name="consult_fee"
                       type="number"
@@ -674,6 +709,41 @@ const AddDoctor = () => {
           )}
         </form>
       </div>
+
+      {/* ================================================================
+          NEW DOCTOR ADDED SUCCESS POPUP MODAL
+      ================================================================ */}
+      {successModal.open && (
+        <div className="ad-modal-overlay" style={{
+          position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.6)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000, padding: 16
+        }} onClick={() => setSuccessModal({ open: false, doctorName: '' })}>
+          <div style={{
+            background: 'white', borderRadius: 24, padding: '32px 28px', maxWidth: 440, width: '100%',
+            textAlign: 'center', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)', animation: 'ad-fade 0.25s ease'
+          }} onClick={e => e.stopPropagation()}>
+            <div style={{
+              width: 64, height: 64, borderRadius: '50%', background: '#dcfce7', color: '#16a34a',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px',
+              boxShadow: '0 4px 14px rgba(22, 163, 74, 0.2)'
+            }}>
+              <CheckCircle2 size={36} />
+            </div>
+            <h3 style={{ fontSize: '1.35rem', fontWeight: 800, color: '#0f172a', margin: '0 0 10px' }}>Doctor Registered Successfully!</h3>
+            <p style={{ color: '#64748b', fontSize: '0.95rem', lineHeight: 1.5, margin: '0 0 24px' }}>
+              <strong style={{ color: '#0f172a' }}>{successModal.doctorName}</strong> has been added to the MEDIpulse network.
+            </p>
+            <button
+              type="button"
+              className="action-btn primary"
+              style={{ width: '100%', justifyContent: 'center', padding: '12px', fontSize: '0.95rem', fontWeight: 700, borderRadius: 12 }}
+              onClick={() => setSuccessModal({ open: false, doctorName: '' })}
+            >
+              OK, Great!
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

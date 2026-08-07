@@ -3,7 +3,8 @@ import { useNavigate, Link } from 'react-router-dom';
 import {
   Activity, CalendarCheck, Stethoscope, Pill, Bell, User, LogOut,
   ArrowRight, Clock, Heart, ShieldCheck, ArrowUpRight, Users,
-  X, CheckCircle2, AlertCircle, XCircle, Loader2, Plus, Video, Package, Truck, Trash2, CreditCard
+  X, CheckCircle2, AlertCircle, XCircle, Loader2, Plus, Video, Package, Truck, Trash2, CreditCard,
+  ChevronLeft, ChevronRight
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import './UserDashboard.css';
@@ -43,6 +44,7 @@ const VIEWS = {
 
 const UserDashboard = () => {
   const navigate = useNavigate();
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [userName, setUserName] = useState('');
   const [greeting, setGreeting] = useState('');
   const [view, setView] = useState(VIEWS.DASHBOARD);
@@ -305,64 +307,77 @@ const UserDashboard = () => {
       <div className="ud-blob ud-blob-3" />
 
       {/* ── Sidebar ── */}
-      <aside className="ud-sidebar">
-        <div className="ud-sidebar-brand">
-          <div className="ud-sidebar-logo">
-            <Activity size={20} strokeWidth={2.5} color="#fff" />
+      <aside className={`ud-sidebar${sidebarCollapsed ? ' collapsed' : ''}`}>
+        <div className="ud-sidebar-brand" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingRight: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div className="ud-sidebar-logo">
+              <Activity size={20} strokeWidth={2.5} color="#fff" />
+            </div>
+            {!sidebarCollapsed && <span>MediPulse</span>}
           </div>
-          <span>MediPulse</span>
+          <button
+            onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+            title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            style={{
+              background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: '8px',
+              width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              cursor: 'pointer', color: '#475569', transition: 'all 0.2s', flexShrink: 0
+            }}
+          >
+            {sidebarCollapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
+          </button>
         </div>
 
         <nav className="ud-nav">
           <button className={`ud-nav-item${view === VIEWS.DASHBOARD ? ' active' : ''}`}
-            onClick={() => setView(VIEWS.DASHBOARD)} style={{ background: 'none', border: 'none', font: 'inherit', cursor: 'pointer', width: '100%', textAlign: 'left' }}>
-            <Activity size={18} /> Dashboard
+            onClick={() => setView(VIEWS.DASHBOARD)} title={sidebarCollapsed ? "Dashboard" : ""} style={{ background: 'none', border: 'none', font: 'inherit', cursor: 'pointer', width: '100%', textAlign: 'left' }}>
+            <Activity size={18} /> {!sidebarCollapsed && <span>Dashboard</span>}
           </button>
 
-          <Link to="/doctors" className="ud-nav-item">
-            <Stethoscope size={18} /> Doctors
+          <Link to="/doctors" className="ud-nav-item" title={sidebarCollapsed ? "Doctors" : ""}>
+            <Stethoscope size={18} /> {!sidebarCollapsed && <span>Doctors</span>}
           </Link>
 
-          <Link to="/pharmacy" className="ud-nav-item">
-            <Pill size={18} /> Pharmacy
+          <Link to="/pharmacy" className="ud-nav-item" title={sidebarCollapsed ? "Pharmacy" : ""}>
+            <Pill size={18} /> {!sidebarCollapsed && <span>Pharmacy</span>}
           </Link>
 
           <button className={`ud-nav-item${view === VIEWS.APPOINTMENTS ? ' active' : ''}`}
-            onClick={() => setView(VIEWS.APPOINTMENTS)} style={{ background: 'none', border: 'none', font: 'inherit', cursor: 'pointer', width: '100%', textAlign: 'left' }}>
-            <CalendarCheck size={18} /> Appointments
+            onClick={() => setView(VIEWS.APPOINTMENTS)} title={sidebarCollapsed ? "Appointments" : ""} style={{ background: 'none', border: 'none', font: 'inherit', cursor: 'pointer', width: '100%', textAlign: 'left' }}>
+            <CalendarCheck size={18} /> {!sidebarCollapsed && <span>Appointments</span>}
             {pendingAppts > 0 && (
-              <span style={{ marginLeft: 'auto', background: '#0d9488', color: '#fff', borderRadius: '12px', fontSize: '11px', fontWeight: 700, padding: '2px 8px' }}>
+              <span style={{ marginLeft: sidebarCollapsed ? '0' : 'auto', background: '#0d9488', color: '#fff', borderRadius: '12px', fontSize: '11px', fontWeight: 700, padding: '2px 8px' }}>
                 {pendingAppts}
               </span>
             )}
           </button>
 
           <button className={`ud-nav-item${view === VIEWS.ORDERS ? ' active' : ''}`}
-            onClick={() => setView(VIEWS.ORDERS)} style={{ background: 'none', border: 'none', font: 'inherit', cursor: 'pointer', width: '100%', textAlign: 'left' }}>
-            <Package size={18} /> My Orders
+            onClick={() => setView(VIEWS.ORDERS)} title={sidebarCollapsed ? "My Orders" : ""} style={{ background: 'none', border: 'none', font: 'inherit', cursor: 'pointer', width: '100%', textAlign: 'left' }}>
+            <Package size={18} /> {!sidebarCollapsed && <span>My Orders</span>}
           </button>
 
           {/* ── Book Appointment — sidebar CTA ── */}
           <div className="ud-nav-divider" />
-          <button className="ud-nav-item ud-nav-book" onClick={() => setIsBookModalOpen(true)}
-            style={{ background: 'linear-gradient(135deg,#0d9488,#14b8a6)', color: '#fff', border: 'none', font: 'inherit', cursor: 'pointer', width: '100%', textAlign: 'left', borderRadius: '10px', margin: '4px 0' }}>
-            <Plus size={18} /> Book Appointment
+          <button className="ud-nav-item ud-nav-book" onClick={() => setIsBookModalOpen(true)} title={sidebarCollapsed ? "Book Appointment" : ""}
+            style={{ background: 'linear-gradient(135deg,#0d9488,#14b8a6)', color: '#fff', border: 'none', font: 'inherit', cursor: 'pointer', width: '100%', textAlign: 'left', borderRadius: '10px', margin: '4px 0', justifyContent: sidebarCollapsed ? 'center' : 'flex-start' }}>
+            <Plus size={18} /> {!sidebarCollapsed && <span>Book Appointment</span>}
           </button>
           <div className="ud-nav-divider" />
 
           <button className={`ud-nav-item${view === VIEWS.PROFILE ? ' active' : ''}`}
-            onClick={() => setView(VIEWS.PROFILE)} style={{ background: 'none', border: 'none', font: 'inherit', cursor: 'pointer', width: '100%', textAlign: 'left' }}>
-            <User size={18} /> My Profile
+            onClick={() => setView(VIEWS.PROFILE)} title={sidebarCollapsed ? "My Profile" : ""} style={{ background: 'none', border: 'none', font: 'inherit', cursor: 'pointer', width: '100%', textAlign: 'left' }}>
+            <User size={18} /> {!sidebarCollapsed && <span>My Profile</span>}
           </button>
         </nav>
 
-        <button className="ud-logout-btn" onClick={handleLogout} style={{ color: '#ef4444' }}>
-          <LogOut size={17} /> Sign Out
+        <button className="ud-logout-btn" onClick={handleLogout} title={sidebarCollapsed ? "Sign Out" : ""} style={{ color: '#ef4444', justifyContent: sidebarCollapsed ? 'center' : 'flex-start' }}>
+          <LogOut size={17} /> {!sidebarCollapsed && <span>Sign Out</span>}
         </button>
       </aside>
 
       {/* ── Main ── */}
-      <main className="ud-main">
+      <main className={`ud-main${sidebarCollapsed ? ' collapsed' : ''}`}>
 
         {/* ── Hero ── */}
         <div className="ud-hero">
@@ -383,7 +398,18 @@ const UserDashboard = () => {
               <Bell size={19} />
               {pendingAppts > 0 && <span className="ud-notif-dot" />}
             </button>
-            <div className="ud-avatar">{userName.charAt(0).toUpperCase()}</div>
+            <div
+              className="ud-avatar"
+              onClick={() => setView(VIEWS.PROFILE)}
+              title="View Profile"
+              style={{ cursor: 'pointer', overflow: 'hidden', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            >
+              {userProfile?.profile_img ? (
+                <img src={userProfile.profile_img} alt="Profile Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              ) : (
+                userName.charAt(0).toUpperCase()
+              )}
+            </div>
           </div>
         </div>
 

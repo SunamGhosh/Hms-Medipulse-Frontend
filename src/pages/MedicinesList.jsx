@@ -1,29 +1,36 @@
 import React, { useState, useEffect } from 'react';
-import { Pill, Plus, X, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
-import toast from 'react-hot-toast';
+import {
+  Pill, Search, X, Loader2, FlaskConical, Syringe,
+  Droplet, Package, Box, Grid, AlertCircle
+} from 'lucide-react';
 import './MedicinesList.css';
 
 const API = import.meta.env.VITE_URL || 'http://localhost:5000';
 
-const CATEGORIES = ['Tablet', 'Capsule', 'Syrup', 'Injection', 'Cream', 'Drops', 'Powder', 'Other'];
-const UNITS = ['Strip', 'Bottle', 'Box', 'Tube', 'Piece', 'Packet'];
+const CATEGORIES = [
+  { key: 'all', label: 'All Medicines', icon: Pill, color: '#3b82f6', bg: '#eff6ff' },
+  { key: 'Tablet', label: 'Tablet', icon: Pill, color: '#0d9488', bg: '#ccfbf1' },
+  { key: 'Capsule', label: 'Capsule', icon: Pill, color: '#8b5cf6', bg: '#f3e8ff' },
+  { key: 'Syrup', label: 'Syrup', icon: FlaskConical, color: '#f59e0b', bg: '#fef3c7' },
+  { key: 'Injection', label: 'Injection', icon: Syringe, color: '#ef4444', bg: '#fee2e2' },
+  { key: 'Cream', label: 'Cream', icon: SparkleIcon, color: '#ec4899', bg: '#fce7f3' },
+  { key: 'Drops', label: 'Drops', icon: Droplet, color: '#06b6d4', bg: '#cffafe' },
+  { key: 'Powder', label: 'Powder', icon: Box, color: '#84cc16', bg: '#ecfccb' },
+  { key: 'Other', label: 'Other', icon: Grid, color: '#64748b', bg: '#f1f5f9' },
+];
+
+function SparkleIcon(props) {
+  return <Package {...props} />;
+}
 
 const MedicinesList = () => {
   const [medicines, setMedicines] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  // Modal State
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [submitLoading, setSubmitLoading] = useState(false);
-
-  // Form State
-  const [formData, setFormData] = useState({
-    medicine_name: '', generic_name: '', category: 'Tablet', manufacturer: '',
-    strength: '', unit: 'Strip', price: '', stock_available: '',
-    description: '', requires_prescription: false, mfg_date: '', expiry_date: ''
-  });
-  const [imageFile, setImageFile] = useState(null);
+  /* ---- Search & Category Filter state ---- */
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('all');
 
   useEffect(() => {
     fetchMedicines();
@@ -45,82 +52,109 @@ const MedicinesList = () => {
     }
   };
 
-  const handleChange = (e) => {
-    const { name, value, type, checked } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: type === 'checkbox' ? checked : value
-    }));
+  /* ---- Dynamic Category Counts ---- */
+  const counts = {
+    all: medicines.length,
+    Tablet: medicines.filter(m => (m.category || '').toLowerCase() === 'tablet').length,
+    Capsule: medicines.filter(m => (m.category || '').toLowerCase() === 'capsule').length,
+    Syrup: medicines.filter(m => (m.category || '').toLowerCase() === 'syrup').length,
+    Injection: medicines.filter(m => (m.category || '').toLowerCase() === 'injection').length,
+    Cream: medicines.filter(m => (m.category || '').toLowerCase() === 'cream').length,
+    Drops: medicines.filter(m => (m.category || '').toLowerCase() === 'drops').length,
+    Powder: medicines.filter(m => (m.category || '').toLowerCase() === 'powder').length,
+    Other: medicines.filter(m => {
+      const cat = (m.category || '').toLowerCase();
+      return cat && !['tablet', 'capsule', 'syrup', 'injection', 'cream', 'drops', 'powder'].includes(cat);
+    }).length,
   };
 
-  const handleFileChange = (e) => {
-    setImageFile(e.target.files[0]);
-  };
+  /* ---- Filtered Medicines ---- */
+  const filteredMedicines = medicines.filter(med => {
+    const matchesCategory = selectedCategory === 'all'
+      ? true
+      : selectedCategory === 'Other'
+        ? !['tablet', 'capsule', 'syrup', 'injection', 'cream', 'drops', 'powder'].includes((med.category || '').toLowerCase())
+        : (med.category || '').toLowerCase() === selectedCategory.toLowerCase();
 
-  const handleAddSubmit = async (e) => {
-    e.preventDefault();
-    setSubmitLoading(true);
+    const name = (med.medicine_name || '').toLowerCase();
+    const generic = (med.generic_name || '').toLowerCase();
+    const cat = (med.category || '').toLowerCase();
+    const mfg = (med.manufacturer || '').toLowerCase();
+    const q = searchQuery.trim().toLowerCase();
+    const matchesSearch = !q || name.includes(q) || generic.includes(q) || cat.includes(q) || mfg.includes(q);
 
-    const token = localStorage.getItem('token'); // Admin token
-
-    try {
-      const data = new FormData();
-      Object.keys(formData).forEach(key => {
-        data.append(key, formData[key]);
-      });
-      if (imageFile) {
-        data.append('medicine_image', imageFile);
-      }
-
-      const response = await fetch(`${API}/medicine/create`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        },
-        body: data
-      });
-
-      const result = await response.json();
-      if (result.success) {
-        toast.success('Medicine added successfully!');
-        setShowAddModal(false);
-        setFormData({
-          medicine_name: '', generic_name: '', category: 'Tablet', manufacturer: '',
-          strength: '', unit: 'Strip', price: '', stock_available: '',
-          description: '', requires_prescription: false, mfg_date: '', expiry_date: ''
-        });
-        setImageFile(null);
-        fetchMedicines(); // Refresh list
-      } else {
-        toast.error(result.message || 'Error adding medicine');
-      }
-    } catch (error) {
-      console.error('Error adding medicine:', error);
-      toast.error('An error occurred while adding medicine.');
-    } finally {
-      setSubmitLoading(false);
-    }
-  };
+    return matchesCategory && matchesSearch;
+  });
 
   if (loading) return (
     <div className="medicines-list-container" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 300 }}>
       <Loader2 size={32} className="ml-spinner" />
     </div>
   );
-  if (error) return <div className="medicines-list-container"><p style={{ color: 'red' }}>Error: {error}</p></div>;
+  if (error) return <div className="medicines-list-container"><div className="ml-error">Error: {error}</div></div>;
 
   return (
     <div className="medicines-list-container">
+      {/* Header */}
       <div className="medicines-header">
-        <div className="medicines-header-info">
+        <div>
           <h2>Medicines Inventory</h2>
-          <p>{medicines.length} medicine{medicines.length !== 1 ? 's' : ''} available in pharmacy</p>
+          <p>{medicines.length} medicine{medicines.length !== 1 ? 's' : ''} registered in pharmacy inventory</p>
         </div>
-        <button className="add-medicine-btn" onClick={() => setShowAddModal(true)}>
-          <Plus size={18} /> Add New Medicine
-        </button>
       </div>
 
+      {/* Search Bar */}
+      <div className="ml-toolbar">
+        <div className="ml-search-box">
+          <Search size={18} className="ml-search-icon" />
+          <input
+            type="text"
+            placeholder="Search medicine by name, generic name, category, or manufacturer..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="ml-search-input"
+          />
+          {searchQuery && (
+            <button className="ml-search-clear" onClick={() => setSearchQuery('')} title="Clear search">
+              <X size={16} />
+            </button>
+          )}
+        </div>
+
+        <div className="ml-results-count">
+          Showing {filteredMedicines.length} of {medicines.length} medicines
+        </div>
+      </div>
+
+      {/* Category Boxes Section below Search Bar */}
+      <div className="ml-category-cards">
+        {CATEGORIES.map(catItem => {
+          const IconComp = catItem.icon;
+          const count = counts[catItem.key] || 0;
+          const isActive = selectedCategory === catItem.key;
+
+          return (
+            <button
+              key={catItem.key}
+              className={`ml-category-card ${isActive ? 'active' : ''}`}
+              onClick={() => setSelectedCategory(catItem.key)}
+            >
+              <div
+                className="ml-category-card-icon"
+                style={{ background: catItem.bg, color: catItem.color }}
+              >
+                <IconComp size={18} />
+              </div>
+              <div className="ml-category-card-info">
+                <span className="ml-category-card-title">{catItem.label}</span>
+                <span className="ml-category-card-count">{count} available</span>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Medicines Table */}
       <div className="table-responsive">
         <table className="medicines-table">
           <thead>
@@ -128,20 +162,20 @@ const MedicinesList = () => {
               <th>Medicine</th>
               <th>Category</th>
               <th>Manufacturer</th>
-              <th>Strength</th>
-              <th>Stock</th>
+              <th>Strength / Unit</th>
+              <th>Stock Status</th>
               <th>Price</th>
             </tr>
           </thead>
           <tbody>
-            {medicines.length === 0 ? (
+            {filteredMedicines.length === 0 ? (
               <tr>
                 <td colSpan="6" style={{ textAlign: 'center', padding: '3rem', color: '#9ca3af' }}>
-                  No medicines found in the inventory. Add one to get started.
+                  No medicines found matching the selected search criteria.
                 </td>
               </tr>
             ) : (
-              medicines.map(med => (
+              filteredMedicines.map(med => (
                 <tr key={med._id}>
                   <td>
                     <div className="ml-medicine-cell">
@@ -157,12 +191,20 @@ const MedicinesList = () => {
                       </div>
                     </div>
                   </td>
-                  <td>{med.category}</td>
+                  <td>
+                    <span className="ml-cat-badge">{med.category}</span>
+                  </td>
                   <td>{med.manufacturer}</td>
                   <td>{med.strength} / {med.unit}</td>
                   <td>
-                    <span style={{ color: med.stock_available > 10 ? '#166534' : '#991b1b', fontWeight: '500' }}>
-                      {med.stock_available} units
+                    <span
+                      className="ml-stock-pill"
+                      style={{
+                        background: med.stock_available > 20 ? '#dcfce7' : med.stock_available > 0 ? '#fef9c3' : '#fee2e2',
+                        color: med.stock_available > 20 ? '#166534' : med.stock_available > 0 ? '#854d0e' : '#991b1b',
+                      }}
+                    >
+                      {med.stock_available > 0 ? `${med.stock_available} units in stock` : 'Out of Stock'}
                     </span>
                   </td>
                   <td className="ml-price">₹{med.price}</td>
@@ -172,87 +214,6 @@ const MedicinesList = () => {
           </tbody>
         </table>
       </div>
-
-      {/* Add Medicine Modal */}
-      {showAddModal && (
-        <div className="ml-modal-overlay" onClick={() => setShowAddModal(false)}>
-          <div className="ml-modal ml-modal-add" onClick={e => e.stopPropagation()}>
-            <div className="ml-modal-header">
-              <h3><Pill size={18} style={{ marginRight: 8 }} /> Add New Medicine</h3>
-              <button className="ml-modal-close" onClick={() => setShowAddModal(false)}><X size={20} /></button>
-            </div>
-
-            <form onSubmit={handleAddSubmit}>
-              <div className="ml-add-body">
-                <div className="ml-form-grid">
-                  <div className="ml-form-group">
-                    <label>Medicine Name *</label>
-                    <input type="text" name="medicine_name" value={formData.medicine_name} onChange={handleChange} required placeholder="e.g. Paracetamol 500mg" />
-                  </div>
-                  <div className="ml-form-group">
-                    <label>Generic Name</label>
-                    <input type="text" name="generic_name" value={formData.generic_name} onChange={handleChange} placeholder="e.g. Acetaminophen" />
-                  </div>
-                  <div className="ml-form-group">
-                    <label>Category *</label>
-                    <select name="category" value={formData.category} onChange={handleChange} required>
-                      {CATEGORIES.map(cat => <option key={cat} value={cat}>{cat}</option>)}
-                    </select>
-                  </div>
-                  <div className="ml-form-group">
-                    <label>Manufacturer *</label>
-                    <input type="text" name="manufacturer" value={formData.manufacturer} onChange={handleChange} required placeholder="e.g. GSK" />
-                  </div>
-                  <div className="ml-form-group">
-                    <label>Strength *</label>
-                    <input type="text" name="strength" value={formData.strength} onChange={handleChange} required placeholder="e.g. 500mg" />
-                  </div>
-                  <div className="ml-form-group">
-                    <label>Unit *</label>
-                    <select name="unit" value={formData.unit} onChange={handleChange} required>
-                      {UNITS.map(u => <option key={u} value={u}>{u}</option>)}
-                    </select>
-                  </div>
-                  <div className="ml-form-group">
-                    <label>Price (₹) *</label>
-                    <input type="number" min="0" step="0.01" name="price" value={formData.price} onChange={handleChange} required placeholder="e.g. 150" />
-                  </div>
-                  <div className="ml-form-group">
-                    <label>Stock Available *</label>
-                    <input type="number" min="0" name="stock_available" value={formData.stock_available} onChange={handleChange} required placeholder="e.g. 100" />
-                  </div>
-                  <div className="ml-form-group">
-                    <label>Manufacturing Date *</label>
-                    <input type="date" name="mfg_date" value={formData.mfg_date} onChange={handleChange} required />
-                  </div>
-                  <div className="ml-form-group">
-                    <label>Expiry Date *</label>
-                    <input type="date" name="expiry_date" value={formData.expiry_date} onChange={handleChange} required />
-                  </div>
-                  <div className="ml-form-group ml-form-full">
-                    <label>Medicine Image</label>
-                    <input type="file" accept="image/*" onChange={handleFileChange} style={{ padding: '7px' }} />
-                  </div>
-                  <div className="ml-form-group ml-form-full">
-                    <label>Description</label>
-                    <textarea name="description" value={formData.description} onChange={handleChange} placeholder="Enter medicine description, uses, etc."></textarea>
-                  </div>
-                  <div className="ml-form-group ml-form-full ml-checkbox-group">
-                    <input type="checkbox" id="req_pres" name="requires_prescription" checked={formData.requires_prescription} onChange={handleChange} />
-                    <label htmlFor="req_pres">Requires Prescription</label>
-                  </div>
-                </div>
-              </div>
-              <div className="ml-modal-footer">
-                <button type="button" className="ml-btn-cancel" onClick={() => setShowAddModal(false)}>Cancel</button>
-                <button type="submit" className="ml-btn-save" disabled={submitLoading}>
-                  {submitLoading ? <><Loader2 size={14} className="ml-spinner" style={{ marginRight: '5px', verticalAlign: 'middle' }} /> Saving...</> : 'Save Medicine'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

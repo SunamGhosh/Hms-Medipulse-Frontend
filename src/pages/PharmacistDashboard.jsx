@@ -722,8 +722,12 @@ const PharmacistDashboard = () => {
   // Get effective status considering real-time expiration
   const getEffectiveStatus = useCallback((a) => {
     const st = (a?.status || 'pending').toLowerCase().trim();
-    if (st === 'cancelled') return 'cancelled';
-    if (st === 'pending' && a?.appointment_date && a?.appointment_time) {
+    if (['cancelled', 'completed', 'rejected', 'expired'].includes(st)) return st;
+
+    const isPending = st === 'pending';
+    const isConfirmedUnpaid = st === 'confirmed' && (a?.payment_status || 'pending').toLowerCase() !== 'paid';
+
+    if ((isPending || isConfirmedUnpaid) && a?.appointment_date && a?.appointment_time) {
       const d = new Date(a.appointment_date);
       const [h, m] = (a.appointment_time || '00:00').split(':').map(Number);
       d.setHours(h || 0, m || 0, 0, 0);
@@ -1347,7 +1351,9 @@ const PharmacistDashboard = () => {
                           {statusKey === 'expired' && (
                             <div style={{ marginTop: '0.6rem', padding: '0.5rem 0.8rem', background: '#fff7ed', borderRadius: 8, border: '1px solid #fed7aa', fontSize: 12, color: '#c2410c', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
                               <Clock size={14} color="#d97706" />
-                              Scheduled appointment time passed without doctor confirmation. Status marked as Expired.
+                              {(appt.awaiting_pharmacist_payment || appt.status === 'confirmed')
+                                ? 'Scheduled appointment time passed with doctor confirmation. Status marked as Expired.'
+                                : 'Scheduled appointment time passed without doctor confirmation. Status marked as Expired.'}
                             </div>
                           )}
 
@@ -1569,7 +1575,7 @@ const PharmacistDashboard = () => {
               <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
                 {[
                   { key: 'all', label: 'All Requests', count: medRequests.length, color: '#0d9488' },
-                  { key: 'Pending', label: 'Pending Admin', count: medRequests.filter(r => (r.status || 'Pending') === 'Pending').length, color: '#3b82f6' },
+                  { key: 'Pending', label: 'Pending Request', count: medRequests.filter(r => (r.status || 'Pending') === 'Pending').length, color: '#3b82f6' },
                   { key: 'Approved', label: 'Approved', count: medRequests.filter(r => r.status === 'Approved').length, color: '#10b981' },
                   { key: 'Rejected', label: 'Rejected', count: medRequests.filter(r => r.status === 'Rejected').length, color: '#f43f5e' },
                   { key: 'Cancelled', label: 'Cancelled', count: medRequests.filter(r => r.status === 'Cancelled').length, color: '#64748b' }
@@ -1679,7 +1685,7 @@ const PharmacistDashboard = () => {
                                   Cancelled
                                 </span>
                               ) : (
-                                <span className="pd-badge pd-badge-blue"><Clock size={12} /> Pending Admin</span>
+                                <span className="pd-badge pd-badge-blue"><Clock size={12} /> Pending Request</span>
                               )}
                             </td>
                             <td>{formatDate(req.createdAt)}</td>

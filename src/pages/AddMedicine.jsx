@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import {
-  Pill, Tag, Factory, Beaker, Box, DollarSign, Archive, FileText, Calendar, ShieldCheck,
+  Pill, Tag, Factory, Beaker, Box, IndianRupee, Archive, FileText, Calendar, ShieldCheck,
   CheckCircle2, AlertCircle, ArrowRight
 } from 'lucide-react';
 import './AddMedicine.css';
@@ -223,9 +223,9 @@ const AddMedicine = () => {
             </div>
 
             <div className="form-group">
-              <label className="field-label">Price ($) <span className="req">*</span></label>
+              <label className="field-label">Price (₹) <span className="req">*</span></label>
               <div className="input-with-icon">
-                <DollarSign className="input-icon" size={18} />
+                <IndianRupee className="input-icon" size={18} />
                 <input
                   name="price"
                   type="number"

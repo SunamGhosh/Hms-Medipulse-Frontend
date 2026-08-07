@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { 
   User, Mail, Lock, Phone, CreditCard, Award, 
   Briefcase, MapPin, Calendar, Clock, CheckCircle2, 
   AlertCircle, ArrowRight, ArrowLeft,
-  ShieldAlert
+  ShieldAlert, Eye, EyeOff, ShieldCheck, Upload
 } from 'lucide-react';
 import './AddPharmacist.css';
 
@@ -13,6 +13,13 @@ const DAYS_OF_WEEK = [
 
 const AddPharmacist = () => {
   const [step, setStep] = useState(1);
+  const [showPassword, setShowPassword] = useState(false);
+  const [successModal, setSuccessModal] = useState({ open: false, pharmacistName: '' });
+
+  const [imageFile, setImageFile] = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
+  const fileInputRef = useRef(null);
+
   const [form, setForm] = useState({
     first_name: '',
     last_name: '',
@@ -133,26 +140,33 @@ const AddPharmacist = () => {
     try {
       const token = localStorage.getItem('token');
       
-      const payload = { 
-        ...form, 
-        working_days: workingDays,
-        work_time_start: formatTime(form.work_time_start),
-        work_time_end: formatTime(form.work_time_end)
-      };
-      
+      const formData = new FormData();
+      Object.keys(form).forEach(key => {
+        if (key === 'profile_img') return;
+        formData.append(key, form[key]);
+      });
+      formData.append('working_days', JSON.stringify(workingDays));
+      formData.set('work_time_start', formatTime(form.work_time_start));
+      formData.set('work_time_end', formatTime(form.work_time_end));
+
+      if (imageFile) {
+        formData.append('profile_img', imageFile);
+      }
+
       const response = await fetch(`${import.meta.env.VITE_URL}/admin/add-pharmacist`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify(payload)
+        body: formData
       });
-      
+
       const data = await response.json();
-      
+
       if (response.ok) {
+        const addedPhName = `${form.first_name} ${form.last_name}`;
         setMessage('Pharmacist registered successfully!');
+        setSuccessModal({ open: true, pharmacistName: addedPhName });
         // Reset form and return to step 1
         setForm({
           first_name: '', last_name: '', email: '', password: '', phone: '',
@@ -161,6 +175,8 @@ const AddPharmacist = () => {
           status: 'active', is_verified: true, joining_date: new Date().toISOString().split('T')[0]
         });
         setWorkingDays(['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']);
+        setImageFile(null);
+        setImagePreview(null);
         setStep(1);
       } else {
         setErrorMsg(data.message || 'Failed to add pharmacist');
@@ -230,41 +246,51 @@ const AddPharmacist = () => {
             <div className="form-step-content fade-in">
               <h3 className="section-title">Step 1: Personal & Account Details</h3>
               
+              <div className="form-group full-width" style={{ marginBottom: '1.5rem' }}>
+                <label className="field-label">Pharmacist Profile Photo</label>
+                <div className="ad-image-upload-area" style={{ display: 'flex', alignItems: 'center', gap: '16px', background: '#f8fafc', padding: '16px', borderRadius: '14px', border: '1.5px dashed #cbd5e1' }}>
+                  <div className="ad-image-preview">
+                    {imagePreview ? (
+                      <img src={imagePreview} alt="Preview" style={{ width: 60, height: 60, borderRadius: '50%', objectFit: 'cover' }} />
+                    ) : (
+                      <div style={{ width: 60, height: 60, borderRadius: '50%', background: '#e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <User size={30} color="#94a3b8" />
+                      </div>
+                    )}
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <button
+                      type="button"
+                      className="action-btn secondary"
+                      onClick={() => fileInputRef.current?.click()}
+                      style={{ padding: '8px 16px', fontSize: '0.85rem', width: 'fit-content' }}
+                    >
+                      <Upload size={16} style={{ marginRight: 6 }} />
+                      {imageFile ? 'Change Photo' : 'Upload Photo'}
+                    </button>
+                    {imageFile ? (
+                      <span style={{ fontSize: '0.78rem', color: '#16a34a', fontWeight: 600 }}>{imageFile.name}</span>
+                    ) : (
+                      <span style={{ fontSize: '0.78rem', color: '#94a3b8' }}>PNG, JPG, WEBP · max 5MB</span>
+                    )}
+                  </div>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    ref={fileInputRef}
+                    style={{ display: 'none' }}
+                    onChange={(e) => {
+                      const file = e.target.files[0];
+                      if (file) {
+                        setImageFile(file);
+                        setImagePreview(URL.createObjectURL(file));
+                      }
+                    }}
+                  />
+                </div>
+              </div>
+
               <div className="form-grid">
-                <div className="form-group">
-                  <label className="field-label">Email Address <span className="req">*</span></label>
-                  <div className="input-with-icon">
-                    <Mail className="input-icon" size={18} />
-                    <input 
-                      name="email" 
-                      type="email"
-                      value={form.email} 
-                      onChange={handleChange} 
-                      placeholder="pharmacist@medipulse.com" 
-                      className={formErrors.email ? 'input-error' : ''}
-                      required 
-                    />
-                  </div>
-                  {formErrors.email && <span className="error-text">{formErrors.email}</span>}
-                </div>
-
-                <div className="form-group">
-                  <label className="field-label">Password <span className="req">*</span></label>
-                  <div className="input-with-icon">
-                    <Lock className="input-icon" size={18} />
-                    <input 
-                      name="password" 
-                      type="password"
-                      value={form.password} 
-                      onChange={handleChange} 
-                      placeholder="••••••••" 
-                      className={formErrors.password ? 'input-error' : ''}
-                      required 
-                    />
-                  </div>
-                  {formErrors.password && <span className="error-text">{formErrors.password}</span>}
-                </div>
-
                 <div className="form-group">
                   <label className="field-label">First Name <span className="req">*</span></label>
                   <div className="input-with-icon">
@@ -295,6 +321,63 @@ const AddPharmacist = () => {
                     />
                   </div>
                   {formErrors.last_name && <span className="error-text">{formErrors.last_name}</span>}
+                </div>
+
+                <div className="form-group">
+                  <label className="field-label">Email Address <span className="req">*</span></label>
+                  <div className="input-with-icon">
+                    <Mail className="input-icon" size={18} />
+                    <input 
+                      name="email" 
+                      type="email"
+                      value={form.email} 
+                      onChange={handleChange} 
+                      placeholder="pharmacist@medipulse.com" 
+                      className={formErrors.email ? 'input-error' : ''}
+                      required 
+                    />
+                  </div>
+                  {formErrors.email && <span className="error-text">{formErrors.email}</span>}
+                </div>
+
+                <div className="form-group">
+                  <label className="field-label">Password <span className="req">*</span></label>
+                  <div className="input-with-icon" style={{ position: 'relative' }}>
+                    <Lock className="input-icon" size={18} />
+                    <input 
+                      name="password" 
+                      type={showPassword ? 'text' : 'password'}
+                      value={form.password} 
+                      onChange={handleChange} 
+                      placeholder="••••••••" 
+                      className={formErrors.password ? 'input-error' : ''}
+                      style={{ paddingRight: '42px' }}
+                      required 
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      style={{
+                        position: 'absolute',
+                        right: '12px',
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        background: 'none',
+                        border: 'none',
+                        color: '#94a3b8',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: '4px',
+                        borderRadius: '6px'
+                      }}
+                      title={showPassword ? "Hide Password" : "Show Password"}
+                    >
+                      {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </button>
+                  </div>
+                  {formErrors.password && <span className="error-text">{formErrors.password}</span>}
                 </div>
 
                 <div className="form-group">
@@ -542,6 +625,41 @@ const AddPharmacist = () => {
           )}
         </form>
       </div>
+
+      {/* ================================================================
+          NEW PHARMACIST ADDED SUCCESS POPUP MODAL
+      ================================================================ */}
+      {successModal.open && (
+        <div className="ph-modal-overlay" style={{
+          position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.6)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000, padding: 16
+        }} onClick={() => setSuccessModal({ open: false, pharmacistName: '' })}>
+          <div style={{
+            background: 'white', borderRadius: 24, padding: '32px 28px', maxWidth: 440, width: '100%',
+            textAlign: 'center', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)', animation: 'ad-fade 0.25s ease'
+          }} onClick={e => e.stopPropagation()}>
+            <div style={{
+              width: 64, height: 64, borderRadius: '50%', background: '#dcfce7', color: '#16a34a',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px',
+              boxShadow: '0 4px 14px rgba(22, 163, 74, 0.2)'
+            }}>
+              <CheckCircle2 size={36} />
+            </div>
+            <h3 style={{ fontSize: '1.35rem', fontWeight: 800, color: '#0f172a', margin: '0 0 10px' }}>Pharmacist Registered Successfully!</h3>
+            <p style={{ color: '#64748b', fontSize: '0.95rem', lineHeight: 1.5, margin: '0 0 24px' }}>
+              <strong style={{ color: '#0f172a' }}>{successModal.pharmacistName}</strong> has been added to the MEDIpulse pharmacy network.
+            </p>
+            <button
+              type="button"
+              className="action-btn primary"
+              style={{ width: '100%', justifyContent: 'center', padding: '12px', fontSize: '0.95rem', fontWeight: 700, borderRadius: 12 }}
+              onClick={() => setSuccessModal({ open: false, pharmacistName: '' })}
+            >
+              OK, Great!
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

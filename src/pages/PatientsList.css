@@ -160,9 +160,11 @@
   top: 0; left: 0; width: 100%; height: 4px;
 }
 .pl-stat-total::after    { background: linear-gradient(90deg, #6366f1, #8b5cf6); }
+.pl-stat-patients::after { background: linear-gradient(90deg, #0d9488, #14b8a6); }
 .pl-stat-active::after   { background: linear-gradient(90deg, #10b981, #34d399); }
+.pl-stat-inactive::after { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
 .pl-stat-verified::after { background: linear-gradient(90deg, #0ea5e9, #38bdf8); }
-.pl-stat-blocked::after  { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
+.pl-stat-blocked::after  { background: linear-gradient(90deg, #ef4444, #f87171); }
 
 .pl-stat-num { 
   font-size: 32px; 

@@ -7,6 +7,7 @@ import Dashboard from './pages/Dashboard';
 import AddDoctor from './pages/AddDoctor';
 import AddPharmacist from './pages/AddPharmacist';
 import MedicinesList from './pages/MedicinesList';
+import MedicineRequestsList from './pages/MedicineRequestsList';
 import DoctorsList from './pages/DoctorsList';
 import PharmacistsList from './pages/PharmacistsList';
 import AppointmentsList from './pages/AppointmentsList';
@@ -66,6 +67,7 @@ function App() {
           <Route path="pharmacists" element={<PharmacistsList />} />
           <Route path="appointments" element={<AppointmentsList />} />
           <Route path="medicines" element={<MedicinesList />} />
+          <Route path="medicine-requests" element={<MedicineRequestsList />} />
           <Route path="medical-records" element={<MedicalRecordsList />} />
           <Route path="settings" element={<AdminSettings />} />
         </Route>

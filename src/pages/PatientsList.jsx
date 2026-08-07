@@ -200,6 +200,11 @@ const PatientsList = () => {
     </div>
   );
 
+  const activeUsersCount = usersData.filter(u => u.status === 'active' || (!u.is_blocked && u.status !== 'inactive' && u.status !== 'blocked')).length;
+  const inactiveUsersCount = usersData.filter(u => u.status === 'inactive').length;
+  const verifiedUsersCount = usersData.filter(u => u.is_verified).length;
+  const blockedUsersCount = usersData.filter(u => u.is_blocked || u.status === 'blocked').length;
+
   return (
     <div className="patients-list-container">
 
@@ -230,17 +235,25 @@ const PatientsList = () => {
           <span className="pl-stat-num">{usersData.length}</span>
           <span className="pl-stat-label">Total Users</span>
         </div>
-        <div className="pl-stat-card pl-stat-active">
-          <span className="pl-stat-num">{usersWithPatients}</span>
-          <span className="pl-stat-label">Have Patients</span>
-        </div>
-        <div className="pl-stat-card pl-stat-verified">
+        <div className="pl-stat-card pl-stat-patients">
           <span className="pl-stat-num">{totalPatients}</span>
           <span className="pl-stat-label">Total Patients</span>
         </div>
-        <div className="pl-stat-card pl-stat-blocked">
-          <span className="pl-stat-num">{usersData.filter(u => u.is_verified).length}</span>
+        <div className="pl-stat-card pl-stat-active">
+          <span className="pl-stat-num">{activeUsersCount}</span>
+          <span className="pl-stat-label">Active Users</span>
+        </div>
+        <div className="pl-stat-card pl-stat-inactive">
+          <span className="pl-stat-num">{inactiveUsersCount}</span>
+          <span className="pl-stat-label">Inactive Users</span>
+        </div>
+        <div className="pl-stat-card pl-stat-verified">
+          <span className="pl-stat-num">{verifiedUsersCount}</span>
           <span className="pl-stat-label">Verified Users</span>
+        </div>
+        <div className="pl-stat-card pl-stat-blocked">
+          <span className="pl-stat-num">{blockedUsersCount}</span>
+          <span className="pl-stat-label">Blocked Users</span>
         </div>
       </div>
 

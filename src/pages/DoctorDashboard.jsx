@@ -2,7 +2,8 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Activity, CalendarCheck, User, LogOut, ArrowRight, Clock, ShieldCheck, ArrowUpRight, CheckCircle2,
-  AlertCircle, XCircle, Loader2, Users, Stethoscope, Check, Bell, Video, Edit2, Lock, Save, X
+  AlertCircle, XCircle, Loader2, Users, Stethoscope, Check, Bell, Video, Edit2, Lock, Save, X,
+  ChevronLeft, ChevronRight, Camera
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import './DoctorDashboard.css';
@@ -29,6 +30,7 @@ const VIEWS = {
 
 const DoctorDashboard = () => {
   const navigate = useNavigate();
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [doctorName, setDoctorName] = useState('');
   const [greeting, setGreeting] = useState('');
   const [view, setView] = useState(VIEWS.DASHBOARD);
@@ -56,6 +58,39 @@ const DoctorDashboard = () => {
     visit_address: ''
   });
   const [profileSaving, setProfileSaving] = useState(false);
+  const [photoUploading, setPhotoUploading] = useState(false);
+  const photoInputRef = React.useRef(null);
+
+  const handlePhotoChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) { toast.error('Please select an image file'); return; }
+    if (file.size > 5 * 1024 * 1024) { toast.error('Image must be less than 5MB'); return; }
+
+    setPhotoUploading(true);
+    const token = getToken();
+    const formData = new FormData();
+    formData.append('profile_img', file);
+
+    try {
+      const res = await fetch(`${API}/doctor/profile`, {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast.success('Profile picture updated successfully!');
+        fetchProfile();
+      } else {
+        toast.error(data.message || 'Failed to upload picture');
+      }
+    } catch {
+      toast.error('Error updating profile picture');
+    } finally {
+      setPhotoUploading(false);
+    }
+  };
   
   // Password Change states
   const [showPasswordModal, setShowPasswordModal] = useState(false);
@@ -264,47 +299,60 @@ const DoctorDashboard = () => {
       <div className="dd-blob dd-blob-1" />
       <div className="dd-blob dd-blob-2" />
       
-      <aside className="dd-sidebar">
-        <div className="dd-sidebar-brand">
-          <div className="dd-sidebar-logo">
-            <Stethoscope size={20} strokeWidth={2.5} color="#fff" />
+      <aside className={`dd-sidebar${sidebarCollapsed ? ' collapsed' : ''}`}>
+        <div className="dd-sidebar-brand" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingRight: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div className="dd-sidebar-logo">
+              <Stethoscope size={20} strokeWidth={2.5} color="#fff" />
+            </div>
+            {!sidebarCollapsed && <span>Doctor Portal</span>}
           </div>
-          <span>Doctor Portal</span>
+          <button
+            onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+            title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            style={{
+              background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: '8px',
+              width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              cursor: 'pointer', color: '#475569', transition: 'all 0.2s', flexShrink: 0
+            }}
+          >
+            {sidebarCollapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
+          </button>
         </div>
 
         <nav className="dd-nav">
           <button className={`dd-nav-item${view === VIEWS.DASHBOARD ? ' active' : ''}`}
-            onClick={() => setView(VIEWS.DASHBOARD)}>
-            <Activity size={18} /> Dashboard
+            onClick={() => setView(VIEWS.DASHBOARD)} title={sidebarCollapsed ? "Dashboard" : ""}>
+            <Activity size={18} /> {!sidebarCollapsed && <span>Dashboard</span>}
           </button>
 
           <button className={`dd-nav-item${view === VIEWS.APPOINTMENTS ? ' active' : ''}`}
-            onClick={() => setView(VIEWS.APPOINTMENTS)}>
-            <CalendarCheck size={18} /> Appointments
+            onClick={() => setView(VIEWS.APPOINTMENTS)} title={sidebarCollapsed ? "Appointments" : ""}>
+            <CalendarCheck size={18} /> {!sidebarCollapsed && <span>Appointments</span>}
             {pendingAppts > 0 && (
-              <span className="dd-badge-count">{pendingAppts}</span>
+              <span className="dd-badge-count" style={{ marginLeft: sidebarCollapsed ? '0' : 'auto' }}>{pendingAppts}</span>
             )}
           </button>
 
           <button className={`dd-nav-item${view === VIEWS.PATIENTS ? ' active' : ''}`}
-            onClick={() => setView(VIEWS.PATIENTS)}>
-            <Users size={18} /> My Patients
+            onClick={() => setView(VIEWS.PATIENTS)} title={sidebarCollapsed ? "My Patients" : ""}>
+            <Users size={18} /> {!sidebarCollapsed && <span>My Patients</span>}
           </button>
 
           <div className="dd-nav-divider" />
 
           <button className={`dd-nav-item${view === VIEWS.PROFILE ? ' active' : ''}`}
-            onClick={() => setView(VIEWS.PROFILE)}>
-            <User size={18} /> My Profile
+            onClick={() => setView(VIEWS.PROFILE)} title={sidebarCollapsed ? "My Profile" : ""}>
+            <User size={18} /> {!sidebarCollapsed && <span>My Profile</span>}
           </button>
         </nav>
 
-        <button className="dd-logout-btn" onClick={handleLogout}>
-          <LogOut size={17} /> Sign Out
+        <button className="dd-logout-btn" onClick={handleLogout} title={sidebarCollapsed ? "Sign Out" : ""} style={{ justifyContent: sidebarCollapsed ? 'center' : 'flex-start' }}>
+          <LogOut size={17} /> {!sidebarCollapsed && <span>Sign Out</span>}
         </button>
       </aside>
 
-      <main className="dd-main">
+      <main className={`dd-main${sidebarCollapsed ? ' collapsed' : ''}`}>
         <div className="dd-hero">
           <div className="dd-hero-accent" />
           <div className="dd-hero-left">
@@ -319,7 +367,18 @@ const DoctorDashboard = () => {
             <div className="dd-date">
               {new Date().toLocaleDateString('en-IN', { weekday: 'short', month: 'short', day: 'numeric' })}
             </div>
-            <div className="dd-avatar">{doctorName.charAt(0).toUpperCase()}</div>
+            <div
+              className="dd-avatar"
+              onClick={() => setView(VIEWS.PROFILE)}
+              title="View Profile"
+              style={{ cursor: 'pointer', overflow: 'hidden', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            >
+              {doctorProfile?.profile_img ? (
+                <img src={doctorProfile.profile_img} alt="Doctor Profile Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              ) : (
+                doctorName.charAt(0).toUpperCase()
+              )}
+            </div>
           </div>
         </div>
 
@@ -610,8 +669,78 @@ const DoctorDashboard = () => {
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
-                      <div style={{ width: 72, height: 72, borderRadius: '50%', background: 'linear-gradient(135deg,#0ea5e9,#0284c7)', color: '#fff', fontSize: 28, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 6px 20px rgba(2,132,199,0.3)' }}>
-                        {doctorProfile.first_name?.[0]?.toUpperCase()}
+                      <div style={{ position: 'relative', display: 'inline-block' }}>
+                        {doctorProfile.profile_img &&
+                        !doctorProfile.profile_img.includes('placeholder') &&
+                        !doctorProfile.profile_img.includes('ui-avatars.com') ? (
+                          <img
+                            src={doctorProfile.profile_img}
+                            alt={doctorProfile.first_name}
+                            style={{
+                              width: 80,
+                              height: 80,
+                              borderRadius: '50%',
+                              objectFit: 'cover',
+                              border: '3px solid #0ea5e9',
+                              boxShadow: '0 6px 20px rgba(2,132,199,0.3)'
+                            }}
+                            onError={(e) => {
+                              e.target.style.display = 'none';
+                              if (e.target.nextSibling) e.target.nextSibling.style.display = 'flex';
+                            }}
+                          />
+                        ) : null}
+                        <div
+                          style={{
+                            display: doctorProfile.profile_img &&
+                            !doctorProfile.profile_img.includes('placeholder') &&
+                            !doctorProfile.profile_img.includes('ui-avatars.com') ? 'none' : 'flex',
+                            width: 80,
+                            height: 80,
+                            borderRadius: '50%',
+                            background: 'linear-gradient(135deg,#0ea5e9,#0284c7)',
+                            color: '#fff',
+                            fontSize: 32,
+                            fontWeight: 800,
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            boxShadow: '0 6px 20px rgba(2,132,199,0.3)'
+                          }}
+                        >
+                          {doctorProfile.first_name?.[0]?.toUpperCase() || 'D'}
+                        </div>
+                        <input
+                          type="file"
+                          ref={photoInputRef}
+                          accept="image/*"
+                          style={{ display: 'none' }}
+                          onChange={handlePhotoChange}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => photoInputRef.current?.click()}
+                          disabled={photoUploading}
+                          title="Change Profile Picture"
+                          style={{
+                            position: 'absolute',
+                            bottom: -2,
+                            right: -2,
+                            width: 32,
+                            height: 32,
+                            borderRadius: '50%',
+                            background: '#0284c7',
+                            color: '#ffffff',
+                            border: '2px solid #ffffff',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            cursor: 'pointer',
+                            boxShadow: '0 2px 8px rgba(0,0,0,0.25)',
+                            transition: 'transform 0.15s ease'
+                          }}
+                        >
+                          {photoUploading ? <Loader2 size={15} style={{ animation: 'spin 1s linear infinite' }} /> : <Camera size={15} />}
+                        </button>
                       </div>
                       <div>
                         <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, color: '#0f172a' }}>

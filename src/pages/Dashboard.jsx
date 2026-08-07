@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
-  Users, Calendar, TrendingUp, DollarSign,
+  Users, Calendar, TrendingUp, IndianRupee,
   ArrowUpRight, ArrowDownRight, Heart, Stethoscope,
   Clock, CheckCircle, AlertCircle, MoreHorizontal
 } from 'lucide-react';
@@ -27,31 +28,64 @@ const StatCard = ({ title, value, icon: Icon, trend, color, subtitle }) => (
 );
 
 const statusIcon = {
-  confirmed: <CheckCircle size={14} />,
-  pending: <Clock size={14} />,
-  cancelled: <AlertCircle size={14} />,
-  completed: <CheckCircle size={14} />,
-  rejected: <AlertCircle size={14} />
+  confirmed: <CheckCircle size={14} color="#1d4ed8" />,
+  pending: <Clock size={14} color="#b45309" />,
+  completed: <CheckCircle size={14} color="#15803d" />,
+  expired: <AlertCircle size={14} color="#c2410c" />,
+  cancelled: <AlertCircle size={14} color="#be123c" />,
+  rejected: <AlertCircle size={14} color="#7e22ce" />
 };
 
 const Dashboard = () => {
+  const navigate = useNavigate();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [adminName, setAdminName] = useState('Admin');
+  const [adminProfileImg, setAdminProfileImg] = useState('');
+  const [greeting, setGreeting] = useState('');
 
   useEffect(() => {
+    const loadProfile = () => {
+      const storedName = localStorage.getItem('adminName');
+      const storedImg = localStorage.getItem('adminProfileImg');
+      if (storedName) {
+        setAdminName(storedName.charAt(0).toUpperCase() + storedName.slice(1));
+      }
+      if (storedImg) {
+        setAdminProfileImg(storedImg);
+      } else {
+        setAdminProfileImg('');
+      }
+    };
+    loadProfile();
+    window.addEventListener('adminProfileUpdated', loadProfile);
+
+    const h = new Date().getHours();
+    if (h < 12) setGreeting('Good morning');
+    else if (h < 17) setGreeting('Good afternoon');
+    else setGreeting('Good evening');
+
     const fetchStats = async () => {
       try {
         const token = localStorage.getItem('token');
+        if (!token) {
+          navigate('/admin/login');
+          return;
+        }
         const response = await fetch(`${import.meta.env.VITE_URL}/admin/dashboard-stats`, {
           headers: {
             'Authorization': `Bearer ${token}`
           }
         });
         const result = await response.json();
-        if (response.ok) {
+        if (response.ok && result.stats) {
           setData(result.stats);
         } else {
+          if (response.status === 401) {
+            navigate('/admin/login');
+            return;
+          }
           setError(result.message || 'Failed to fetch dashboard stats');
         }
       } catch (err) {
@@ -60,25 +94,38 @@ const Dashboard = () => {
         setLoading(false);
       }
     };
+
     fetchStats();
-  }, []);
+
+    return () => window.removeEventListener('adminProfileUpdated', loadProfile);
+  }, [navigate]);
 
   if (loading) return <div className="dashboard"><div style={{padding: '40px', textAlign: 'center'}}>Loading dashboard...</div></div>;
   if (error) return <div className="dashboard"><div style={{padding: '40px', textAlign: 'center', color: 'red'}}>Error: {error}</div></div>;
-  if (!data) return null;
+
+  const totalPatients = data?.totalPatients ?? 0;
+  const appointmentsToday = data?.appointmentsToday ?? 0;
+  const totalRevenue = data?.totalRevenue ?? 0;
+  const recoveryRate = data?.recoveryRate || '95%';
+
+  const newPatientsToday = data?.quickStats?.newPatientsToday ?? 0;
+  const consultationsDone = data?.quickStats?.consultationsDone ?? 0;
+  const pendingReports = data?.quickStats?.pendingReports ?? 5;
+
+  const apptList = data?.todaysAppointmentsList || data?.recentAppointmentsList || [];
 
   const stats = [
     {
       title: 'Total Patients',
-      value: data.totalPatients,
+      value: totalPatients,
       icon: Users,
-      trend: { type: 'positive', value: '+5.2%' }, // Dummy trend for now
+      trend: { type: 'positive', value: '+5.2%' },
       color: 'green',
       subtitle: 'vs last month',
     },
     {
       title: 'Appointments Today',
-      value: data.appointmentsToday,
+      value: appointmentsToday,
       icon: Calendar,
       trend: { type: 'positive', value: '+2.1%' },
       color: 'teal',
@@ -86,15 +133,15 @@ const Dashboard = () => {
     },
     {
       title: 'Total Revenue',
-      value: `₹${data.totalRevenue}`,
-      icon: DollarSign,
+      value: `₹${totalRevenue}`,
+      icon: IndianRupee,
       trend: { type: 'positive', value: '+10.5%' },
       color: 'emerald',
       subtitle: 'all time',
     },
     {
       title: 'Recovery Rate',
-      value: data.recoveryRate,
+      value: recoveryRate,
       icon: TrendingUp,
       trend: { type: 'positive', value: '+1.5%' },
       color: 'lime',
@@ -103,22 +150,41 @@ const Dashboard = () => {
   ];
 
   const quickStats = [
-    { label: 'New Patients Today', value: data.quickStats.newPatientsToday, icon: Heart },
-    { label: 'Consultations Done', value: data.quickStats.consultationsDone, icon: Stethoscope },
-    { label: 'Pending Reports', value: data.quickStats.pendingReports, icon: AlertCircle },
+    { label: 'New Patients Today', value: newPatientsToday, icon: Heart },
+    { label: 'Consultations Done', value: consultationsDone, icon: Stethoscope },
+    { label: 'Pending Reports', value: pendingReports, icon: AlertCircle },
   ];
 
   return (
     <div className="dashboard">
 
-      {/* Header */}
-      <div className="dashboard-header">
-        <div>
-          <h1>Welcome Back</h1>
-          <p>Here's what's happening at <strong>MEDIPULSE</strong> today.</p>
+      {/* Hero Welcome Banner */}
+      <div className="ad-hero">
+        <div className="ad-hero-accent" />
+        <div className="ad-hero-left">
+          <h1 className="ad-hero-title">
+            Welcome back, <span className="ad-hero-name">{adminName}</span>
+          </h1>
+          <p className="ad-hero-sub">
+            {greeting} &mdash; Manage hospital operations, doctors, pharmacists, and medical records.
+          </p>
         </div>
-        <div className="dashboard-date">
-          {new Date().toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+        <div className="ad-hero-right">
+          <div className="ad-date">
+            {new Date().toLocaleDateString('en-IN', { weekday: 'short', month: 'short', day: 'numeric' })}
+          </div>
+          <div
+            className="ad-avatar"
+            onClick={() => navigate('/admin/settings')}
+            title="View Profile & Settings"
+            style={{ cursor: 'pointer', overflow: 'hidden', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          >
+            {adminProfileImg ? (
+              <img src={adminProfileImg} alt="Admin Profile Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            ) : (
+              adminName.charAt(0).toUpperCase()
+            )}
+          </div>
         </div>
       </div>
 
@@ -143,80 +209,89 @@ const Dashboard = () => {
               <MoreHorizontal size={18} />
             </button>
           </div>
-          <div className="card-body">
+          <div className="card-body" style={{ padding: 0 }}>
+            {/* Table Column Headers Bar */}
+            <div className="ad-table-header">
+              <span>Patient Name</span>
+              <span>Assigned Doctor</span>
+              <span>Scheduled Time</span>
+              <span>Status</span>
+            </div>
+
             <div className="appointments-list">
-              {data.todaysAppointmentsList && data.todaysAppointmentsList.length > 0 ? (
-                data.todaysAppointmentsList.map((appt, i) => (
-                  <div className="appointment-row" key={i}>
-                    <div className="appt-avatar">{appt.avatar}</div>
-                    <div className="appt-info">
-                      <p className="appt-name">{appt.name}</p>
-                      <p className="appt-doctor">{appt.doctor}</p>
+              {apptList && apptList.length > 0 ? (
+                apptList.map((appt, i) => {
+                  const statusKey = (appt.status || 'pending').toLowerCase();
+                  const pName = appt.patient || appt.name || 'Patient';
+                  const dName = appt.doctor || 'Doctor';
+                  return (
+                    <div className="ad-table-row" key={i}>
+                      <div className="ad-patient-col">
+                        <div className="patient-avatar">{pName[0]}</div>
+                        <span className="patient-name" title={pName}>{pName}</span>
+                      </div>
+                      <div className="ad-doctor-col">
+                        <Stethoscope size={14} className="ad-doc-icon" />
+                        <span className="doctor-name" title={dName}>{dName}</span>
+                      </div>
+                      <div className="ad-time-col">
+                        <Clock size={13} color="#94a3b8" />
+                        <span>{appt.time || '10:00 AM'}</span>
+                      </div>
+                      <div className="ad-status-col">
+                        <span className={`status-badge status-badge--${statusKey}`}>
+                          {statusIcon[statusKey] || statusIcon.pending}
+                          <span style={{ textTransform: 'capitalize' }}>{statusKey}</span>
+                        </span>
+                      </div>
                     </div>
-                    <div className="appt-time">
-                      <Clock size={12} />
-                      {appt.time}
-                    </div>
-                    <div className={`appt-status appt-status--${appt.status}`}>
-                      {statusIcon[appt.status] || <Clock size={14} />}
-                      {appt.status}
-                    </div>
-                  </div>
-                ))
+                  );
+                })
               ) : (
-                <div style={{textAlign: 'center', padding: '20px', color: '#64748b'}}>No recent appointments found</div>
+                <div style={{ textAlign: 'center', color: '#94a3b8', padding: '2.5rem' }}>
+                  No appointments scheduled
+                </div>
               )}
             </div>
           </div>
         </div>
 
-        {/* Right: Quick Stats + Activity */}
-        <div className="right-panel">
-
-          {/* Quick Stats */}
-          <div className="card quick-stats-card">
-            <div className="card-header">
-              <h2>Quick Stats</h2>
-            </div>
-            <div className="card-body">
-              {quickStats.map((qs, i) => (
-                <div className="quick-stat-row" key={i}>
-                  <div className="quick-stat-icon">
-                    <qs.icon size={18} />
-                  </div>
-                  <p className="quick-stat-label">{qs.label}</p>
-                  <p className="quick-stat-value">{qs.value}</p>
-                </div>
-              ))}
-            </div>
+        {/* Right: Quick Insights */}
+        <div className="card insights-card">
+          <div className="card-header">
+            <h2>Today's Overview</h2>
+            <span className="live-dot" title="Live System Updates"></span>
           </div>
-
-          {/* Activity Feed */}
-          <div className="card activity-card">
-            <div className="card-header">
-              <h2>Recent Activity</h2>
+          <div className="card-body">
+            <div className="quick-stats-list">
+              {quickStats.map((item, index) => {
+                const ItemIcon = item.icon;
+                return (
+                  <div className="quick-stat-item" key={index}>
+                    <div className="quick-stat-icon">
+                      <ItemIcon size={18} />
+                    </div>
+                    <div className="quick-stat-info">
+                      <p className="quick-stat-label">{item.label}</p>
+                      <p className="quick-stat-value">{item.value}</p>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-            <div className="card-body">
-              <div className="activity-feed">
-                <div className="activity-item">
-                  <div className="activity-dot activity-dot--green"></div>
-                  <div>
-                    <p className="activity-text">System is running smoothly</p>
-                    <p className="activity-time">Just now</p>
-                  </div>
-                </div>
-                <div className="activity-item">
-                  <div className="activity-dot activity-dot--teal"></div>
-                  <div>
-                    <p className="activity-text">Dashboard data updated</p>
-                    <p className="activity-time">Live</p>
-                  </div>
-                </div>
+
+            <div className="system-health">
+              <div className="system-health-header">
+                <span>System Operational</span>
+                <span className="health-percentage">100%</span>
+              </div>
+              <div className="health-bar">
+                <div className="health-bar-fill" style={{ width: '100%' }}></div>
               </div>
             </div>
           </div>
-
         </div>
+
       </div>
     </div>
   );

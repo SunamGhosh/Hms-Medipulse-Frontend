@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { User, Lock, Bell, Monitor, Save, Shield, Hospital, Mail, Phone, Sun, Moon, Settings } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { User, Lock, Bell, Monitor, Save, Shield, Hospital, Mail, Phone, Sun, Moon, Settings, Eye, EyeOff, Upload, Trash2, X, Camera } from 'lucide-react';
 import toast from 'react-hot-toast';
 import './AdminSettings.css';
 
@@ -13,11 +13,19 @@ const AdminSettings = () => {
     email: 'admin@medipulse.com'
   });
 
+  const [profileImg, setProfileImg] = useState('');
+  const [showViewImgModal, setShowViewImgModal] = useState(false);
+  const fileInputRef = useRef(null);
+
+  // Password Visibility States
   const [securityData, setSecurityData] = useState({
     currentPassword: '',
     newPassword: '',
     confirmPassword: ''
   });
+  const [showCurrentPwd, setShowCurrentPwd] = useState(false);
+  const [showNewPwd, setShowNewPwd] = useState(false);
+  const [showConfirmPwd, setShowConfirmPwd] = useState(false);
 
   const [preferences, setPreferences] = useState({
     emailNotifications: true,
@@ -32,44 +40,186 @@ const AdminSettings = () => {
     address: '123 Health Ave, Medical City, MC 10001'
   });
 
-  // Load basic admin details on mount
+  // Load basic admin details & profile img on mount
   useEffect(() => {
     const storedName = localStorage.getItem('adminName');
     const storedEmail = localStorage.getItem('adminEmail');
+    const storedImg = localStorage.getItem('adminProfileImg');
+
     if (storedName) setProfileData(prev => ({ ...prev, name: storedName }));
     if (storedEmail) setProfileData(prev => ({ ...prev, email: storedEmail }));
+    if (storedImg) setProfileImg(storedImg);
     
-    // Load local preferences if any
+    // Fetch profile from backend if token exists
+    const token = localStorage.getItem('token');
+    if (token) {
+      fetch(`${import.meta.env.VITE_URL}/admin/profile`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data && data.email) {
+          setProfileData({
+            name: data.fullname || storedName || 'Admin User',
+            email: data.email || storedEmail || ''
+          });
+          if (data.profile_img) {
+            setProfileImg(data.profile_img);
+            localStorage.setItem('adminProfileImg', data.profile_img);
+          }
+          localStorage.setItem('adminName', data.fullname || '');
+          localStorage.setItem('adminEmail', data.email || '');
+        }
+      })
+      .catch(err => console.error("Error fetching admin profile:", err));
+    }
+
+    // Load saved preferences
     const savedPrefs = localStorage.getItem('adminPreferences');
     if (savedPrefs) {
-      setPreferences(JSON.parse(savedPrefs));
+      try {
+        const parsed = JSON.parse(savedPrefs);
+        setPreferences(parsed);
+        if (parsed.darkMode) {
+          document.body.classList.add('dark-mode');
+        }
+      } catch (err) {
+        console.error("Error parsing saved preferences", err);
+      }
     }
   }, []);
 
-  const handleProfileSave = (e) => {
-    e.preventDefault();
-    setLoading(true);
-    // Mock save
-    setTimeout(() => {
-      localStorage.setItem('adminName', profileData.name);
-      localStorage.setItem('adminEmail', profileData.email);
-      toast.success('Profile updated successfully');
-      setLoading(false);
-    }, 800);
+  // Handle Profile Picture Upload
+  const handleImageUpload = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please upload a valid image file (JPG, PNG, GIF)');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result;
+      setProfileImg(result);
+      localStorage.setItem('adminProfileImg', result);
+      window.dispatchEvent(new Event('adminProfileUpdated'));
+      toast.success('Profile picture updated successfully');
+    };
+    reader.readAsDataURL(file);
   };
 
-  const handleSecuritySave = (e) => {
+  const handleRemovePicture = () => {
+    setProfileImg('');
+    localStorage.removeItem('adminProfileImg');
+    window.dispatchEvent(new Event('adminProfileUpdated'));
+    toast.success('Profile picture removed');
+  };
+
+  const handleProfileSave = async (e) => {
     e.preventDefault();
+    const token = localStorage.getItem('token');
+    if (!token) {
+      toast.error('Session expired. Please log in again.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await fetch(`${import.meta.env.VITE_URL}/admin/update-profile`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          fullname: profileData.name,
+          email: profileData.email,
+          profile_img: profileImg
+        })
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        localStorage.setItem('adminName', profileData.name);
+        localStorage.setItem('adminEmail', profileData.email.trim().toLowerCase());
+        if (profileImg) localStorage.setItem('adminProfileImg', profileImg);
+        window.dispatchEvent(new Event('adminProfileUpdated'));
+        toast.success(data.message || 'Profile updated successfully');
+      } else {
+        toast.error(data.message || 'Failed to update profile');
+      }
+    } catch (error) {
+      toast.error('Network error. Failed to update profile.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSecuritySave = async (e) => {
+    e.preventDefault();
+    if (!securityData.currentPassword || !securityData.newPassword) {
+      toast.error('Please enter both current and new password');
+      return;
+    }
     if (securityData.newPassword !== securityData.confirmPassword) {
       toast.error('New passwords do not match');
       return;
     }
+
+    const token = localStorage.getItem('token');
+    if (!token) {
+      toast.error('Session expired. Please log in again.');
+      return;
+    }
+
     setLoading(true);
-    setTimeout(() => {
-      setSecurityData({ currentPassword: '', newPassword: '', confirmPassword: '' });
-      toast.success('Password changed successfully');
+    try {
+      const response = await fetch(`${import.meta.env.VITE_URL}/admin/change-password`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          currentPassword: securityData.currentPassword,
+          newPassword: securityData.newPassword
+        })
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setSecurityData({ currentPassword: '', newPassword: '', confirmPassword: '' });
+        toast.success(data.message || 'Password updated successfully!');
+      } else {
+        toast.error(data.message || 'Failed to update password');
+      }
+    } catch (error) {
+      toast.error('Network error. Failed to connect to server.');
+    } finally {
       setLoading(false);
-    }, 800);
+    }
+  };
+
+  // Real-time Dynamic System Preference Change Handler
+  const handlePreferenceChange = (key, value) => {
+    const updated = { ...preferences, [key]: value };
+    setPreferences(updated);
+    localStorage.setItem('adminPreferences', JSON.stringify(updated));
+
+    if (key === 'emailNotifications') {
+      toast.success(`Email Notifications ${value ? 'enabled' : 'disabled'}`);
+    } else if (key === 'pushNotifications') {
+      toast.success(`Push Notifications ${value ? 'enabled' : 'disabled'}`);
+    } else if (key === 'darkMode') {
+      toast.success(`Dark Mode ${value ? 'enabled' : 'disabled'}`);
+      if (value) {
+        document.body.classList.add('dark-mode');
+      } else {
+        document.body.classList.remove('dark-mode');
+      }
+    }
   };
 
   const handlePreferencesSave = (e) => {
@@ -77,18 +227,18 @@ const AdminSettings = () => {
     setLoading(true);
     setTimeout(() => {
       localStorage.setItem('adminPreferences', JSON.stringify(preferences));
-      toast.success('Preferences saved');
+      toast.success('Preferences saved successfully');
       setLoading(false);
-    }, 500);
+    }, 400);
   };
 
   const handleHospitalSave = (e) => {
     e.preventDefault();
     setLoading(true);
     setTimeout(() => {
-      toast.success('Hospital details updated');
+      toast.success('Hospital details updated successfully');
       setLoading(false);
-    }, 800);
+    }, 600);
   };
 
   return (
@@ -136,8 +286,57 @@ const AdminSettings = () => {
           {activeTab === 'profile' && (
             <div className="as-card fade-in">
               <h3>Profile Information</h3>
-              <p className="as-subtitle">Update your account's basic information.</p>
+              <p className="as-subtitle">Update your account's basic information and profile picture.</p>
               
+              {/* Profile Picture Upload & View Section */}
+              <div className="as-avatar-section">
+                <div className="as-avatar-preview-box">
+                  {profileImg ? (
+                    <img src={profileImg} alt="Admin Profile Avatar" />
+                  ) : (
+                    profileData.name.charAt(0).toUpperCase()
+                  )}
+                </div>
+                <div className="as-avatar-controls">
+                  <h4 className="as-avatar-controls-title">Profile Picture</h4>
+                  <p className="as-avatar-controls-sub">Upload a high quality photo or avatar image.</p>
+                  <div className="as-avatar-btn-group">
+                    <input 
+                      type="file" 
+                      ref={fileInputRef} 
+                      accept="image/*" 
+                      onChange={handleImageUpload} 
+                      style={{ display: 'none' }} 
+                    />
+                    <button 
+                      type="button" 
+                      className="as-btn-secondary" 
+                      onClick={() => fileInputRef.current?.click()}
+                    >
+                      <Upload size={14} /> Upload New Photo
+                    </button>
+                    {profileImg && (
+                      <button 
+                        type="button" 
+                        className="as-btn-secondary" 
+                        onClick={() => setShowViewImgModal(true)}
+                      >
+                        <Eye size={14} /> View Picture
+                      </button>
+                    )}
+                    {profileImg && (
+                      <button 
+                        type="button" 
+                        className="as-btn-danger" 
+                        onClick={handleRemovePicture}
+                      >
+                        <Trash2 size={14} /> Remove
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
               <form onSubmit={handleProfileSave}>
                 <div className="as-form-group">
                   <label>Full Name</label>
@@ -181,43 +380,76 @@ const AdminSettings = () => {
               <p className="as-subtitle">Ensure your account is using a long, random password to stay secure.</p>
               
               <form onSubmit={handleSecuritySave}>
+                {/* Current Password */}
                 <div className="as-form-group">
                   <label>Current Password</label>
                   <div className="as-input-wrap">
                     <Lock className="as-input-icon" size={16} />
                     <input 
-                      type="password" 
+                      type={showCurrentPwd ? "text" : "password"} 
                       value={securityData.currentPassword} 
                       onChange={e => setSecurityData({...securityData, currentPassword: e.target.value})} 
                       required 
+                      placeholder="Enter current password"
+                      style={{ paddingRight: '40px' }}
                     />
+                    <button
+                      type="button"
+                      onClick={() => setShowCurrentPwd(!showCurrentPwd)}
+                      className="as-pwd-toggle-btn"
+                      title={showCurrentPwd ? "Hide password" : "Show password"}
+                    >
+                      {showCurrentPwd ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
                   </div>
                 </div>
                 
+                {/* New Password */}
                 <div className="as-form-group">
                   <label>New Password</label>
                   <div className="as-input-wrap">
                     <Lock className="as-input-icon" size={16} />
                     <input 
-                      type="password" 
+                      type={showNewPwd ? "text" : "password"} 
                       value={securityData.newPassword} 
                       onChange={e => setSecurityData({...securityData, newPassword: e.target.value})} 
                       required 
                       minLength={8}
+                      placeholder="Enter new password (min 8 chars)"
+                      style={{ paddingRight: '40px' }}
                     />
+                    <button
+                      type="button"
+                      onClick={() => setShowNewPwd(!showNewPwd)}
+                      className="as-pwd-toggle-btn"
+                      title={showNewPwd ? "Hide password" : "Show password"}
+                    >
+                      {showNewPwd ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
                   </div>
                 </div>
 
+                {/* Confirm New Password */}
                 <div className="as-form-group">
                   <label>Confirm New Password</label>
                   <div className="as-input-wrap">
                     <Lock className="as-input-icon" size={16} />
                     <input 
-                      type="password" 
+                      type={showConfirmPwd ? "text" : "password"} 
                       value={securityData.confirmPassword} 
                       onChange={e => setSecurityData({...securityData, confirmPassword: e.target.value})} 
                       required 
+                      placeholder="Confirm new password"
+                      style={{ paddingRight: '40px' }}
                     />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPwd(!showConfirmPwd)}
+                      className="as-pwd-toggle-btn"
+                      title={showConfirmPwd ? "Hide password" : "Show password"}
+                    >
+                      {showConfirmPwd ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
                   </div>
                 </div>
 
@@ -234,7 +466,7 @@ const AdminSettings = () => {
           {activeTab === 'preferences' && (
             <div className="as-card fade-in">
               <h3>System Preferences</h3>
-              <p className="as-subtitle">Customize your MEDIPULSE experience.</p>
+              <p className="as-subtitle">Customize your MEDIPULSE experience dynamically in real-time.</p>
               
               <form onSubmit={handlePreferencesSave}>
                 <div className="as-toggle-group">
@@ -246,7 +478,7 @@ const AdminSettings = () => {
                     <input 
                       type="checkbox" 
                       checked={preferences.emailNotifications}
-                      onChange={e => setPreferences({...preferences, emailNotifications: e.target.checked})}
+                      onChange={e => handlePreferenceChange('emailNotifications', e.target.checked)}
                     />
                     <span className="as-slider"></span>
                   </label>
@@ -261,7 +493,7 @@ const AdminSettings = () => {
                     <input 
                       type="checkbox" 
                       checked={preferences.pushNotifications}
-                      onChange={e => setPreferences({...preferences, pushNotifications: e.target.checked})}
+                      onChange={e => handlePreferenceChange('pushNotifications', e.target.checked)}
                     />
                     <span className="as-slider"></span>
                   </label>
@@ -270,13 +502,13 @@ const AdminSettings = () => {
                 <div className="as-toggle-group">
                   <div className="as-toggle-info">
                     <h4>{preferences.darkMode ? <Moon size={16} /> : <Sun size={16} />} Dark Mode</h4>
-                    <p>Switch between light and dark themes (Preview only).</p>
+                    <p>Switch between light and dark themes in real-time.</p>
                   </div>
                   <label className="as-switch">
                     <input 
                       type="checkbox" 
                       checked={preferences.darkMode}
-                      onChange={e => setPreferences({...preferences, darkMode: e.target.checked})}
+                      onChange={e => handlePreferenceChange('darkMode', e.target.checked)}
                     />
                     <span className="as-slider"></span>
                   </label>
@@ -357,6 +589,28 @@ const AdminSettings = () => {
           )}
         </div>
       </div>
+
+      {/* View Profile Picture Modal Overlay */}
+      {showViewImgModal && (
+        <div className="as-modal-overlay" onClick={() => setShowViewImgModal(false)}>
+          <div className="as-modal-card" onClick={e => e.stopPropagation()}>
+            <div className="as-modal-header">
+              <h4>Admin Profile Picture</h4>
+              <button 
+                type="button"
+                className="as-modal-close-btn" 
+                onClick={() => setShowViewImgModal(false)}
+                title="Close"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div className="as-modal-img-wrapper">
+              <img src={profileImg} alt="Full Resolution Admin Profile" />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -1,24 +1,37 @@
 import React, { useState, useEffect } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { LayoutDashboard, Users, UserRound, Settings, LogOut, Activity, User, CalendarDays, Pill, FileText } from 'lucide-react';
+import { LayoutDashboard, Users, UserRound, Settings, LogOut, Activity, User, CalendarDays, Pill, FileText, FileCheck, ChevronLeft, ChevronRight } from 'lucide-react';
 import './Sidebar.css';
 
-const Sidebar = () => {
+const Sidebar = ({ isCollapsed, toggleCollapse }) => {
   const [adminName, setAdminName] = useState('Admin User');
   const [adminRole, setAdminRole] = useState('Administrator');
+  const [adminProfileImg, setAdminProfileImg] = useState('');
   const navigate = useNavigate();
 
   useEffect(() => {
-    const storedName = localStorage.getItem('adminName');
-    const storedEmail = localStorage.getItem('adminEmail');
-    if (storedName) {
-      // Capitalize first letter
-      setAdminName(storedName.charAt(0).toUpperCase() + storedName.slice(1));
-    }
-    if (storedEmail) {
-      setAdminRole(storedEmail);
-    }
+    const loadProfile = () => {
+      const storedName = localStorage.getItem('adminName');
+      const storedEmail = localStorage.getItem('adminEmail');
+      const storedImg = localStorage.getItem('adminProfileImg');
+
+      if (storedName) {
+        setAdminName(storedName.charAt(0).toUpperCase() + storedName.slice(1));
+      }
+      if (storedEmail) {
+        setAdminRole(storedEmail);
+      }
+      if (storedImg) {
+        setAdminProfileImg(storedImg);
+      } else {
+        setAdminProfileImg('');
+      }
+    };
+
+    loadProfile();
+    window.addEventListener('adminProfileUpdated', loadProfile);
+    return () => window.removeEventListener('adminProfileUpdated', loadProfile);
   }, []);
 
   const menuItems = [
@@ -30,6 +43,7 @@ const Sidebar = () => {
     { name: 'Add Doctor', icon: User, path: '/admin/add-doctor' },
     { name: 'Add Pharmacist', icon: User, path: '/admin/add-pharmacist' },
     { name: 'Medicines', icon: Pill, path: '/admin/medicines' },
+    { name: 'Medicine Requests', icon: FileCheck, path: '/admin/medicine-requests' },
     { name: 'Medical Records', icon: FileText, path: '/admin/medical-records' },
     { name: 'Settings', icon: Settings, path: '/admin/settings' },
   ];
@@ -43,12 +57,25 @@ const Sidebar = () => {
   };
 
   return (
-    <div className="sidebar">
-      <div className="sidebar-header">
-        <div className="logo">
-          <img src="/img/logo.jpeg" alt="MediPulse Logo" style={{ width: '32px', height: '32px', borderRadius: '8px', objectFit: 'contain' }} />
-          <span>MEDIPULSE</span>
+    <div className={`sidebar${isCollapsed ? ' collapsed' : ''}`}>
+      <div className="sidebar-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div className="logo" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <img src="/img/logo.jpeg" alt="MediPulse Logo" style={{ width: '32px', height: '32px', borderRadius: '8px', objectFit: 'contain', flexShrink: 0 }} />
+          {!isCollapsed && <span>MEDIPULSE</span>}
         </div>
+        {toggleCollapse && (
+          <button
+            onClick={toggleCollapse}
+            title={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            style={{
+              background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: '8px',
+              width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              cursor: 'pointer', color: '#475569', transition: 'all 0.2s', flexShrink: 0
+            }}
+          >
+            {isCollapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
+          </button>
+        )}
       </div>
       
       <nav className="sidebar-nav">
@@ -58,9 +85,10 @@ const Sidebar = () => {
               <NavLink 
                 to={item.path} 
                 className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}
+                title={isCollapsed ? item.name : ""}
               >
                 <item.icon size={20} />
-                <span>{item.name}</span>
+                {!isCollapsed && <span>{item.name}</span>}
               </NavLink>
             </li>
           ))}
@@ -70,19 +98,25 @@ const Sidebar = () => {
       <div className="sidebar-footer">
         {/* Admin Profile */}
         <div className="sidebar-profile">
-          <div className="sidebar-avatar">
-            <User size={18} />
+          <div className="sidebar-avatar" style={{ overflow: 'hidden', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            {adminProfileImg ? (
+              <img src={adminProfileImg} alt="Admin Profile Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            ) : (
+              <User size={18} />
+            )}
           </div>
-          <div className="sidebar-user-info">
-            <span className="sidebar-user-name">{adminName} (Admin)</span>
-            <span className="sidebar-user-role">{adminRole}</span>
-          </div>
+          {!isCollapsed && (
+            <div className="sidebar-user-info">
+              <span className="sidebar-user-name">{adminName} (Admin)</span>
+              <span className="sidebar-user-role">{adminRole}</span>
+            </div>
+          )}
         </div>
 
         {/* Logout */}
-        <NavLink to="/" className="nav-link logout" onClick={handleLogout}>
+        <NavLink to="/" className="nav-link logout" onClick={handleLogout} title={isCollapsed ? "Logout" : ""}>
           <LogOut size={20} />
-          <span>Logout</span>
+          {!isCollapsed && <span>Logout</span>}
         </NavLink>
       </div>
     </div>
