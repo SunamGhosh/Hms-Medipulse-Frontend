@@ -285,6 +285,37 @@
   border-color: var(--primary-light);
 }
 
+.ad-view-all-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #f0fdf4;
+  color: #0f766e;
+  border: 1px solid rgba(15, 118, 110, 0.2);
+  padding: 6px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.ad-view-all-btn:hover {
+  background: #0f766e;
+  color: #ffffff;
+  border-color: #0f766e;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(15, 118, 110, 0.2);
+}
+
+.ad-view-all-btn svg {
+  transition: transform 0.2s ease;
+}
+
+.ad-view-all-btn:hover svg {
+  transform: translateX(3px);
+}
+
 .card-body {
   padding: 24px;
   flex: 1;

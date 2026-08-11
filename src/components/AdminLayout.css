@@ -22,3 +22,15 @@
   padding: 32px;
   overflow-y: auto;
 }
+
+@media (max-width: 1024px) {
+  .main-wrapper {
+    margin-left: 76px;
+  }
+}
+
+@media (max-width: 640px) {
+  .main-content {
+    padding: 16px 12px;
+  }
+}

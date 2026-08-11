@@ -802,7 +802,13 @@
 /* ══════════════════════════════════
    RESPONSIVE
 ══════════════════════════════════ */
-@media (max-width: 1200px) {
+@media (max-width: 1024px) {
+  .ud-sidebar {
+    width: 76px;
+  }
+  .ud-main {
+    margin-left: 76px;
+  }
   .ud-stats-grid { grid-template-columns: repeat(2, 1fr); }
   .ud-bottom-layout { grid-template-columns: 1fr; }
 }
@@ -832,8 +838,7 @@
 }
 
 @media (max-width: 768px) {
-  .ud-sidebar { display: none; }
-  .ud-main { padding: 24px 20px; }
+  .ud-main { padding: 24px 16px; margin-left: 76px; }
   .ud-stats-grid { grid-template-columns: 1fr; }
   .ud-actions-grid { grid-template-columns: 1fr; }
 }

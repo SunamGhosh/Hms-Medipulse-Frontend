@@ -4,7 +4,7 @@ import {
   Activity, CalendarCheck, User, LogOut, ArrowRight, Clock, ShieldCheck, ArrowUpRight, CheckCircle2,
   AlertCircle, Loader2, Users, Check, Pill, Edit3, Lock, Plus, Search, Package,
   ShoppingCart, X, Building2, Phone, Award, FileCheck, MapPin, Calendar,
-  AlertTriangle, Eye, RefreshCw, FileText, Stethoscope, Tag, Percent, ChevronLeft, ChevronRight
+  AlertTriangle, Eye, EyeOff, RefreshCw, FileText, Stethoscope, Tag, Percent, ChevronLeft, ChevronRight
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import './PharmacistDashboard.css';
@@ -35,7 +35,7 @@ const PharmacistDashboard = () => {
   const [pharmacistName, setPharmacistName] = useState('');
   const [greeting, setGreeting] = useState('');
   const [view, setView] = useState(VIEWS.DASHBOARD);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => window.innerWidth <= 1024);
   
   // Profile state
   const profileFileInputRef = useRef(null);
@@ -65,6 +65,9 @@ const PharmacistDashboard = () => {
     newPassword: '',
     confirmPassword: ''
   });
+  const [showCurrentPass, setShowCurrentPass] = useState(false);
+  const [showNewPass, setShowNewPass] = useState(false);
+  const [showConfirmPass, setShowConfirmPass] = useState(false);
 
   // Appointments state (Only pharmacist's own booked doctor appointments)
   const [appointments, setAppointments] = useState([]);
@@ -407,7 +410,19 @@ const PharmacistDashboard = () => {
       fetchAppointments(true);
       fetchMedicineRequests(true);
     }, 3000);
-    return () => clearInterval(intervalId);
+
+    const handleResize = () => {
+      if (window.innerWidth <= 1024) {
+        setSidebarCollapsed(true);
+      }
+    };
+    handleResize();
+    window.addEventListener('resize', handleResize);
+
+    return () => {
+      clearInterval(intervalId);
+      window.removeEventListener('resize', handleResize);
+    };
   }, [fetchProfile, fetchAppointments, fetchMedicines, fetchMedicineRequests, fetchSales, fetchActiveDoctors]);
 
   // Open Edit Profile Modal
@@ -2296,27 +2311,6 @@ const PharmacistDashboard = () => {
 
                 <div className="pd-form-row">
                   <div className="pd-form-group">
-                    <label>First Name</label>
-                    <input
-                      type="text"
-                      required
-                      value={editForm.first_name}
-                      onChange={e => setEditForm({ ...editForm, first_name: e.target.value })}
-                    />
-                  </div>
-                  <div className="pd-form-group">
-                    <label>Last Name</label>
-                    <input
-                      type="text"
-                      required
-                      value={editForm.last_name}
-                      onChange={e => setEditForm({ ...editForm, last_name: e.target.value })}
-                    />
-                  </div>
-                </div>
-
-                <div className="pd-form-row">
-                  <div className="pd-form-group">
                     <label>Phone Number</label>
                     <input
                       type="text"
@@ -2337,16 +2331,7 @@ const PharmacistDashboard = () => {
                 </div>
 
                 <div className="pd-form-row">
-                  <div className="pd-form-group">
-                    <label>Qualification</label>
-                    <input
-                      type="text"
-                      required
-                      value={editForm.qualification}
-                      onChange={e => setEditForm({ ...editForm, qualification: e.target.value })}
-                    />
-                  </div>
-                  <div className="pd-form-group">
+                  <div className="pd-form-group" style={{ gridColumn: 'span 2' }}>
                     <label>Working Days (comma separated)</label>
                     <input
                       type="text"
@@ -2413,35 +2398,65 @@ const PharmacistDashboard = () => {
               <div className="pd-modal-body">
                 <div className="pd-form-group">
                   <label>Current Password</label>
-                  <input
-                    type="password"
-                    required
-                    placeholder="Enter current password"
-                    value={pwdForm.currentPassword}
-                    onChange={e => setPwdForm({ ...pwdForm, currentPassword: e.target.value })}
-                  />
+                  <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                    <input
+                      type={showCurrentPass ? 'text' : 'password'}
+                      required
+                      placeholder="Enter current password"
+                      value={pwdForm.currentPassword}
+                      onChange={e => setPwdForm({ ...pwdForm, currentPassword: e.target.value })}
+                      style={{ width: '100%', paddingRight: '40px' }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowCurrentPass(!showCurrentPass)}
+                      style={{ position: 'absolute', right: '12px', background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', display: 'flex', alignItems: 'center', padding: 0 }}
+                    >
+                      {showCurrentPass ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
                 </div>
 
                 <div className="pd-form-group">
                   <label>New Password</label>
-                  <input
-                    type="password"
-                    required
-                    placeholder="Enter new password (min 6 chars)"
-                    value={pwdForm.newPassword}
-                    onChange={e => setPwdForm({ ...pwdForm, newPassword: e.target.value })}
-                  />
+                  <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                    <input
+                      type={showNewPass ? 'text' : 'password'}
+                      required
+                      placeholder="Enter new password (min 6 chars)"
+                      value={pwdForm.newPassword}
+                      onChange={e => setPwdForm({ ...pwdForm, newPassword: e.target.value })}
+                      style={{ width: '100%', paddingRight: '40px' }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowNewPass(!showNewPass)}
+                      style={{ position: 'absolute', right: '12px', background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', display: 'flex', alignItems: 'center', padding: 0 }}
+                    >
+                      {showNewPass ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
                 </div>
 
                 <div className="pd-form-group">
                   <label>Confirm New Password</label>
-                  <input
-                    type="password"
-                    required
-                    placeholder="Re-enter new password"
-                    value={pwdForm.confirmPassword}
-                    onChange={e => setPwdForm({ ...pwdForm, confirmPassword: e.target.value })}
-                  />
+                  <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                    <input
+                      type={showConfirmPass ? 'text' : 'password'}
+                      required
+                      placeholder="Re-enter new password"
+                      value={pwdForm.confirmPassword}
+                      onChange={e => setPwdForm({ ...pwdForm, confirmPassword: e.target.value })}
+                      style={{ width: '100%', paddingRight: '40px' }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPass(!showConfirmPass)}
+                      style={{ position: 'absolute', right: '12px', background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', display: 'flex', alignItems: 'center', padding: 0 }}
+                    >
+                      {showConfirmPass ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
                 </div>
               </div>
 

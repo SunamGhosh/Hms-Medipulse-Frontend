@@ -44,7 +44,7 @@ const VIEWS = {
 
 const UserDashboard = () => {
   const navigate = useNavigate();
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => window.innerWidth <= 1024);
   const [userName, setUserName] = useState('');
   const [greeting, setGreeting] = useState('');
   const [view, setView] = useState(VIEWS.DASHBOARD);
@@ -159,6 +159,15 @@ const UserDashboard = () => {
     fetchPatients();
     fetchProfile();
     fetchOrders();
+
+    const handleResize = () => {
+      if (window.innerWidth <= 1024) {
+        setSidebarCollapsed(true);
+      }
+    };
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
   }, [fetchAppointments, fetchPatients, fetchProfile, fetchOrders]);
 
   /* refresh after booking */

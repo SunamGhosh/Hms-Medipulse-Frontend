@@ -800,7 +800,13 @@
 /* ══════════════════════════════════
    RESPONSIVE
 ══════════════════════════════════ */
-@media (max-width: 1200px) {
+@media (max-width: 1024px) {
+  .pd-sidebar {
+    width: 76px;
+  }
+  .pd-main {
+    margin-left: 76px;
+  }
   .pd-stats-grid { grid-template-columns: repeat(2, 1fr); }
   .pd-bottom-layout { grid-template-columns: 1fr; }
 }
@@ -830,8 +836,7 @@
 }
 
 @media (max-width: 768px) {
-  .pd-sidebar { display: none; }
-  .pd-main { padding: 24px 20px; }
+  .pd-main { padding: 24px 16px; margin-left: 76px; }
   .pd-stats-grid { grid-template-columns: 1fr; }
   .pd-actions-grid { grid-template-columns: 1fr; }
 }

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Users, Calendar, TrendingUp, IndianRupee,
-  ArrowUpRight, ArrowDownRight, Heart, Stethoscope,
+  ArrowUpRight, ArrowDownRight, ArrowRight, Heart, Stethoscope,
   Clock, CheckCircle, AlertCircle, MoreHorizontal
 } from 'lucide-react';
 import './Dashboard.css';
@@ -205,8 +205,12 @@ const Dashboard = () => {
               <h2>Recent Appointments</h2>
               <p className="card-subtitle">Showing latest 10 appointments</p>
             </div>
-            <button className="card-action-btn">
-              <MoreHorizontal size={18} />
+            <button
+              className="ad-view-all-btn"
+              onClick={() => navigate('/admin/appointments')}
+              title="View all appointments"
+            >
+              View all <ArrowRight size={14} />
             </button>
           </div>
           <div className="card-body" style={{ padding: 0 }}>

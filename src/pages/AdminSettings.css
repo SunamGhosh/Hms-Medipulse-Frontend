@@ -348,7 +348,7 @@ input:checked + .as-slider:before {
   background: rgba(248, 250, 252, 0.7);
   border: 1px solid rgba(226, 232, 240, 0.9);
   border-radius: 16px;
-  max-width: 550px;
+  max-width: 680px;
 }
 .as-avatar-preview-box {
   width: 90px;
@@ -375,6 +375,8 @@ input:checked + .as-slider:before {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  flex: 1;
+  min-width: 0;
 }
 .as-avatar-controls-title {
   font-size: 14px;
@@ -389,8 +391,9 @@ input:checked + .as-slider:before {
 }
 .as-avatar-btn-group {
   display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
 }
 .as-btn-secondary {
   display: flex;
