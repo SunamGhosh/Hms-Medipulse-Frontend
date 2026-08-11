@@ -212,7 +212,7 @@ const Chatbot = () => {
         text: msg.text
       }));
 
-      const res = await fetch(`${API}/chatbot`, {
+      const res = await fetch(`${API}/api/chatbot`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
@@ -296,7 +296,7 @@ const Chatbot = () => {
         text: msg.text
       }));
 
-      const res = await fetch(`${API}/chatbot`, {
+      const res = await fetch(`${API}/api/chatbot`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 

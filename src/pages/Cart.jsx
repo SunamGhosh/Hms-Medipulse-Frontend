@@ -9,6 +9,7 @@ const Cart = () => {
   const [cartItems, setCartItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
+  const [address, setAddress] = useState({ street: '', city: '', state: '', zip_code: '' });
   const navigate = useNavigate();
   const token = localStorage.getItem('userToken');
 
@@ -74,6 +75,10 @@ const Cart = () => {
 
   const handleCheckout = async () => {
     if (!cartItems.length) { toast.error('Your cart is empty.'); return; }
+    if (!address.street || !address.city || !address.state || !address.zip_code) {
+      toast.error('Please enter complete delivery address.');
+      return;
+    }
     setCheckoutLoading(true);
     try {
       const orderRes = await fetch('http://localhost:5000/api/payment/create-order', {
@@ -110,7 +115,8 @@ const Cart = () => {
             body: JSON.stringify({
               razorpay_order_id: response.razorpay_order_id,
               razorpay_payment_id: response.razorpay_payment_id,
-              razorpay_signature: response.razorpay_signature
+              razorpay_signature: response.razorpay_signature,
+              delivery_address: address
             })
           });
           const verData = await verRes.json();
@@ -190,6 +196,21 @@ const Cart = () => {
                   </div>
                 </div>
               ))}
+            </div>
+
+
+
+            {/* ── Delivery Details ── */}
+            <div className="cart-address-card" style={{ background: 'white', borderRadius: 12, padding: 20, marginBottom: 24, boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+              <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 16 }}>Delivery Address</h3>
+              <div className="address-form" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <input type="text" placeholder="Street Address" value={address.street} onChange={e => setAddress({...address, street: e.target.value})} style={{ padding: '10px 14px', border: '1px solid #cbd5e1', borderRadius: 8, outline: 'none' }} />
+                <input type="text" placeholder="City" value={address.city} onChange={e => setAddress({...address, city: e.target.value})} style={{ padding: '10px 14px', border: '1px solid #cbd5e1', borderRadius: 8, outline: 'none' }} />
+                <div className="address-row" style={{ display: 'flex', gap: 12 }}>
+                  <input type="text" placeholder="State" value={address.state} onChange={e => setAddress({...address, state: e.target.value})} style={{ flex: 1, padding: '10px 14px', border: '1px solid #cbd5e1', borderRadius: 8, outline: 'none' }} />
+                  <input type="text" placeholder="ZIP Code" value={address.zip_code} onChange={e => setAddress({...address, zip_code: e.target.value})} style={{ flex: 1, padding: '10px 14px', border: '1px solid #cbd5e1', borderRadius: 8, outline: 'none' }} />
+                </div>
+              </div>
             </div>
 
             {/* ── Bill Details ── */}

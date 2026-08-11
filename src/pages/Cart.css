@@ -419,3 +419,41 @@
   color: #64748b;
   font-family: 'Inter', sans-serif;
 }
+
+.cart-address-card {
+  background: white;
+  border-radius: 16px;
+  padding: 20px;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.03);
+  margin-bottom: 24px;
+}
+.cart-address-card h3 {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 16px;
+  color: #1e293b;
+}
+.address-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.address-form input {
+  padding: 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+.address-form input:focus {
+  border-color: #16a34a;
+}
+.address-row {
+  display: flex;
+  gap: 12px;
+}
+.address-row input {
+  flex: 1;
+}
+
