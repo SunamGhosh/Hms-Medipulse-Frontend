@@ -28,6 +28,7 @@ import PatientsList from './pages/PatientsList';
 import AdminSettings from './pages/AdminSettings';
 import DeliveryAuth from './pages/DeliveryAuth';
 import DeliveryDashboard from './pages/DeliveryDashboard';
+import OrdersList from './pages/OrdersList';
 
 import Chatbot from './components/Chatbot';
 import { Toaster } from 'react-hot-toast';
@@ -70,6 +71,7 @@ function App() {
           <Route path="doctors" element={<DoctorsList />} />
           <Route path="pharmacists" element={<PharmacistsList />} />
           <Route path="appointments" element={<AppointmentsList />} />
+          <Route path="orders" element={<OrdersList />} />
           <Route path="medicines" element={<MedicinesList />} />
           <Route path="medicine-requests" element={<MedicineRequestsList />} />
           <Route path="medical-records" element={<MedicalRecordsList />} />

@@ -113,11 +113,67 @@ const MyOrders = () => {
                         )
                       })}
                     </div>
+
+                    {/* ETA Badge for Active Orders */}
+                    {['paid', 'processing', 'shipped', 'out_for_delivery'].includes(order.status) && (
+                      <div className="mo-eta-banner">
+                        <Clock size={16} color="#0d9488" />
+                        <span>
+                          <strong>Estimated Delivery:</strong> ~{order.estimated_delivery_minutes || 25} Minutes
+                          {order.tracking?.out_for_delivery_at && (
+                            <small style={{ marginLeft: 8, color: '#0d9488', fontWeight: 600 }}>
+                              (Dispatch: {new Date(order.tracking.out_for_delivery_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })})
+                            </small>
+                          )}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Out For Delivery OTP Alert Banner */}
+                    {order.status === 'out_for_delivery' && (
+                      <div className="mo-otp-alert-banner">
+                        <div className="mo-otp-alert-icon">📧</div>
+                        <div>
+                          <strong>Delivery OTP Sent to Your Email!</strong>
+                          <p>Please check your email inbox for the 6-digit Delivery Verification OTP. Share this OTP with your delivery executive when your package arrives.</p>
+                        </div>
+                      </div>
+                    )}
+
                     {order.delivery_address && (
-                      <div className="mo-delivery-address">
+                      <div className="mo-delivery-address" style={{ marginBottom: 6 }}>
                         <strong>Delivery Address:</strong> {order.delivery_address.street}, {order.delivery_address.city}, {order.delivery_address.state} {order.delivery_address.zip_code}
                       </div>
                     )}
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 16,
+                      fontSize: 13,
+                      padding: '8px 12px',
+                      background: (order.payment_mode === 'COD' && order.payment_status !== 'paid') ? '#fff7ed' : '#f0fdf4',
+                      borderRadius: 8,
+                      border: `1px solid ${(order.payment_mode === 'COD' && order.payment_status !== 'paid') ? '#fed7aa' : '#bbf7d0'}`,
+                      marginTop: 6
+                    }}>
+                      <div>
+                        <span style={{ color: '#475569', fontWeight: 500 }}>Payment Mode: </span>
+                        <strong style={{ color: '#0f172a' }}>{order.payment_mode || 'UPI'}</strong>
+                      </div>
+                      <div>
+                        <span style={{ color: '#475569', fontWeight: 500 }}>Payment Status: </span>
+                        <span style={{
+                          padding: '2px 8px',
+                          borderRadius: 10,
+                          fontSize: 11,
+                          fontWeight: 700,
+                          background: (order.payment_status === 'paid' || order.payment_mode === 'UPI') ? '#16a34a' : '#f97316',
+                          color: '#ffffff'
+                        }}>
+                          {(order.payment_status === 'paid' || order.payment_mode === 'UPI') ? 'Done' : 'Pending'}
+                        </span>
+                      </div>
+                    </div>
                   </div>
                 )}
 

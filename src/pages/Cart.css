@@ -46,12 +46,39 @@
 
 /* ─── Page body ───────────────────────────── */
 .cart-body {
-  max-width: 560px;
+  max-width: 1040px;
   margin: 0 auto;
-  padding: 24px 16px 120px;
+  padding: 24px 20px 80px;
+}
+
+.cart-grid {
+  display: grid;
+  grid-template-columns: 1fr 380px;
+  gap: 24px;
+  align-items: start;
+}
+
+.cart-left-col {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 20px;
+}
+
+.cart-right-col {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  position: sticky;
+  top: 80px;
+}
+
+@media (max-width: 868px) {
+  .cart-grid {
+    grid-template-columns: 1fr;
+  }
+  .cart-right-col {
+    position: static;
+  }
 }
 
 /* ─── Cart Items Card ─────────────────────── */

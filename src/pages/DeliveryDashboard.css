@@ -4,7 +4,7 @@
   font-family: 'Inter', sans-serif;
 }
 
-.dd-header {
+.dvd-header {
   background: #0f172a;
   color: white;
   padding: 16px 20px;
@@ -17,30 +17,30 @@
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
 }
 
-.dd-header-left {
+.dvd-header-left {
   display: flex;
   align-items: center;
   gap: 12px;
 }
 
-.dd-header-left h2 {
+.dvd-header-left h2 {
   margin: 0;
   font-size: 18px;
   font-weight: 700;
 }
 
-.dd-header-right {
+.dvd-header-right {
   display: flex;
   align-items: center;
   gap: 16px;
 }
 
-.dd-name {
+.dvd-name {
   font-size: 14px;
   font-weight: 600;
 }
 
-.dd-logout-btn {
+.dvd-logout-btn {
   background: transparent;
   border: 1px solid rgba(255, 255, 255, 0.2);
   color: white;
@@ -53,17 +53,17 @@
   transition: background 0.2s;
 }
 
-.dd-logout-btn:hover {
+.dvd-logout-btn:hover {
   background: rgba(255, 255, 255, 0.1);
 }
 
-.dd-main {
+.dvd-main {
   max-width: 600px;
   margin: 0 auto;
   padding: 20px;
 }
 
-.dd-section h3 {
+.dvd-section h3 {
   font-size: 16px;
   font-weight: 700;
   color: #334155;
@@ -76,7 +76,7 @@
   margin-top: 32px;
 }
 
-.dd-empty {
+.dvd-empty {
   text-align: center;
   padding: 32px;
   background: white;
@@ -85,13 +85,13 @@
   border: 1px dashed #cbd5e1;
 }
 
-.dd-order-list {
+.dvd-order-list {
   display: flex;
   flex-direction: column;
   gap: 16px;
 }
 
-.dd-order-card {
+.dvd-order-card {
   background: white;
   border-radius: 12px;
   padding: 16px;
@@ -99,7 +99,7 @@
   border: 1px solid #e2e8f0;
 }
 
-.dd-order-header {
+.dvd-order-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -108,12 +108,12 @@
   border-bottom: 1px solid #f1f5f9;
 }
 
-.dd-order-id {
+.dvd-order-id {
   font-weight: 700;
   color: #0f172a;
 }
 
-.dd-status {
+.dvd-status {
   font-size: 11px;
   font-weight: 700;
   padding: 4px 10px;
@@ -140,14 +140,14 @@
   color: #15803d;
 }
 
-.dd-customer-details {
+.dvd-customer-details {
   display: flex;
   flex-direction: column;
   gap: 10px;
   margin-bottom: 16px;
 }
 
-.dd-detail-row {
+.dvd-detail-row {
   display: flex;
   align-items: flex-start;
   gap: 10px;
@@ -155,7 +155,7 @@
   font-size: 14px;
 }
 
-.dd-detail-row svg {
+.dvd-detail-row svg {
   color: #94a3b8;
   flex-shrink: 0;
   margin-top: 2px;
@@ -166,19 +166,19 @@
   color: #0f172a;
 }
 
-.dd-order-items {
+.dvd-order-items {
   background: #f8fafc;
   padding: 12px;
   border-radius: 8px;
   margin-bottom: 16px;
 }
 
-.dd-actions {
+.dvd-actions {
   display: flex;
   gap: 12px;
 }
 
-.dd-btn {
+.dvd-btn {
   flex: 1;
   padding: 12px;
   border: none;
@@ -194,23 +194,23 @@
   transition: transform 0.1s, opacity 0.2s;
 }
 
-.dd-btn:active {
+.dvd-btn:active {
   transform: scale(0.98);
 }
 
-.dd-btn-primary {
+.dvd-btn-primary {
   background: #3b82f6;
 }
 
-.dd-btn-primary:hover {
+.dvd-btn-primary:hover {
   background: #2563eb;
 }
 
-.dd-btn-success {
+.dvd-btn-success {
   background: #10b981;
 }
 
-.dd-btn-success:hover {
+.dvd-btn-success:hover {
   background: #059669;
 }
 
@@ -218,14 +218,164 @@
   opacity: 0.7;
 }
 
-.dd-customer-details.compact {
+.dvd-customer-details.compact {
   flex-direction: row;
   justify-content: space-between;
   align-items: center;
   margin: 0;
 }
 
-.dd-address-compact {
+.dvd-address-compact {
   font-size: 12px;
   color: #94a3b8;
 }
+
+/* Route Map Trigger Button */
+.dvd-map-trigger-btn {
+  background: #f0fdfa;
+  color: #0d9488;
+  border: 1px solid #99f6e4;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.dvd-map-trigger-btn:hover {
+  background: #0d9488;
+  color: #ffffff;
+  border-color: #0d9488;
+  transform: translateY(-1px);
+}
+
+/* Metadata Bar */
+.dvd-meta-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 8px 12px;
+  background: #f8fafc;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  font-size: 13px;
+  margin-top: 6px;
+}
+
+.dvd-meta-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #475569;
+}
+
+.dvd-pay-badge {
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.dvd-pay-badge.paid {
+  background: #dcfce7;
+  color: #16a34a;
+}
+
+.dvd-pay-badge.pending {
+  background: #ffedd5;
+  color: #ea580c;
+}
+
+/* Actions Container & OTP Verification Card */
+.dvd-actions-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.dvd-otp-verification-card {
+  background: #f0fdf4;
+  border: 1.5px solid #86efac;
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.dvd-otp-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.dvd-otp-header strong {
+  font-size: 0.92rem;
+  color: #14532d;
+  display: block;
+}
+
+.dvd-otp-header p {
+  margin: 2px 0 0;
+  font-size: 0.8rem;
+  color: #166534;
+  line-height: 1.4;
+}
+
+.dvd-otp-input-group {
+  display: flex;
+  gap: 10px;
+}
+
+.dvd-otp-input {
+  flex: 1;
+  padding: 10px 14px;
+  font-size: 1rem;
+  font-weight: 800;
+  letter-spacing: 4px;
+  text-align: center;
+  border: 1.5px solid #86efac;
+  border-radius: 10px;
+  outline: none;
+  background: #ffffff;
+}
+
+.dvd-otp-input:focus {
+  border-color: #16a34a;
+  box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.2);
+}
+
+.dvd-verify-btn {
+  background: #16a34a;
+  color: #ffffff;
+  border: none;
+  border-radius: 10px;
+  padding: 10px 16px;
+  font-size: 0.88rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: background 0.2s ease;
+  white-space: nowrap;
+}
+
+.dvd-verify-btn:hover {
+  background: #15803d;
+}
+
+.dvd-spin {
+  animation: dvdSpinner 1s linear infinite;
+}
+
+@keyframes dvdSpinner {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
