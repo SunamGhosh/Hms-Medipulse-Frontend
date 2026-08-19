@@ -5,12 +5,16 @@ import ProfileDropdown from '../components/ProfileDropdown';
 import './MyOrders.css';
 
 const STATUS_CONFIG = {
-  paid:        { label: 'Order Placed',  icon: CheckCircle2, color: '#16a34a', bg: '#f0fdf4', border: '#bbf7d0' },
-  processing:  { label: 'Processing',    icon: Clock,        color: '#d97706', bg: '#fffbeb', border: '#fde68a' },
-  delivered:   { label: 'Delivered',     icon: Truck,        color: '#2563eb', bg: '#eff6ff', border: '#bfdbfe' },
-  cancelled:   { label: 'Cancelled',     icon: XCircle,      color: '#dc2626', bg: '#fef2f2', border: '#fecaca' },
-  pending:     { label: 'Pending',       icon: Clock,        color: '#64748b', bg: '#f8fafc', border: '#e2e8f0' },
+  paid:             { label: 'Order Placed',      icon: CheckCircle2, color: '#16a34a', bg: '#f0fdf4', border: '#bbf7d0', step: 1 },
+  processing:       { label: 'Processing',        icon: Clock,        color: '#d97706', bg: '#fffbeb', border: '#fde68a', step: 2 },
+  shipped:          { label: 'Shipped',           icon: Truck,        color: '#8b5cf6', bg: '#f5f3ff', border: '#ddd6fe', step: 3 },
+  out_for_delivery: { label: 'Out for Delivery',  icon: Truck,        color: '#ec4899', bg: '#fdf2f8', border: '#fbcfe8', step: 4 },
+  delivered:        { label: 'Delivered',         icon: CheckCircle2, color: '#2563eb', bg: '#eff6ff', border: '#bfdbfe', step: 5 },
+  cancelled:        { label: 'Cancelled',         icon: XCircle,      color: '#dc2626', bg: '#fef2f2', border: '#fecaca', step: 0 },
+  pending:          { label: 'Pending',           icon: Clock,        color: '#64748b', bg: '#f8fafc', border: '#e2e8f0', step: 0 },
 };
+
+const TRACKING_STEPS = ['paid', 'processing', 'shipped', 'out_for_delivery', 'delivered'];
 
 const MyOrders = () => {
   const [orders, setOrders] = useState([]);
@@ -86,6 +90,92 @@ const MyOrders = () => {
                     {status.label}
                   </div>
                 </div>
+
+                {/* Visual Tracking */}
+                {status.step > 0 && order.status !== 'cancelled' && (
+                  <div className="mo-tracking-container">
+                    <div className="mo-tracking-steps">
+                      {TRACKING_STEPS.map((stepKey, i) => {
+                        const stepConfig = STATUS_CONFIG[stepKey];
+                        const isCompleted = status.step >= stepConfig.step;
+                        const isCurrent = status.step === stepConfig.step;
+                        
+                        return (
+                          <div className={`mo-track-step ${isCompleted ? 'completed' : ''} ${isCurrent ? 'current' : ''}`} key={stepKey}>
+                            <div className="mo-track-icon-wrapper">
+                              <div className={`mo-track-line ${isCompleted && i > 0 ? 'filled' : ''}`}></div>
+                              <div className="mo-track-dot">
+                                  {isCompleted ? <CheckCircle2 size={16} strokeWidth={3} /> : <div className="mo-dot-inner"></div>}
+                              </div>
+                            </div>
+                            <span className="mo-track-label">{stepConfig.label}</span>
+                          </div>
+                        )
+                      })}
+                    </div>
+
+                    {/* ETA Badge for Active Orders */}
+                    {['paid', 'processing', 'shipped', 'out_for_delivery'].includes(order.status) && (
+                      <div className="mo-eta-banner">
+                        <Clock size={16} color="#0d9488" />
+                        <span>
+                          <strong>Estimated Delivery:</strong> ~{order.estimated_delivery_minutes || 25} Minutes
+                          {order.tracking?.out_for_delivery_at && (
+                            <small style={{ marginLeft: 8, color: '#0d9488', fontWeight: 600 }}>
+                              (Dispatch: {new Date(order.tracking.out_for_delivery_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })})
+                            </small>
+                          )}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Out For Delivery OTP Alert Banner */}
+                    {order.status === 'out_for_delivery' && (
+                      <div className="mo-otp-alert-banner">
+                        <div className="mo-otp-alert-icon">📧</div>
+                        <div>
+                          <strong>Delivery OTP Sent to Your Email!</strong>
+                          <p>Please check your email inbox for the 6-digit Delivery Verification OTP. Share this OTP with your delivery executive when your package arrives.</p>
+                        </div>
+                      </div>
+                    )}
+
+                    {order.delivery_address && (
+                      <div className="mo-delivery-address" style={{ marginBottom: 6 }}>
+                        <strong>Delivery Address:</strong> {order.delivery_address.street}, {order.delivery_address.city}, {order.delivery_address.state} {order.delivery_address.zip_code}
+                      </div>
+                    )}
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 16,
+                      fontSize: 13,
+                      padding: '8px 12px',
+                      background: (order.payment_mode === 'COD' && order.payment_status !== 'paid') ? '#fff7ed' : '#f0fdf4',
+                      borderRadius: 8,
+                      border: `1px solid ${(order.payment_mode === 'COD' && order.payment_status !== 'paid') ? '#fed7aa' : '#bbf7d0'}`,
+                      marginTop: 6
+                    }}>
+                      <div>
+                        <span style={{ color: '#475569', fontWeight: 500 }}>Payment Mode: </span>
+                        <strong style={{ color: '#0f172a' }}>{order.payment_mode || 'UPI'}</strong>
+                      </div>
+                      <div>
+                        <span style={{ color: '#475569', fontWeight: 500 }}>Payment Status: </span>
+                        <span style={{
+                          padding: '2px 8px',
+                          borderRadius: 10,
+                          fontSize: 11,
+                          fontWeight: 700,
+                          background: (order.payment_status === 'paid' || order.payment_mode === 'UPI') ? '#16a34a' : '#f97316',
+                          color: '#ffffff'
+                        }}>
+                          {(order.payment_status === 'paid' || order.payment_mode === 'UPI') ? 'Done' : 'Pending'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {/* Items */}
                 <div className="mo-items-list">

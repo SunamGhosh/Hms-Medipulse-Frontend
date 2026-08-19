@@ -26,6 +26,9 @@ import MyOrders from './pages/MyOrders';
 import MedicalRecordsList from './pages/MedicalRecordsList';
 import PatientsList from './pages/PatientsList';
 import AdminSettings from './pages/AdminSettings';
+import DeliveryAuth from './pages/DeliveryAuth';
+import DeliveryDashboard from './pages/DeliveryDashboard';
+import OrdersList from './pages/OrdersList';
 
 import Chatbot from './components/Chatbot';
 import { Toaster } from 'react-hot-toast';
@@ -52,6 +55,8 @@ function App() {
         <Route path="/doctor/dashboard" element={<DoctorDashboard />} />
         <Route path="/pharmacist/login" element={<PharmacistLogin />} />
         <Route path="/pharmacist/dashboard" element={<PharmacistDashboard />} />
+        <Route path="/delivery-auth" element={<DeliveryAuth />} />
+        <Route path="/delivery-dashboard" element={<DeliveryDashboard />} />
         <Route path="/video-call/:roomId" element={<VideoCall />} />
 
         {/* Admin Protected Routes */}
@@ -66,6 +71,7 @@ function App() {
           <Route path="doctors" element={<DoctorsList />} />
           <Route path="pharmacists" element={<PharmacistsList />} />
           <Route path="appointments" element={<AppointmentsList />} />
+          <Route path="orders" element={<OrdersList />} />
           <Route path="medicines" element={<MedicinesList />} />
           <Route path="medicine-requests" element={<MedicineRequestsList />} />
           <Route path="medical-records" element={<MedicalRecordsList />} />

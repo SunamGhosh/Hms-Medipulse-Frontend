@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { MessageSquare, X, Send, Bot, Maximize2, Minimize2 } from 'lucide-react';
+import { MessageSquare, X, Send, Bot, Maximize2, Minimize2, RotateCcw } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { Link } from 'react-router-dom';
 import './Chatbot.css';
@@ -33,6 +33,19 @@ const yesNoOptions = [
   { label: 'No', value: 'no' }
 ];
 
+const orderSupportYesNoOptions = [
+  { label: 'Yes', value: 'order_query_menu' },
+  { label: 'No, end chat', value: 'no' }
+];
+
+const orderQueryOptions = [
+  { label: 'Track shipment', value: 'order_track' },
+  { label: 'Cancel item', value: 'order_cancel' },
+  { label: 'Change address', value: 'order_change_address' },
+  { label: 'Deliver on specific date', value: 'order_delivery_date' },
+  { label: 'End chat', value: 'no' }
+];
+
 const bookingRelatedOptions = [
   { label: 'Find a doctor', value: 'find_doctor' },
   { label: 'View My Appointments', value: 'view_appointments' },
@@ -56,6 +69,153 @@ const aboutRelatedOptions = [
   { label: 'Back to main menu', value: 'yes' }
 ];
 
+const fetchAndFormatAppointments = async (token) => {
+  try {
+    const res = await fetch(`${API}/appointment/my`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      return "Sorry, I had trouble fetching your appointments. Please try again later.";
+    }
+    const appts = data.appointments || [];
+    if (appts.length === 0) {
+      return "You don't have any scheduled appointments yet. Would you like to book one?";
+    }
+
+    const sorted = [...appts].sort((a, b) => {
+      const dateA = new Date(a.appointment_date || 0);
+      const dateB = new Date(b.appointment_date || 0);
+      return dateB - dateA;
+    });
+
+    const activeAppts = sorted.filter(a => ['pending', 'confirmed'].includes(a.status?.toLowerCase()));
+    const pastAppts = sorted.filter(a => !['pending', 'confirmed'].includes(a.status?.toLowerCase()));
+
+    let reply = "Here are your appointment details:\n\n";
+
+    if (activeAppts.length > 0) {
+      reply += "**UPCOMING APPOINTMENTS**\n";
+      activeAppts.forEach((appt, index) => {
+        const dateStr = new Date(appt.appointment_date).toLocaleDateString('en-US', {
+          weekday: 'short', month: 'short', day: 'numeric', year: 'numeric'
+        });
+        const timeStr = appt.appointment_time;
+        const docName = appt.doctor_id 
+          ? `Dr. ${appt.doctor_id.first_name} ${appt.doctor_id.last_name}` 
+          : 'Specialist';
+        const specialty = appt.doctor_id?.specialization ? ` (${appt.doctor_id.specialization})` : '';
+        const mode = appt.consult_mode === 'online' ? 'Online Video Call' : 'In-Person Consult';
+        const status = appt.status ? appt.status.charAt(0).toUpperCase() + appt.status.slice(1) : 'Pending';
+        
+        reply += `${index + 1}. **${docName}**${specialty}\n`;
+        reply += `   • Date & Time: ${dateStr} at ${timeStr}\n`;
+        reply += `   • Mode: ${mode}\n`;
+        reply += `   • Status: ${status}\n`;
+        reply += `   • Reason: ${appt.disease || 'General checkup'}\n\n`;
+      });
+    } else {
+      reply += "**UPCOMING APPOINTMENTS**\nNo active or upcoming appointments found.\n\n";
+    }
+
+    if (pastAppts.length > 0) {
+      reply += "**PAST APPOINTMENTS**\n";
+      const recentPast = pastAppts.slice(0, 5);
+      recentPast.forEach((appt, index) => {
+        const dateStr = new Date(appt.appointment_date).toLocaleDateString('en-US', {
+          weekday: 'short', month: 'short', day: 'numeric', year: 'numeric'
+        });
+        const timeStr = appt.appointment_time;
+        const docName = appt.doctor_id 
+          ? `Dr. ${appt.doctor_id.first_name} ${appt.doctor_id.last_name}` 
+          : 'Specialist';
+        const specialty = appt.doctor_id?.specialization ? ` (${appt.doctor_id.specialization})` : '';
+        const status = appt.status ? appt.status.charAt(0).toUpperCase() + appt.status.slice(1) : 'Completed';
+        
+        reply += `${index + 1}. **${docName}**${specialty} — ${dateStr} at ${timeStr}\n`;
+        reply += `   Status: ${status} | Reason: ${appt.disease || 'N/A'}\n\n`;
+      });
+
+      if (pastAppts.length > 5) {
+        reply += `*(+ ${pastAppts.length - 5} older appointments available in your dashboard)*\n`;
+      }
+    }
+
+    return reply;
+  } catch (err) {
+    console.error("Error fetching appointments:", err);
+    return "Sorry, a network error occurred while fetching your appointments. Please try again later.";
+  }
+};
+
+const fetchAndFormatOrders = async (token) => {
+  try {
+    const res = await fetch(`${API}/api/payment/my-orders`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      return "Sorry, I had trouble fetching your orders. Please try again later.";
+    }
+    const orders = data.orders || [];
+    if (orders.length === 0) {
+      return "You don't have any pharmacy orders yet. You can purchase medicines from the [Pharmacy](/pharmacy).";
+    }
+
+    const sorted = [...orders].sort((a, b) => {
+      const dateA = new Date(a.createdAt || a.placed_at || 0);
+      const dateB = new Date(b.createdAt || b.placed_at || 0);
+      return dateB - dateA;
+    });
+
+    const activeOrders = sorted.filter(o => ['pending', 'paid', 'processing', 'shipped', 'out_for_delivery'].includes(o.status?.toLowerCase()));
+    const pastOrders = sorted.filter(o => ['delivered', 'cancelled'].includes(o.status?.toLowerCase()));
+
+    let userName = 'there';
+    try {
+      const storedUser = localStorage.getItem('user') || localStorage.getItem('userInfo');
+      if (storedUser) {
+        const parsed = JSON.parse(storedUser);
+        userName = parsed.name || parsed.first_name || 'there';
+      }
+    } catch (e) {}
+
+    let reply = "";
+
+    if (activeOrders.length > 0) {
+      const latest = activeOrders[0];
+      const orderDate = new Date(latest.createdAt || latest.placed_at || Date.now());
+      const formattedDate = `${orderDate.getMonth() + 1}/${orderDate.getDate()}/${orderDate.getFullYear()}`;
+      
+      const estDate = new Date(orderDate);
+      estDate.setDate(estDate.getDate() + 3);
+      const formattedEstDate = `${estDate.getMonth() + 1}/${estDate.getDate()}/${estDate.getFullYear()}`;
+      
+      const statusLower = (latest.status || 'processing').toLowerCase();
+      let statusMsg = "We have shipped the order and it is on track.";
+      if (statusLower === 'pending' || statusLower === 'paid') {
+        statusMsg = "We are currently packing your items.";
+      }
+
+      reply = `Hi **${userName}** , the order you placed on **${formattedDate}** is expected to be delivered by **${formattedEstDate}**. ${statusMsg}`;
+    } else if (pastOrders.length > 0) {
+      const latest = pastOrders[0];
+      const orderDate = new Date(latest.createdAt || latest.placed_at || Date.now());
+      const formattedDate = `${orderDate.getMonth() + 1}/${orderDate.getDate()}/${orderDate.getFullYear()}`;
+      
+      reply = `Hi **${userName}** , the recent order you placed on **${formattedDate}** has been delivered successfully.`;
+    } else {
+      reply = `Hi **${userName}** , you don't have any recent orders. You can browse and order items from our [Pharmacy](/pharmacy).`;
+    }
+
+    return reply;
+  } catch (err) {
+    console.error("Error fetching orders:", err);
+    return "Sorry, a network error occurred while fetching your orders. Please try again later.";
+  }
+};
+
+
 const Chatbot = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState([
@@ -71,7 +231,7 @@ const Chatbot = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isFinished, setIsFinished] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
-  
+
   const messagesEndRef = useRef(null);
 
   const scrollToBottom = () => {
@@ -107,6 +267,21 @@ const Chatbot = () => {
     }]);
   };
 
+  const handleNewChat = () => {
+    setMessages([
+      {
+        id: Date.now(),
+        role: 'bot',
+        text: 'Hi there! I am MediBot. How can I help you with MEDIPULSE today?',
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        options: initialOptions
+      }
+    ]);
+    setIsFinished(false);
+    setIsLoading(false);
+    setInput('');
+  };
+
   const handleOptionClick = async (option) => {
     if (isFinished) return;
 
@@ -117,16 +292,16 @@ const Chatbot = () => {
     setMessages(prev => prev.map(msg => ({ ...msg, options: null })));
 
     setIsLoading(true);
-    
+
     // Simulate slight delay for natural feeling
     await new Promise(resolve => setTimeout(resolve, 600));
-    
+
     if (option.value === 'yes') {
       addMessage('bot', 'Certainly. Please choose an option below or type your query directly, and I will assist you further.', initialOptions);
       setIsLoading(false);
       return;
     }
-    
+
     if (option.value === 'no') {
       addMessage('bot', 'Thank you for chatting with MediBot! If you have any more questions in the future, feel free to ask. Have a great day!');
       setIsFinished(true);
@@ -141,7 +316,13 @@ const Chatbot = () => {
     }
 
     if (option.value === 'view_appointments') {
-      addMessage('bot', 'To view your scheduled consultations, simply click on the **Appointments** link in the left navigation sidebar of your dashboard.');
+      const token = localStorage.getItem('userToken');
+      if (!token) {
+        addMessage('bot', 'You are currently not logged in. Please [Login](/login) as a user/patient to view your appointments.');
+      } else {
+        const msgText = await fetchAndFormatAppointments(token);
+        addMessage('bot', msgText);
+      }
       setTimeout(() => addMessage('bot', 'Do you have some other query?', yesNoOptions), 1000);
       setIsLoading(false);
       return;
@@ -162,8 +343,48 @@ const Chatbot = () => {
     }
 
     if (option.value === 'view_orders') {
-      addMessage('bot', 'To check the status of your orders, click on **My Orders** in the left sidebar menu of your user dashboard.');
-      setTimeout(() => addMessage('bot', 'Do you have some other query?', yesNoOptions), 1000);
+      const token = localStorage.getItem('userToken');
+      if (!token) {
+        addMessage('bot', 'You are currently not logged in. Please [Login](/login) as a user/patient to view your orders.');
+      } else {
+        const msgText = await fetchAndFormatOrders(token);
+        addMessage('bot', msgText);
+      }
+      setTimeout(() => addMessage('bot', 'Do you have any other query?', orderSupportYesNoOptions), 800);
+      setIsLoading(false);
+      return;
+    }
+
+    if (option.value === 'order_query_menu') {
+      addMessage('bot', 'What is your query regarding?', orderQueryOptions);
+      setIsLoading(false);
+      return;
+    }
+
+    if (option.value === 'order_track') {
+      addMessage('bot', 'Your order is on track for delivery. We have shipped the order and it is on track. You can view live shipment details anytime in [My Orders](/my-orders).');
+      setTimeout(() => addMessage('bot', 'Do you have any other query?', orderSupportYesNoOptions), 800);
+      setIsLoading(false);
+      return;
+    }
+
+    if (option.value === 'order_cancel') {
+      addMessage('bot', 'To cancel an item, please visit your [My Orders](/my-orders) section and select the cancel option before the order is packed.');
+      setTimeout(() => addMessage('bot', 'Do you have any other query?', orderSupportYesNoOptions), 800);
+      setIsLoading(false);
+      return;
+    }
+
+    if (option.value === 'order_change_address') {
+      addMessage('bot', "The address for your order can't be changed now as some of the items in your order are already packed.");
+      setTimeout(() => addMessage('bot', 'Do you have any other query?', orderSupportYesNoOptions), 800);
+      setIsLoading(false);
+      return;
+    }
+
+    if (option.value === 'order_delivery_date') {
+      addMessage('bot', 'Deliveries are scheduled automatically based on courier partner availability. Delivery dates are updated live on your order tracking page.');
+      setTimeout(() => addMessage('bot', 'Do you have any other query?', orderSupportYesNoOptions), 800);
       setIsLoading(false);
       return;
     }
@@ -180,7 +401,7 @@ const Chatbot = () => {
       try {
         const res = await fetch(`${API}/doctor/active`);
         const data = await res.json();
-        
+
         let doctorsData = [];
         if (res.ok && data.doctors) {
           const filtered = data.doctors.filter(d => d.specialization?.toLowerCase() === option.value.toLowerCase());
@@ -188,15 +409,15 @@ const Chatbot = () => {
             id: doc._id,
             name: `Dr. ${doc.first_name} ${doc.last_name}`,
             specialty: doc.specialization,
-            image: (doc.profile_img && !doc.profile_img.includes('placeholder')) 
-              ? doc.profile_img 
+            image: (doc.profile_img && !doc.profile_img.includes('placeholder'))
+              ? doc.profile_img
               : `https://ui-avatars.com/api/?name=${encodeURIComponent(doc.first_name)}+${encodeURIComponent(doc.last_name)}&background=0d9488&color=fff`
           }));
         }
 
         const roleDesc = `A ${option.label.toLowerCase()} is a medical specialist who focuses on specific health areas related to their field of study.`;
         addMessage('bot', roleDesc, null, { type: 'doctors', doctors: doctorsData });
-        
+
         setTimeout(() => addMessage('bot', 'Do you have some other query?', yesNoOptions), 1000);
       } catch (err) {
         addMessage('bot', 'Sorry, I had trouble fetching doctors. Do you have some other query?', yesNoOptions);
@@ -215,19 +436,19 @@ const Chatbot = () => {
       const res = await fetch(`${API}/chatbot`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           prompt: option.label,
           history: historyToSend
         })
       });
-      
+
       const data = await res.json();
       if (res.ok) {
         addMessage('bot', data.reply);
       } else {
         addMessage('bot', data.message || 'Sorry, I am having trouble connecting right now.');
       }
-      
+
       const isBooking = option.value === 'book_appointment' || option.label.toLowerCase().includes('appoint') || option.label.toLowerCase().includes('book');
       const isSignUp = option.value === 'sign_up' || option.label.toLowerCase().includes('sign up') || option.label.toLowerCase().includes('signup') || option.label.toLowerCase().includes('register');
       const isPharmacy = option.value === 'buy_medicine' || option.label.toLowerCase().includes('medicine') || option.label.toLowerCase().includes('pharmacy') || option.label.toLowerCase().includes('buy');
@@ -259,7 +480,7 @@ const Chatbot = () => {
     const userText = input.trim();
     setInput('');
     addMessage('user', userText);
-    
+
     // Clear options from previous bot message if user types
     setMessages(prev => prev.map(msg => ({ ...msg, options: null })));
 
@@ -284,6 +505,46 @@ const Chatbot = () => {
       return;
     }
 
+    // Check if user is asking to view appointments or orders
+    const isViewApptIntent = (cleanText.includes('appointment') || cleanText.includes('appointments')) && 
+      (cleanText.includes('status') || cleanText.includes('my') || cleanText.includes('show') || 
+       cleanText.includes('view') || cleanText.includes('list') || cleanText.includes('check') || 
+       cleanText.includes('get') || cleanText.includes('track') || cleanText.includes('tell') ||
+       cleanText.includes('about') || cleanText.includes('detail') || cleanText.includes('info'));
+       
+    const isViewOrderIntent = (cleanText.includes('order') || cleanText.includes('purchase')) && 
+      (cleanText.includes('status') || cleanText.includes('my') || cleanText.includes('show') || 
+       cleanText.includes('view') || cleanText.includes('list') || cleanText.includes('check') || 
+       cleanText.includes('get') || cleanText.includes('track') || cleanText.includes('deliver'));
+
+    if (isViewApptIntent) {
+      setIsLoading(true);
+      const token = localStorage.getItem('userToken');
+      if (!token) {
+        addMessage('bot', 'You are currently not logged in. Please [Login](/login) as a user/patient to view your appointments.');
+      } else {
+        const msgText = await fetchAndFormatAppointments(token);
+        addMessage('bot', msgText);
+      }
+      setTimeout(() => addMessage('bot', 'Do you have some other query?', yesNoOptions), 1000);
+      setIsLoading(false);
+      return;
+    }
+
+    if (isViewOrderIntent) {
+      setIsLoading(true);
+      const token = localStorage.getItem('userToken');
+      if (!token) {
+        addMessage('bot', 'You are currently not logged in. Please [Login](/login) as a user/patient to view your orders.');
+      } else {
+        const msgText = await fetchAndFormatOrders(token);
+        addMessage('bot', msgText);
+      }
+      setTimeout(() => addMessage('bot', 'Do you have any other query?', orderSupportYesNoOptions), 800);
+      setIsLoading(false);
+      return;
+    }
+
     // Symptom detection keywords
     const symptomKeywords = ['fever', 'cough', 'cold', 'flu', 'headache', 'pain', 'stomach', 'vomit', 'chest', 'symptom', 'weakness', 'injury'];
     const isSymptomQuery = symptomKeywords.some(keyword => cleanText.includes(keyword));
@@ -299,19 +560,19 @@ const Chatbot = () => {
       const res = await fetch(`${API}/chatbot`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           prompt: userText,
           history: historyToSend
         })
       });
-      
+
       const data = await res.json();
       if (res.ok) {
         addMessage('bot', data.reply);
       } else {
         addMessage('bot', data.message || 'Sorry, I am having trouble connecting right now.');
       }
-      
+
       if (isSymptomQuery) {
         try {
           const docRes = await fetch(`${API}/doctor/active`);
@@ -323,19 +584,19 @@ const Chatbot = () => {
               id: doc._id,
               name: `Dr. ${doc.first_name} ${doc.last_name}`,
               specialty: doc.specialization,
-              image: (doc.profile_img && !doc.profile_img.includes('placeholder')) 
-                ? doc.profile_img 
+              image: (doc.profile_img && !doc.profile_img.includes('placeholder'))
+                ? doc.profile_img
                 : `https://ui-avatars.com/api/?name=${encodeURIComponent(doc.first_name)}+${encodeURIComponent(doc.last_name)}&background=0d9488&color=fff`
             }));
           }
-          
+
           if (gpDoctors.length > 0) {
             addMessage('bot', 'We have expert General Physicians available at MEDIPULSE to consult. Here are some of our specialists:', null, { type: 'doctors', doctors: gpDoctors });
           }
         } catch (docErr) {
           console.error("Failed to fetch GP doctors:", docErr);
         }
-        
+
         setTimeout(() => addMessage('bot', 'How would you like to proceed with your booking?', bookingRelatedOptions), 1500);
       } else {
         const isBooking = userText.toLowerCase().includes('appoint') || userText.toLowerCase().includes('book');
@@ -381,7 +642,10 @@ const Chatbot = () => {
               <h3 className="chatbot-header-title">MediBot</h3>
               <p className="chatbot-header-subtitle">Online • Replies instantly</p>
             </div>
-            <div style={{ display: 'flex', gap: '8px' }}>
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+              <button className="chatbot-close-btn" onClick={handleNewChat} title="Start New Chat">
+                <RotateCcw size={16} />
+              </button>
               <button className="chatbot-close-btn" onClick={() => setIsExpanded(!isExpanded)} title={isExpanded ? "Minimize" : "Expand"}>
                 {isExpanded ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
               </button>
@@ -396,7 +660,7 @@ const Chatbot = () => {
               <div key={msg.id} className={`chat-bubble-container ${msg.role}`}>
                 <div className="chat-bubble">
                   <ReactMarkdown>{msg.text}</ReactMarkdown>
-                  
+
                   {msg.data && msg.data.type === 'doctors' && (
                     <div className="chat-doctors-list">
                       {msg.data.doctors.length > 0 ? msg.data.doctors.map(doc => (
@@ -416,8 +680,8 @@ const Chatbot = () => {
                   {msg.options && (
                     <div className={msg.options.length <= 2 ? "chat-options-row" : "chat-options"}>
                       {msg.options.map(opt => (
-                        <button 
-                          key={opt.value} 
+                        <button
+                          key={opt.value}
                           className="chat-option-btn"
                           onClick={() => handleOptionClick(opt)}
                           disabled={isLoading || isFinished}
@@ -431,7 +695,7 @@ const Chatbot = () => {
                 <div className="chat-time">{msg.time}</div>
               </div>
             ))}
-            
+
             {isLoading && (
               <div className="chat-bubble-container bot">
                 <div className="chat-bubble" style={{ padding: '16px' }}>
@@ -446,18 +710,42 @@ const Chatbot = () => {
             <div ref={messagesEndRef} />
           </div>
 
+          {isFinished && (
+            <div style={{ padding: '10px 16px', background: '#f0fdfa', borderTop: '1px solid #ccfbf1', textAlign: 'center' }}>
+              <button
+                onClick={handleNewChat}
+                style={{
+                  background: '#0d9488',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '20px',
+                  padding: '8px 18px',
+                  fontSize: '13px',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  boxShadow: '0 2px 8px rgba(13,148,136,0.3)'
+                }}
+              >
+                <RotateCcw size={14} /> Start New Chat
+              </button>
+            </div>
+          )}
+
           <form className="chatbot-input-area" onSubmit={handleSend}>
             <div className="chatbot-input-wrapper">
-              <input 
-                type="text" 
-                className="chatbot-input" 
-                placeholder="Type your message..." 
+              <input
+                type="text"
+                className="chatbot-input"
+                placeholder={isFinished ? "Chat ended. Click 'Start New Chat' to continue." : "Type your message..."}
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 disabled={isLoading || isFinished}
               />
-              <button 
-                type="submit" 
+              <button
+                type="submit"
                 className="chatbot-send-btn"
                 disabled={!input.trim() || isLoading || isFinished}
               >

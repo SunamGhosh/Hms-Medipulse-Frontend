@@ -1,0 +1,381 @@
+.delivery-dashboard {
+  min-height: 100vh;
+  background: #f1f5f9;
+  font-family: 'Inter', sans-serif;
+}
+
+.dvd-header {
+  background: #0f172a;
+  color: white;
+  padding: 16px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+.dvd-header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.dvd-header-left h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.dvd-header-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.dvd-name {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.dvd-logout-btn {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: white;
+  padding: 8px;
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s;
+}
+
+.dvd-logout-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.dvd-main {
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.dvd-section h3 {
+  font-size: 16px;
+  font-weight: 700;
+  color: #334155;
+  margin-bottom: 16px;
+  border-bottom: 2px solid #e2e8f0;
+  padding-bottom: 8px;
+}
+
+.mt-4 {
+  margin-top: 32px;
+}
+
+.dvd-empty {
+  text-align: center;
+  padding: 32px;
+  background: white;
+  border-radius: 12px;
+  color: #64748b;
+  border: 1px dashed #cbd5e1;
+}
+
+.dvd-order-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.dvd-order-card {
+  background: white;
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  border: 1px solid #e2e8f0;
+}
+
+.dvd-order-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.dvd-order-id {
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.dvd-status {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 20px;
+}
+
+.badge-paid, .badge-processing {
+  background: #fef9c3;
+  color: #a16207;
+}
+
+.badge-shipped {
+  background: #e0e7ff;
+  color: #4338ca;
+}
+
+.badge-out_for_delivery {
+  background: #fce7f3;
+  color: #be185d;
+}
+
+.badge-delivered {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.dvd-customer-details {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.dvd-detail-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  color: #475569;
+  font-size: 14px;
+}
+
+.dvd-detail-row svg {
+  color: #94a3b8;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.address-row {
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.dvd-order-items {
+  background: #f8fafc;
+  padding: 12px;
+  border-radius: 8px;
+  margin-bottom: 16px;
+}
+
+.dvd-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.dvd-btn {
+  flex: 1;
+  padding: 12px;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  color: white;
+  transition: transform 0.1s, opacity 0.2s;
+}
+
+.dvd-btn:active {
+  transform: scale(0.98);
+}
+
+.dvd-btn-primary {
+  background: #3b82f6;
+}
+
+.dvd-btn-primary:hover {
+  background: #2563eb;
+}
+
+.dvd-btn-success {
+  background: #10b981;
+}
+
+.dvd-btn-success:hover {
+  background: #059669;
+}
+
+.completed-card {
+  opacity: 0.7;
+}
+
+.dvd-customer-details.compact {
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  margin: 0;
+}
+
+.dvd-address-compact {
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+/* Route Map Trigger Button */
+.dvd-map-trigger-btn {
+  background: #f0fdfa;
+  color: #0d9488;
+  border: 1px solid #99f6e4;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.dvd-map-trigger-btn:hover {
+  background: #0d9488;
+  color: #ffffff;
+  border-color: #0d9488;
+  transform: translateY(-1px);
+}
+
+/* Metadata Bar */
+.dvd-meta-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 8px 12px;
+  background: #f8fafc;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  font-size: 13px;
+  margin-top: 6px;
+}
+
+.dvd-meta-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #475569;
+}
+
+.dvd-pay-badge {
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.dvd-pay-badge.paid {
+  background: #dcfce7;
+  color: #16a34a;
+}
+
+.dvd-pay-badge.pending {
+  background: #ffedd5;
+  color: #ea580c;
+}
+
+/* Actions Container & OTP Verification Card */
+.dvd-actions-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.dvd-otp-verification-card {
+  background: #f0fdf4;
+  border: 1.5px solid #86efac;
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.dvd-otp-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.dvd-otp-header strong {
+  font-size: 0.92rem;
+  color: #14532d;
+  display: block;
+}
+
+.dvd-otp-header p {
+  margin: 2px 0 0;
+  font-size: 0.8rem;
+  color: #166534;
+  line-height: 1.4;
+}
+
+.dvd-otp-input-group {
+  display: flex;
+  gap: 10px;
+}
+
+.dvd-otp-input {
+  flex: 1;
+  padding: 10px 14px;
+  font-size: 1rem;
+  font-weight: 800;
+  letter-spacing: 4px;
+  text-align: center;
+  border: 1.5px solid #86efac;
+  border-radius: 10px;
+  outline: none;
+  background: #ffffff;
+}
+
+.dvd-otp-input:focus {
+  border-color: #16a34a;
+  box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.2);
+}
+
+.dvd-verify-btn {
+  background: #16a34a;
+  color: #ffffff;
+  border: none;
+  border-radius: 10px;
+  padding: 10px 16px;
+  font-size: 0.88rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: background 0.2s ease;
+  white-space: nowrap;
+}
+
+.dvd-verify-btn:hover {
+  background: #15803d;
+}
+
+.dvd-spin {
+  animation: dvdSpinner 1s linear infinite;
+}
+
+@keyframes dvdSpinner {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+

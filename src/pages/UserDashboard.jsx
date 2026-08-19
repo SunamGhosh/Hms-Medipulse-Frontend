@@ -26,12 +26,16 @@ const STATUS_CONFIG = {
 
 /* ── order status colour map ── */
 const ORDER_STATUS_CONFIG = {
-  paid: { label: 'Order Placed', icon: CheckCircle2, color: '#16a34a', bg: '#f0fdf4', border: '#bbf7d0' },
-  processing: { label: 'Processing', icon: Clock, color: '#d97706', bg: '#fffbeb', border: '#fde68a' },
-  delivered: { label: 'Delivered', icon: Truck, color: '#2563eb', bg: '#eff6ff', border: '#bfdbfe' },
-  cancelled: { label: 'Cancelled', icon: XCircle, color: '#dc2626', bg: '#fef2f2', border: '#fecaca' },
-  pending: { label: 'Pending', icon: Clock, color: '#64748b', bg: '#f8fafc', border: '#e2e8f0' },
+  paid:             { label: 'Order Placed',      icon: CheckCircle2, color: '#16a34a', bg: '#f0fdf4', border: '#bbf7d0', step: 1 },
+  processing:       { label: 'Processing',        icon: Clock,        color: '#d97706', bg: '#fffbeb', border: '#fde68a', step: 2 },
+  shipped:          { label: 'Shipped',           icon: Truck,        color: '#8b5cf6', bg: '#f5f3ff', border: '#ddd6fe', step: 3 },
+  out_for_delivery: { label: 'Out for Delivery',  icon: Truck,        color: '#ec4899', bg: '#fdf2f8', border: '#fbcfe8', step: 4 },
+  delivered:        { label: 'Delivered',         icon: CheckCircle2, color: '#2563eb', bg: '#eff6ff', border: '#bfdbfe', step: 5 },
+  cancelled:        { label: 'Cancelled',         icon: XCircle,      color: '#dc2626', bg: '#fef2f2', border: '#fecaca', step: 0 },
+  pending:          { label: 'Pending',           icon: Clock,        color: '#64748b', bg: '#f8fafc', border: '#e2e8f0', step: 0 },
 };
+
+const TRACKING_STEPS = ['paid', 'processing', 'shipped', 'out_for_delivery', 'delivered'];
 
 /* ── views ── */
 const VIEWS = {
@@ -744,43 +748,89 @@ const UserDashboard = () => {
                   </Link>
                 </div>
               ) : (
-                <div className="pp-medicines-grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))' }}>
-                  {orders.map((order) => {
+                <div className="mo-body" style={{ padding: 0, maxWidth: '100%', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '24px' }}>
+                  {orders.map(order => {
                     const status = ORDER_STATUS_CONFIG[order.status] || ORDER_STATUS_CONFIG.pending;
-                    const firstItem = order.items && order.items[0];
+                    const StatusIcon = status.icon;
                     return (
-                      <div className="pp-medicine-card" key={order._id} style={{ display: 'flex', flexDirection: 'column' }}>
-                        <div className="pp-medicine-image-wrapper" style={{ height: '160px', padding: '16px' }}>
-                          <img
-                            src={firstItem?.medicine_image || '/img/medicine_bottle.png'}
-                            alt={firstItem?.medicine_name || 'Order'}
-                            className="pp-medicine-image"
-                            style={{ maxHeight: '100px' }}
-                            onError={(e) => {
-                              e.target.onerror = null;
-                              e.target.src = '/img/medicine_bottle.png';
-                            }}
-                          />
-                        </div>
-                        <div className="pp-medicine-info" style={{ padding: '16px', flex: 1, display: 'flex', flexDirection: 'column' }}>
-                          <span className="pp-category-tag" style={{ background: status.bg, color: status.color, marginBottom: '8px', padding: '4px 10px', fontSize: '11px' }}>
+                      <div className="mo-order-card" key={order._id}>
+                        {/* Order Header */}
+                        <div className="mo-order-header">
+                          <div className="mo-order-meta">
+                            <div className="mo-order-id">
+                              <Package size={15} />
+                              <span>#{order._id?.slice(-8).toUpperCase() || 'N/A'}</span>
+                            </div>
+                            <div className="mo-order-date">{formatDate(order.placed_at || order.createdAt)}</div>
+                          </div>
+                          <div
+                            className="mo-status-badge"
+                            style={{ color: status.color, background: status.bg, border: `1px solid ${status.border}` }}
+                          >
+                            <StatusIcon size={13} />
                             {status.label}
-                          </span>
-                          <h3 className="pp-medicine-name" style={{ fontSize: '15px' }}>Order #{order._id?.slice(-8).toUpperCase()}</h3>
-                          <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '12px' }}>
-                            {formatDate(order.placed_at || order.createdAt)}
                           </div>
+                        </div>
 
-                          <div className="pp-medicine-pricing" style={{ marginTop: 'auto', marginBottom: '16px' }}>
-                            <span className="pp-price" style={{ fontSize: '18px' }}>₹{order.grand_total?.toFixed(2)}</span>
-                            <span className="pp-stock" style={{ fontSize: '12px' }}>{order.total_quantity} item{order.total_quantity !== 1 ? 's' : ''}</span>
+                        {/* Visual Tracking */}
+                        {status.step > 0 && order.status !== 'cancelled' && (
+                          <div className="mo-tracking-container">
+                            <div className="mo-tracking-steps" style={{ maxWidth: '100%' }}>
+                              {TRACKING_STEPS.map((stepKey, i) => {
+                                const stepConfig = ORDER_STATUS_CONFIG[stepKey];
+                                const isCompleted = status.step >= stepConfig.step;
+                                const isCurrent = status.step === stepConfig.step;
+                                
+                                return (
+                                  <div className={`mo-track-step ${isCompleted ? 'completed' : ''} ${isCurrent ? 'current' : ''}`} key={stepKey}>
+                                    <div className="mo-track-icon-wrapper">
+                                      <div className={`mo-track-line ${isCompleted && i > 0 ? 'filled' : ''}`}></div>
+                                      <div className="mo-track-dot">
+                                          {isCompleted ? <CheckCircle2 size={16} strokeWidth={3} /> : <div className="mo-dot-inner"></div>}
+                                      </div>
+                                    </div>
+                                    <span className="mo-track-label">{stepConfig.label}</span>
+                                  </div>
+                                )
+                              })}
+                            </div>
+                            {order.delivery_address && (
+                              <div className="mo-delivery-address">
+                                <strong>Delivery Address:</strong> {order.delivery_address.street}, {order.delivery_address.city}, {order.delivery_address.state} {order.delivery_address.zip_code}
+                              </div>
+                            )}
                           </div>
+                        )}
 
-                          <div style={{ display: 'flex', gap: '8px' }}>
-                            <button className="pp-buy-btn" style={{ background: '#0d9488', flex: 1, padding: '10px' }}>
-                              VIEW ORDER
-                            </button>
-                            <button onClick={() => handleRemoveOrder(order._id)} style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', borderRadius: '8px', padding: '0 12px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        {/* Items */}
+                        <div className="mo-items-list">
+                          {order.items.map((item, idx) => (
+                            <div className="mo-item-row" key={idx}>
+                              <img
+                                src={item.medicine_image || '/img/medicine_bottle.png'}
+                                alt={item.medicine_name}
+                                className="mo-item-img"
+                                onError={e => { e.target.src = '/img/medicine_bottle.png'; }}
+                              />
+                              <div className="mo-item-info">
+                                <span className="mo-item-name">{item.medicine_name}</span>
+                                <span className="mo-item-qty">Qty: {item.quantity} × ₹{item.price}</span>
+                              </div>
+                              <span className="mo-item-total">₹{item.subtotal.toFixed(2)}</span>
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Footer */}
+                        <div className="mo-order-footer">
+                          <div className="mo-order-summary">
+                            <span>{order.total_quantity} item{order.total_quantity > 1 ? 's' : ''}</span>
+                            <span className="mo-dot">·</span>
+                            <span>Order Total</span>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                            <div className="mo-order-total">₹{order.grand_total.toFixed(2)}</div>
+                            <button onClick={() => handleRemoveOrder(order._id)} style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', borderRadius: '8px', padding: '6px 12px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }} title="Delete Order">
                               <Trash2 size={16} />
                             </button>
                           </div>

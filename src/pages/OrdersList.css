@@ -1,0 +1,168 @@
+.ol-container {
+  padding: 24px 32px;
+  background: #f8fafc;
+  min-height: 100vh;
+  font-family: 'Inter', sans-serif;
+}
+
+.ol-header {
+  margin-bottom: 24px;
+}
+
+.ol-header h2 {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0;
+  letter-spacing: -0.5px;
+}
+
+.ol-header p {
+  color: #64748b;
+  margin: 4px 0 0;
+  font-size: 0.9rem;
+}
+
+.ol-summary-cards {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.ol-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 18px 20px;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  outline: none;
+}
+
+.ol-card:hover, .ol-card.active {
+  border-color: #0d9488;
+  box-shadow: 0 4px 14px rgba(13, 148, 136, 0.12);
+  transform: translateY(-2px);
+}
+
+.ol-card-title {
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #64748b;
+}
+
+.ol-card-count {
+  font-size: 1.6rem;
+  font-weight: 900;
+  color: #0f172a;
+  margin-top: 4px;
+}
+
+.ol-toolbar {
+  margin-bottom: 20px;
+}
+
+.ol-search-box {
+  position: relative;
+  max-width: 400px;
+}
+
+.ol-search-icon {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #94a3b8;
+}
+
+.ol-search-input {
+  width: 100%;
+  padding: 10px 38px;
+  border-radius: 10px;
+  border: 1.5px solid #cbd5e1;
+  font-size: 0.9rem;
+  outline: none;
+  background: #ffffff;
+  transition: border-color 0.2s ease;
+}
+
+.ol-search-input:focus {
+  border-color: #0d9488;
+}
+
+.ol-search-clear {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+}
+
+.ol-table-wrapper {
+  background: #ffffff;
+  border-radius: 16px;
+  border: 1px solid #e2e8f0;
+  overflow: hidden;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
+}
+
+.ol-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.ol-table th {
+  background: #f1f5f9;
+  color: #475569;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 14px 18px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.ol-table td {
+  padding: 16px 18px;
+  border-bottom: 1px solid #f1f5f9;
+  vertical-align: middle;
+  font-size: 0.88rem;
+}
+
+.ol-table tbody tr:hover {
+  background: #f8fafc;
+}
+
+.ol-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 20px;
+}
+
+.badge-processing { background: #fef9c3; color: #a16207; }
+.badge-shipped { background: #e0e7ff; color: #4338ca; }
+.badge-out-delivery { background: #fce7f3; color: #be185d; }
+.badge-delivered { background: #dcfce7; color: #15803d; }
+.badge-cancelled { background: #fef2f2; color: #dc2626; }
+.badge-pending { background: #f1f5f9; color: #64748b; }
+
+.ol-loading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 60vh;
+  font-size: 1rem;
+  color: #64748b;
+}
