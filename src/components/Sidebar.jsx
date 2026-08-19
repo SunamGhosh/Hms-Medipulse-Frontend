@@ -37,6 +37,7 @@ const Sidebar = ({ isCollapsed, toggleCollapse }) => {
   const menuItems = [
     { name: 'Dashboard', icon: LayoutDashboard, path: '/admin/dashboard' },
     { name: 'Appointments', icon: CalendarDays, path: '/admin/appointments' },
+    { name: 'Orders & Deliveries', icon: Truck, path: '/admin/orders' },
     { name: 'Patients', icon: Users, path: '/admin/patients' },
     { name: 'Doctors', icon: UserRound, path: '/admin/doctors' },
     { name: 'Pharmacists', icon: Users, path: '/admin/pharmacists' },
