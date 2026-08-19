@@ -10,7 +10,7 @@ import toast from 'react-hot-toast';
 import './PharmacistDashboard.css';
 
 const API = import.meta.env.VITE_URL;
-const getToken = () => localStorage.getItem('pharmacistToken');
+const getToken = () => sessionStorage.getItem('pharmacistToken') || localStorage.getItem('pharmacistToken');
 
 const STATUS_CONFIG = {
   pending:   { color: 'blue',   label: 'Pending',   dot: '#3b82f6' },
@@ -200,7 +200,7 @@ const PharmacistDashboard = () => {
   useEffect(() => {
     const token = getToken();
     if (!token) { navigate('/pharmacist/login'); return; }
-    const stored = localStorage.getItem('pharmacistName') || 'Pharmacist';
+    const stored = sessionStorage.getItem('pharmacistName') || localStorage.getItem('pharmacistName') || 'Pharmacist';
     setPharmacistName(stored.charAt(0).toUpperCase() + stored.slice(1));
     const h = new Date().getHours();
     if (h < 12) setGreeting('Good morning');
@@ -236,6 +236,7 @@ const PharmacistDashboard = () => {
         const name = `${data.pharmacist.first_name || ''} ${data.pharmacist.last_name || ''}`.trim();
         if (name) {
           setPharmacistName(name);
+          sessionStorage.setItem('pharmacistName', name);
           localStorage.setItem('pharmacistName', name);
         }
       }
@@ -725,6 +726,9 @@ const PharmacistDashboard = () => {
   };
 
   const handleLogout = () => {
+    sessionStorage.removeItem('pharmacistToken');
+    sessionStorage.removeItem('pharmacistEmail');
+    sessionStorage.removeItem('pharmacistName');
     localStorage.removeItem('pharmacistToken');
     localStorage.removeItem('pharmacistEmail');
     localStorage.removeItem('pharmacistName');
@@ -1401,6 +1405,29 @@ const PharmacistDashboard = () => {
                               >
                                 <FileText size={14} /> View Doctor Prescription
                               </button>
+                            </div>
+                          )}
+
+                          {/* Meeting Time Info — shown for completed appointments */}
+                          {statusKey === 'completed' && (appt.meet_time_start || appt.meet_time_end) && (
+                            <div style={{
+                              display: 'inline-flex', alignItems: 'center', gap: '6px', marginTop: '8px',
+                              fontSize: '12px', color: '#475569', background: '#f0fdfa',
+                              padding: '5px 12px', borderRadius: '20px', border: '1px solid #99f6e4'
+                            }}>
+                              <Clock size={12} style={{ color: '#0d9488', flexShrink: 0 }} />
+                              <span style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '4px' }}>
+                                {appt.meet_time_start && (
+                                  <span>Started: <strong style={{ color: '#0f172a' }}>{new Date(appt.meet_time_start).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })}</strong></span>
+                                )}
+                                {appt.meet_time_start && appt.meet_time_end && <span style={{ color: '#cbd5e1' }}> · </span>}
+                                {appt.meet_time_end && (
+                                  <span>Ended: <strong style={{ color: '#0f172a' }}>{new Date(appt.meet_time_end).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })}</strong></span>
+                                )}
+                                {appt.meet_time != null && (
+                                  <span style={{ color: '#0d9488', fontWeight: 700 }}> · {appt.meet_time} min</span>
+                                )}
+                              </span>
                             </div>
                           )}
 

@@ -42,9 +42,13 @@ const PharmacistLogin = () => {
       const data = await response.json();
 
       if (response.ok) {
+        const phName = `${data.pharmacist?.first_name || ''} ${data.pharmacist?.last_name || ''}`.trim() || email.split('@')[0];
+        sessionStorage.setItem('pharmacistToken', data.token);
+        sessionStorage.setItem('pharmacistEmail', email);
+        sessionStorage.setItem('pharmacistName', phName);
         localStorage.setItem('pharmacistToken', data.token);
         localStorage.setItem('pharmacistEmail', email);
-        localStorage.setItem('pharmacistName', data.pharmacist?.first_name || email.split('@')[0]);
+        localStorage.setItem('pharmacistName', phName);
         navigate('/pharmacist/dashboard');
       } else {
         setErrorMsg(data.message || 'Invalid email or password. Please try again.');

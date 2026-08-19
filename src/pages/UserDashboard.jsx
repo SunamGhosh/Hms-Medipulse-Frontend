@@ -644,6 +644,28 @@ const UserDashboard = () => {
                               </span>
                             )}
                           </div>
+                          {/* Meeting Time Info — visible on completed appointments */}
+                          {appt.status === 'completed' && (appt.meet_time_start || appt.meet_time_end) && (
+                            <div style={{
+                              display: 'inline-flex', alignItems: 'center', gap: '6px', marginTop: '6px',
+                              fontSize: '12px', color: '#475569', background: '#f0fdfa',
+                              padding: '4px 12px', borderRadius: '20px', border: '1px solid #99f6e4'
+                            }}>
+                              <Clock size={12} style={{ color: '#0d9488', flexShrink: 0 }} />
+                              <span style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '4px' }}>
+                                {appt.meet_time_start && (
+                                  <span>Started: <strong style={{ color: '#0f172a' }}>{new Date(appt.meet_time_start).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })}</strong></span>
+                                )}
+                                {appt.meet_time_start && appt.meet_time_end && <span style={{ color: '#cbd5e1' }}> · </span>}
+                                {appt.meet_time_end && (
+                                  <span>Ended: <strong style={{ color: '#0f172a' }}>{new Date(appt.meet_time_end).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })}</strong></span>
+                                )}
+                                {appt.meet_time != null && (
+                                  <span style={{ color: '#0d9488', fontWeight: 700 }}> · {appt.meet_time} min</span>
+                                )}
+                              </span>
+                            </div>
+                          )}
                         </div>
 
                         {/* Fee */}

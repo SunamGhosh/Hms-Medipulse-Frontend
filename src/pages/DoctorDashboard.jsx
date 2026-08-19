@@ -13,7 +13,7 @@ import WritePrescriptionModal from '../components/WritePrescriptionModal';
 import PatientRecordsModal from '../components/PatientRecordsModal';
 
 const API = import.meta.env.VITE_URL;
-const getToken = () => localStorage.getItem('doctorToken');
+const getToken = () => sessionStorage.getItem('doctorToken') || localStorage.getItem('doctorToken');
 
 const formatTime24 = (timeStr) => {
   if (!timeStr) return '';
@@ -39,6 +39,7 @@ const STATUS_CONFIG = {
   completed: { color: 'green',  label: 'Completed', dot: '#10b981' },
   cancelled: { color: 'rose',   label: 'Cancelled', dot: '#f43f5e' },
   rejected:  { color: 'orange', label: 'Rejected',  dot: '#f97316' },
+  expired:   { color: 'gray',   label: 'Expired',   dot: '#94a3b8' },
 };
 
 const VIEWS = {
@@ -61,6 +62,14 @@ const DoctorDashboard = () => {
 
   const [isPatientRecordsModalOpen, setIsPatientRecordsModalOpen] = useState(false);
   const [selectedPatientForRecords, setSelectedPatientForRecords] = useState(null);
+
+  // Cancellation / Rejection modal state
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [cancelModalAppt, setCancelModalAppt] = useState(null);       // appointment being acted on
+  const [cancelModalType, setCancelModalType] = useState('cancel');   // 'cancel' | 'rejected'
+  const [cancelReason, setCancelReason] = useState('');
+  const [cancelRemarks, setCancelRemarks] = useState('');
+  const [cancelSubmitting, setCancelSubmitting] = useState(false);
   
   const [appointments, setAppointments] = useState([]);
   const [apptLoading, setApptLoading] = useState(false);
@@ -77,10 +86,64 @@ const DoctorDashboard = () => {
   const [showSpecsModal, setShowSpecsModal] = useState(false);
   const [prescriptions, setPrescriptions] = useState([]);
   const [prescLoading, setPrescLoading] = useState(false);
+  const [medicalRecords, setMedicalRecords] = useState([]);
+  const [medRecLoading, setMedRecLoading] = useState(false);
   const [recordSearchQuery, setRecordSearchQuery] = useState('');
   const [selectedRecordSheet, setSelectedRecordSheet] = useState(null);
   const [showRecordSheet, setShowRecordSheet] = useState(false);
   const [doctorProfile, setDoctorProfile] = useState(null);
+
+  // Real-time clock for appointment meeting time validation
+  const [nowTime, setNowTime] = useState(() => new Date());
+  useEffect(() => {
+    const timer = setInterval(() => setNowTime(new Date()), 15000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // Parse appointment scheduled Date object from appointment_date and appointment_time
+  const getScheduledDateTime = useCallback((appt) => {
+    if (!appt?.appointment_date || !appt?.appointment_time) return null;
+    const d = new Date(appt.appointment_date);
+    const timeStr = String(appt.appointment_time).trim();
+    let hours = 0;
+    let minutes = 0;
+    if (timeStr.toLowerCase().includes('am') || timeStr.toLowerCase().includes('pm')) {
+      const isPm = timeStr.toLowerCase().includes('pm');
+      const cleanTime = timeStr.replace(/(am|pm)/gi, '').trim();
+      const parts = cleanTime.split(':').map(Number);
+      hours = parts[0] || 0;
+      minutes = parts[1] || 0;
+      if (isPm && hours < 12) hours += 12;
+      if (!isPm && hours === 12) hours = 0;
+    } else {
+      const parts = timeStr.split(':').map(Number);
+      hours = parts[0] || 0;
+      minutes = parts[1] || 0;
+    }
+    d.setHours(hours, minutes, 0, 0);
+    return d;
+  }, []);
+
+  // Check if current time is before scheduled appointment time
+  const isBeforeScheduledTime = useCallback((appt) => {
+    const scheduled = getScheduledDateTime(appt);
+    if (!scheduled) return false;
+    return nowTime < scheduled;
+  }, [getScheduledDateTime, nowTime]);
+
+  // Dynamic effective status (if confirmed & >30 mins past scheduled time without starting meet, status is expired)
+  const getEffectiveStatus = useCallback((appt) => {
+    const st = (appt?.status || 'pending').toLowerCase().trim();
+    if (['completed', 'cancelled', 'rejected', 'expired'].includes(st)) return st;
+    if (st === 'confirmed' && !appt.meet_time_start) {
+      const scheduled = getScheduledDateTime(appt);
+      if (scheduled) {
+        const expireTime = new Date(scheduled.getTime() + 30 * 60 * 1000);
+        if (nowTime > expireTime) return 'expired';
+      }
+    }
+    return st;
+  }, [getScheduledDateTime, nowTime]);
 
   // Profile Edit & View states
   const [profileLoading, setProfileLoading] = useState(false);
@@ -229,7 +292,7 @@ const DoctorDashboard = () => {
   useEffect(() => {
     const token = getToken();
     if (!token) { navigate('/doctor/login'); return; }
-    const stored = localStorage.getItem('doctorName') || 'Doctor';
+    const stored = (sessionStorage.getItem('doctorName') || localStorage.getItem('doctorName') || 'Doctor').replace(/^(dr\.\s*|dr\s+)/i, '');
     setDoctorName(stored.charAt(0).toUpperCase() + stored.slice(1));
     const h = new Date().getHours();
     if (h < 12) setGreeting('Good morning');
@@ -284,8 +347,15 @@ const DoctorDashboard = () => {
         headers: { Authorization: `Bearer ${token}` }
       });
       const data = await res.json();
-      if (res.ok) {
+      if (res.ok && data.doctor) {
         setDoctorProfile(data.doctor);
+        const rawName = `${data.doctor.first_name || ''} ${data.doctor.last_name || ''}`.trim();
+        const cleanName = rawName.replace(/^(dr\.\s*|dr\s+)/i, '');
+        if (cleanName) {
+          setDoctorName(cleanName);
+          sessionStorage.setItem('doctorName', cleanName);
+          localStorage.setItem('doctorName', cleanName);
+        }
         setEditForm({
           phone: data.doctor.phone || '',
           consult_fee: data.doctor.consult_fee || '',
@@ -334,16 +404,36 @@ const DoctorDashboard = () => {
     finally { setPrescLoading(false); }
   }, []);
 
+  const fetchDoctorMedicalRecords = useCallback(async () => {
+    const token = getToken();
+    if (!token) return;
+    setMedRecLoading(true);
+    try {
+      const res = await fetch(`${API}/med-rec/my-records`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setMedicalRecords(data.data || []);
+      }
+    } catch { /* silent */ }
+    finally { setMedRecLoading(false); }
+  }, []);
+
   useEffect(() => {
     fetchAppointments();
     fetchProfile();
     fetchPatients();
     fetchDoctorPrescriptions();
+    fetchDoctorMedicalRecords();
     const intervalId = setInterval(() => fetchAppointments(true), 15000);
     return () => clearInterval(intervalId);
-  }, [fetchAppointments, fetchProfile, fetchPatients, fetchDoctorPrescriptions]);
+  }, [fetchAppointments, fetchProfile, fetchPatients, fetchDoctorPrescriptions, fetchDoctorMedicalRecords]);
 
   const handleLogout = () => {
+    sessionStorage.removeItem('doctorToken');
+    sessionStorage.removeItem('doctorEmail');
+    sessionStorage.removeItem('doctorName');
     localStorage.removeItem('doctorToken');
     localStorage.removeItem('doctorEmail');
     localStorage.removeItem('doctorName');
@@ -351,7 +441,7 @@ const DoctorDashboard = () => {
     navigate('/doctor/login');
   };
 
-  const handleStatusUpdate = async (id, status) => {
+  const handleStatusUpdate = async (id, status, cancelReasonText = '') => {
     const token = getToken();
     try {
       const endpoint = status === 'confirmed' ? 'confirmed' : status === 'completed' ? 'complete' : status === 'rejected' ? 'reject' : 'cancel';
@@ -359,21 +449,77 @@ const DoctorDashboard = () => {
       const res = await fetch(`${API}/appointment/doctor/${id}/${endpoint}`, {
         method,
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ cancel_reason: 'Updated by doctor' })
+        body: JSON.stringify({ cancel_reason: cancelReasonText || 'Updated by doctor' })
       });
       if (res.ok) fetchAppointments();
     } catch { /* silent */ }
   };
 
+  // Start meeting — stamps meet_time_start on the appointment
+  const handleStartMeeting = async (appt) => {
+    const apptId = typeof appt === 'object' ? appt._id : appt;
+    const mode = typeof appt === 'object' ? appt.consult_mode : 'offline';
+    const token = getToken();
+    try {
+      const res = await fetch(`${API}/appointment/doctor/${apptId}/start-meeting`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        toast.success('Meeting started! Time tracking initiated.');
+        fetchAppointments();
+        if (mode === 'online') {
+          handleJoinVideoCall(apptId);
+        }
+      } else {
+        const data = await res.json();
+        toast.error(data.message || 'Failed to start meeting');
+      }
+    } catch { toast.error('Network error starting meeting'); }
+  };
+
+  // Open the cancellation / rejection modal
+  const handleOpenCancelModal = (appt, type) => {
+    setCancelModalAppt(appt);
+    setCancelModalType(type);  // 'cancel' | 'rejected'
+    setCancelReason('');
+    setCancelRemarks('');
+    setShowCancelModal(true);
+  };
+
+  // Submit the cancellation / rejection with the form data
+  const handleCancelSubmit = async (e) => {
+    e.preventDefault();
+    if (!cancelReason) { toast.error('Please select a reason.'); return; }
+    setCancelSubmitting(true);
+    const fullReason = cancelRemarks ? `${cancelReason} — ${cancelRemarks}` : cancelReason;
+    await handleStatusUpdate(cancelModalAppt._id, cancelModalType, fullReason);
+    setCancelSubmitting(false);
+    setShowCancelModal(false);
+    setCancelModalAppt(null);
+    toast.success(
+      cancelModalType === 'rejected'
+        ? 'Appointment rejected successfully.'
+        : 'Appointment cancelled successfully.'
+    );
+  };
+
   const handleJoinVideoCall = async (apptId) => {
     const token = getToken();
-    fetch(`${API}/appointment/${apptId}/video-call-reminder`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`
-      }
-    }).catch(err => console.error('Video call reminder failed:', err));
+    // Mark appointment as completed because doctor is attending the meet
+    try {
+      await fetch(`${API}/appointment/doctor/${apptId}/call-complete`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        }
+      });
+      // Refresh appointments list so status reflects immediately
+      fetchAppointments();
+    } catch (err) {
+      console.error('Call complete notification failed:', err);
+    }
 
     navigate(`/video-call/MediPulse_${apptId}`);
   };
@@ -409,13 +555,13 @@ const DoctorDashboard = () => {
 
 
 
-  const pendingAppts = appointments.filter(a => a.status === 'pending').length;
+  const pendingAppts = appointments.filter(a => getEffectiveStatus(a) === 'pending').length;
   const todaysAppts = appointments.filter(a => new Date(a.appointment_date).toDateString() === new Date().toDateString()).length;
-  const totalCompleted = appointments.filter(a => a.status === 'completed').length;
+  const totalCompleted = appointments.filter(a => getEffectiveStatus(a) === 'completed').length;
   
   const stats = [
     { icon: <CalendarCheck size={22} />, label: 'Today\'s Visits', value: apptLoading ? '…' : todaysAppts, trend: 'Patients', color: 'teal' },
-    { icon: <Users size={22} />,         label: 'Total Patients',  value: apptLoading ? '…' : appointments.length, trend: 'All time',    color: 'blue' },
+    { icon: <Users size={22} />,         label: 'Total Patients',  value: patientLoading ? '…' : patients.length, trend: 'All time',    color: 'blue' },
     { icon: <CheckCircle2 size={22} />,  label: 'Completed',       value: apptLoading ? '…' : totalCompleted, trend: 'Consultations', color: 'purple' },
     { icon: <AlertCircle size={22} />,   label: 'Pending',         value: apptLoading ? '…' : pendingAppts, trend: 'Require action',         color: 'rose' },
   ];
@@ -424,7 +570,7 @@ const DoctorDashboard = () => {
 
   const getStatusCount = (key) => {
     if (key === 'all') return appointments.length;
-    return appointments.filter(a => (a.status || '').toLowerCase() === key).length;
+    return appointments.filter(a => getEffectiveStatus(a) === key).length;
   };
 
   const statusOptions = [
@@ -440,7 +586,7 @@ const DoctorDashboard = () => {
   const filteredAppointments = appointments.filter((appt) => {
     // 1. Status Filter
     if (statusFilter !== 'all') {
-      const apptStatus = (appt.status || '').toLowerCase();
+      const apptStatus = getEffectiveStatus(appt);
       if (apptStatus !== statusFilter) {
         return false;
       }
@@ -501,7 +647,11 @@ const DoctorDashboard = () => {
     return pName.includes(q) || bName.includes(q) || disease.includes(q) || email.includes(q) || phone.includes(q);
   });
 
-  const filteredPatientRecords = (prescriptions.length > 0 ? prescriptions : completedAppointments).filter((rec) => {
+  const rawRecords = medicalRecords.length > 0
+    ? medicalRecords
+    : (prescriptions.length > 0 ? prescriptions : completedAppointments);
+
+  const filteredPatientRecords = rawRecords.filter((rec) => {
     if (!recordSearchQuery.trim()) return true;
     const q = recordSearchQuery.toLowerCase().trim();
     const pName = (rec.patient_id?.first_name
@@ -509,7 +659,7 @@ const DoctorDashboard = () => {
       : `${rec.patient_name || ''}`).toLowerCase();
     const disease = (rec.disease || rec.diagnosis || rec.appointment_id?.disease || '').toLowerCase();
     const prescId = (rec.prescription_id || rec._id || '').toLowerCase();
-    const date = (rec.prescribed_date || rec.appointment_date || '').toLowerCase();
+    const date = (rec.prescribed_date || rec.visit_date || rec.appointment_date || '').toLowerCase();
 
     return pName.includes(q) || disease.includes(q) || prescId.includes(q) || date.includes(q);
   });
@@ -519,7 +669,7 @@ const DoctorDashboard = () => {
       ? `${rec.patient_id.first_name} ${rec.patient_id.last_name || ''}`.trim()
       : (rec.patient_name || 'Patient');
     const docName = `Dr. ${doctorProfile?.first_name || doctorName} ${doctorProfile?.last_name || ''}`;
-    const docEmail = doctorProfile?.email || localStorage.getItem('doctorEmail') || 'dr.somnath@medipulse.com';
+    const docEmail = doctorProfile?.email || localStorage.getItem('doctorEmail') || '';
     const docPhone = doctorProfile?.phone || '+91 98765 12345';
     const docAddress = doctorProfile?.visit_address || 'Medipulse Healthcare Tower, Sector 4';
     const recDate = formatDate(rec.prescribed_date || rec.appointment_date || rec.createdAt);
@@ -801,7 +951,7 @@ Verification Status: Digitally Verified Medical Record
                               <span>{formatDate(appt.appointment_date)} at {appt.appointment_time}</span>
                               <span className={`dd-activity-badge dd-badge-${cfg.color}`}>{cfg.label}</span>
                               <button onClick={() => handleStatusUpdate(appt._id, 'confirmed')} style={{marginLeft: 'auto', background: '#0d9488', color: '#fff', border: 'none', padding: '4px 12px', borderRadius: '6px', fontSize: '12px', cursor: 'pointer', fontWeight: 600}}>Confirm</button>
-                              <button onClick={() => handleStatusUpdate(appt._id, 'rejected')} style={{background: '#fecaca', color: '#dc2626', border: 'none', padding: '4px 12px', borderRadius: '6px', fontSize: '12px', cursor: 'pointer', fontWeight: 600}}>Reject</button>
+                              <button onClick={() => handleOpenCancelModal(appt, 'rejected')} style={{background: '#fecaca', color: '#dc2626', border: 'none', padding: '4px 12px', borderRadius: '6px', fontSize: '12px', cursor: 'pointer', fontWeight: 600}}>Reject</button>
                             </div>
                           </div>
                         </li>
@@ -955,7 +1105,8 @@ Verification Status: Digitally Verified Medical Record
               ) : (
                 <div className="dd-appointments-cards-container">
                   {filteredAppointments.map((appt) => {
-                    const cfg = STATUS_CONFIG[appt.status] || STATUS_CONFIG.pending;
+                    const statusKey = getEffectiveStatus(appt);
+                    const cfg = STATUS_CONFIG[statusKey] || STATUS_CONFIG.pending;
                     const patientName = appt.patient_id
                       ? `${appt.patient_id.first_name || ''} ${appt.patient_id.last_name || ''}`.trim()
                       : 'Unknown Patient';
@@ -974,7 +1125,7 @@ Verification Status: Digitally Verified Medical Record
                     const isPast = apptDateStr && apptDateStr < todayStr;
 
                     return (
-                      <div key={appt._id} className={`dd-appt-card status-${appt.status}`}>
+                      <div key={appt._id} className={`dd-appt-card status-${statusKey}`}>
                         {/* Left Status Accent Bar */}
                         <div className="dd-ac-status-bar" style={{ background: cfg.dot }} />
 
@@ -1049,7 +1200,7 @@ Verification Status: Digitally Verified Medical Record
 
                         {/* Action Buttons */}
                         <div className="dd-ac-actions">
-                          {appt.status === 'pending' && (
+                          {statusKey === 'pending' && (
                             <>
                               <button
                                 className="dd-btn-action btn-confirm"
@@ -1058,33 +1209,45 @@ Verification Status: Digitally Verified Medical Record
                                 <Check size={14} /> Confirm
                               </button>
                               <button
-                                className="dd-btn-action btn-reject"
-                                onClick={() => handleStatusUpdate(appt._id, 'rejected')}
+                                className="dd-btn-action btn-action btn-reject"
+                                onClick={() => handleOpenCancelModal(appt, 'rejected')}
                               >
                                 <XCircle size={14} /> Reject
                               </button>
                             </>
                           )}
 
-                          {appt.status === 'confirmed' && (
+                          {statusKey === 'confirmed' && (
                             <>
-                              {appt.consult_mode === 'online' && (
+                              {!appt.meet_time_start ? (
+                                <button
+                                  className="dd-btn-action btn-start-meeting"
+                                  onClick={() => handleStartMeeting(appt)}
+                                  disabled={isBeforeScheduledTime(appt)}
+                                  title={
+                                    isBeforeScheduledTime(appt)
+                                      ? `Meeting can only be started at scheduled time (${appt.appointment_time})`
+                                      : "Start the consultation meeting"
+                                  }
+                                >
+                                  <Clock size={14} /> Start Meet
+                                </button>
+                              ) : (
                                 <button
                                   className="dd-btn-action btn-video"
-                                  onClick={() => handleJoinVideoCall(appt._id)}
+                                  onClick={() => {
+                                    if (appt.consult_mode === 'online') {
+                                      handleJoinVideoCall(appt._id);
+                                    }
+                                  }}
                                 >
-                                  <Video size={14} /> Start Video Call
+                                  {appt.consult_mode === 'online' ? <Video size={14} /> : <Clock size={14} />}
+                                  {appt.consult_mode === 'online' ? 'Join Video Call' : 'Meeting In Progress'}
                                 </button>
                               )}
                               <button
-                                className="dd-btn-action btn-complete"
-                                onClick={() => handleStatusUpdate(appt._id, 'completed')}
-                              >
-                                <Check size={14} /> Mark Complete
-                              </button>
-                              <button
                                 className="dd-btn-action btn-cancel"
-                                onClick={() => handleStatusUpdate(appt._id, 'cancel')}
+                                onClick={() => handleOpenCancelModal(appt, 'cancel')}
                               >
                                 <XCircle size={14} /> Cancel
                               </button>
@@ -1107,6 +1270,25 @@ Verification Status: Digitally Verified Medical Record
                             <span className="dd-ac-record-done">
                               <CheckCircle2 size={16} /> Prescription Added
                             </span>
+                          )}
+
+                          {/* Meeting Time Info — shown on completed appointments */}
+                          {appt.status === 'completed' && (appt.meet_time_start || appt.meet_time_end) && (
+                            <div className="dd-ac-meeting-info">
+                              <Clock size={13} className="dd-ac-meeting-icon" />
+                              <span className="dd-ac-meeting-text">
+                                {appt.meet_time_start && (
+                                  <span>Started: <strong>{new Date(appt.meet_time_start).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })}</strong></span>
+                                )}
+                                {appt.meet_time_start && appt.meet_time_end && <span className="dd-ac-meeting-sep"> · </span>}
+                                {appt.meet_time_end && (
+                                  <span>Ended: <strong>{new Date(appt.meet_time_end).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })}</strong></span>
+                                )}
+                                {appt.meet_time != null && (
+                                  <span className="dd-ac-meeting-dur"> · <strong>{appt.meet_time} min</strong></span>
+                                )}
+                              </span>
+                            </div>
                           )}
                         </div>
                       </div>
@@ -1302,7 +1484,7 @@ Verification Status: Digitally Verified Medical Record
               </div>
 
               <div className="dd-patients-table-body">
-                {prescLoading ? (
+                {(prescLoading || medRecLoading) ? (
                   <div style={{ textAlign: 'center', color: '#94a3b8', padding: '3rem' }}>
                     <Loader2 size={32} style={{ animation: 'spin 1s linear infinite', marginBottom: '1rem' }} />
                     <p>Loading patient records…</p>
@@ -2007,6 +2189,95 @@ Verification Status: Digitally Verified Medical Record
                 </div>
               </div>
 
+              {/* ── Meeting Time Details (Dynamic) ── */}
+              <div style={{
+                marginTop: '16px',
+                background: 'linear-gradient(135deg, #f0fdfa 0%, #ecfdf5 100%)',
+                border: '1.5px solid #99f6e4',
+                borderRadius: '14px',
+                padding: '16px 20px'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'linear-gradient(135deg, #0d9488, #14b8a6)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <Clock size={15} color="#fff" />
+                    </div>
+                    <div>
+                      <span style={{ fontWeight: 800, fontSize: '14px', color: '#0f172a', display: 'block' }}>Meeting Time Details</span>
+                      <span style={{ fontSize: '12px', color: '#64748b' }}>Start time, end time & total consultation duration</span>
+                    </div>
+                  </div>
+                  <span style={{
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    padding: '3px 10px',
+                    borderRadius: '12px',
+                    background: selectedSpecsPatient.consult_mode === 'online' ? '#eff6ff' : '#f5f3ff',
+                    color: selectedSpecsPatient.consult_mode === 'online' ? '#2563eb' : '#7c3aed',
+                    border: `1px solid ${selectedSpecsPatient.consult_mode === 'online' ? '#bfdbfe' : '#ddd6fe'}`
+                  }}>
+                    {selectedSpecsPatient.consult_mode === 'online' ? 'Online Video Meet' : 'Offline / In-Person Meet'}
+                  </span>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>
+                  {/* Meet Start Time */}
+                  <div style={{ background: '#fff', borderRadius: '10px', padding: '12px 14px', border: '1px solid #ccfbf1', textAlign: 'center' }}>
+                    <div style={{ fontSize: '11px', fontWeight: 700, color: '#0d9488', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
+                      <span style={{ width: 7, height: 7, borderRadius: '50%', background: selectedSpecsPatient.meet_time_start ? '#10b981' : '#cbd5e1', display: 'inline-block' }} />
+                      Meet Start Time
+                    </div>
+                    <div style={{ fontSize: '16px', fontWeight: 800, color: selectedSpecsPatient.meet_time_start ? '#0f172a' : '#94a3b8' }}>
+                      {selectedSpecsPatient.meet_time_start
+                        ? new Date(selectedSpecsPatient.meet_time_start).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })
+                        : '—'}
+                    </div>
+                    {selectedSpecsPatient.meet_time_start && (
+                      <div style={{ fontSize: '11px', color: '#64748b', marginTop: 3 }}>
+                        {new Date(selectedSpecsPatient.meet_time_start).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Meet End Time */}
+                  <div style={{ background: '#fff', borderRadius: '10px', padding: '12px 14px', border: '1px solid #fecaca', textAlign: 'center' }}>
+                    <div style={{ fontSize: '11px', fontWeight: 700, color: '#dc2626', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
+                      <span style={{ width: 7, height: 7, borderRadius: '2px', background: selectedSpecsPatient.meet_time_end ? '#ef4444' : '#cbd5e1', display: 'inline-block' }} />
+                      Meet End Time
+                    </div>
+                    <div style={{ fontSize: '16px', fontWeight: 800, color: selectedSpecsPatient.meet_time_end ? '#0f172a' : '#94a3b8' }}>
+                      {selectedSpecsPatient.meet_time_end
+                        ? new Date(selectedSpecsPatient.meet_time_end).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })
+                        : '—'}
+                    </div>
+                    {selectedSpecsPatient.meet_time_end && (
+                      <div style={{ fontSize: '11px', color: '#64748b', marginTop: 3 }}>
+                        {new Date(selectedSpecsPatient.meet_time_end).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Overall / Total Meet Time */}
+                  <div style={{ background: 'linear-gradient(135deg, #0d9488, #0ea5e9)', borderRadius: '10px', padding: '12px 14px', textAlign: 'center' }}>
+                    <div style={{ fontSize: '11px', fontWeight: 700, color: 'rgba(255,255,255,0.85)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px' }}>
+                      Total Meet Time
+                    </div>
+                    <div style={{ fontSize: '18px', fontWeight: 900, color: '#fff', lineHeight: 1.2 }}>
+                      {selectedSpecsPatient.meet_time != null
+                        ? `${selectedSpecsPatient.meet_time} min`
+                        : (selectedSpecsPatient.meet_time_start && selectedSpecsPatient.meet_time_end
+                            ? `${Math.max(1, Math.round((new Date(selectedSpecsPatient.meet_time_end) - new Date(selectedSpecsPatient.meet_time_start)) / 60000))} min`
+                            : (selectedSpecsPatient.meet_time_start && !selectedSpecsPatient.meet_time_end
+                                ? `${Math.max(1, Math.round((nowTime - new Date(selectedSpecsPatient.meet_time_start)) / 60000))} min`
+                                : '—'))}
+                    </div>
+                    {selectedSpecsPatient.meet_time_start && !selectedSpecsPatient.meet_time_end && (
+                      <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.9)', marginTop: 3, fontWeight: 700 }}>● Live In Progress</div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
               {/* View Medical Record Button */}
               <div style={{ marginTop: '16px', display: 'flex', justifyContent: 'flex-end', paddingTop: '16px', borderTop: '1px solid #e2e8f0' }}>
                 <button
@@ -2053,7 +2324,7 @@ Verification Status: Digitally Verified Medical Record
                     {doctorProfile?.specialization ? ` (${doctorProfile.specialization})` : ''}
                   </p>
                   <div style={{ margin: '6px 0 0', fontSize: '12px', color: '#ccfbf1', display: 'flex', gap: '14px', flexWrap: 'wrap' }}>
-                    <span><strong>Email:</strong> {doctorProfile?.email || localStorage.getItem('doctorEmail') || 'dr.somnath@medipulse.com'}</span>
+                    <span><strong>Email:</strong> {doctorProfile?.email || localStorage.getItem('doctorEmail') || ''}</span>
                     <span><strong>Phone:</strong> {doctorProfile?.phone || '+91 98765 12345'}</span>
                     <span><strong>Address:</strong> {doctorProfile?.visit_address || 'Medipulse OPD Block, Sector 4'}</span>
                   </div>
@@ -2236,6 +2507,168 @@ Verification Status: Digitally Verified Medical Record
         @keyframes spin { to { transform: rotate(360deg); } }
         @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
       `}</style>
+
+      {/* ── Cancellation / Rejection Modal ── */}
+      {showCancelModal && cancelModalAppt && (() => {
+        const isReject = cancelModalType === 'rejected';
+        const patientName = cancelModalAppt.patient_id
+          ? `${cancelModalAppt.patient_id.first_name || ''} ${cancelModalAppt.patient_id.last_name || ''}`.trim()
+          : 'Patient';
+        const CANCEL_REASONS = isReject
+          ? [
+              'Schedule conflict',
+              'Patient not eligible for treatment',
+              'Insufficient medical history',
+              'Appointment outside my specialisation',
+              'Duplicate booking detected',
+              'Patient did not provide required documents',
+              'Other',
+            ]
+          : [
+              'Doctor unavailable / emergency leave',
+              'Clinic / facility closed',
+              'Patient requested rescheduling',
+              'Technical issue (video call)',
+              'Appointment time conflict',
+              'Weather or travel disruption',
+              'Other',
+            ];
+        return (
+          <div className="dd-cancel-overlay" onClick={() => setShowCancelModal(false)}>
+            <div
+              className="dd-cancel-modal"
+              onClick={e => e.stopPropagation()}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="cancel-modal-title"
+            >
+              {/* ── Modal Header ── */}
+              <div className={`dd-cancel-modal-header ${isReject ? 'header-reject' : 'header-cancel'}`}>
+                <div className="dd-cancel-modal-header-icon">
+                  {isReject ? <XCircle size={24} /> : <AlertCircle size={24} />}
+                </div>
+                <div>
+                  <h3 id="cancel-modal-title">
+                    {isReject ? 'Reject Appointment' : 'Cancel Appointment'}
+                  </h3>
+                  <p className="dd-cancel-modal-subtitle">
+                    {isReject
+                      ? 'Provide a reason for rejecting this appointment request'
+                      : 'Provide a reason for cancelling this confirmed appointment'}
+                  </p>
+                </div>
+                <button
+                  className="dd-cancel-close-btn"
+                  onClick={() => setShowCancelModal(false)}
+                  aria-label="Close"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              {/* ── Patient Info Strip ── */}
+              <div className="dd-cancel-patient-strip">
+                <div className="dd-cancel-patient-avatar">
+                  {patientName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) || 'P'}
+                </div>
+                <div className="dd-cancel-patient-info">
+                  <span className="dd-cancel-patient-name">{patientName}</span>
+                  <span className="dd-cancel-patient-meta">
+                    <Calendar size={12} />
+                    {formatDate(cancelModalAppt.appointment_date)} &nbsp;·&nbsp; {cancelModalAppt.appointment_time}
+                    &nbsp;·&nbsp;
+                    <span style={{ textTransform: 'capitalize' }}>{cancelModalAppt.consult_mode || 'offline'}</span>
+                  </span>
+                </div>
+                <span className={`dd-cancel-status-badge ${isReject ? 'badge-reject' : 'badge-cancel'}`}>
+                  {isReject ? 'Rejecting' : 'Cancelling'}
+                </span>
+              </div>
+
+              {/* ── Form ── */}
+              <form className="dd-cancel-form" onSubmit={handleCancelSubmit}>
+                {/* Reason Select */}
+                <div className="dd-cancel-field">
+                  <label className="dd-cancel-label" htmlFor="cancel-reason-select">
+                    <FileText size={14} />
+                    {isReject ? 'Rejection Reason' : 'Cancellation Reason'}
+                    <span className="dd-cancel-required">*</span>
+                  </label>
+                  <div className="dd-cancel-reason-grid">
+                    {CANCEL_REASONS.map((reason) => (
+                      <label
+                        key={reason}
+                        className={`dd-cancel-reason-option ${cancelReason === reason ? (isReject ? 'selected-reject' : 'selected-cancel') : ''}`}
+                      >
+                        <input
+                          type="radio"
+                          name="cancelReason"
+                          value={reason}
+                          checked={cancelReason === reason}
+                          onChange={() => setCancelReason(reason)}
+                        />
+                        {reason}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Additional Remarks */}
+                <div className="dd-cancel-field">
+                  <label className="dd-cancel-label" htmlFor="cancel-remarks">
+                    <Edit3 size={14} />
+                    Additional Remarks
+                    <span className="dd-cancel-optional">(optional)</span>
+                  </label>
+                  <textarea
+                    id="cancel-remarks"
+                    className="dd-cancel-textarea"
+                    rows={3}
+                    placeholder={`Provide any additional details about this ${isReject ? 'rejection' : 'cancellation'}…`}
+                    value={cancelRemarks}
+                    onChange={e => setCancelRemarks(e.target.value)}
+                    maxLength={500}
+                  />
+                  <span className="dd-cancel-char-count">{cancelRemarks.length}/500</span>
+                </div>
+
+                {/* Warning Banner */}
+                <div className={`dd-cancel-warning ${isReject ? 'warning-reject' : 'warning-cancel'}`}>
+                  <AlertCircle size={15} />
+                  <span>
+                    {isReject
+                      ? 'The patient will be notified of this rejection and may re-book.'
+                      : 'The patient will be notified of this cancellation. This action cannot be undone.'}
+                  </span>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="dd-cancel-actions">
+                  <button
+                    type="button"
+                    className="dd-cancel-btn-secondary"
+                    onClick={() => setShowCancelModal(false)}
+                    disabled={cancelSubmitting}
+                  >
+                    Go Back
+                  </button>
+                  <button
+                    type="submit"
+                    className={`dd-cancel-btn-primary ${isReject ? 'btn-primary-reject' : 'btn-primary-cancel'}`}
+                    disabled={cancelSubmitting || !cancelReason}
+                  >
+                    {cancelSubmitting ? (
+                      <><Loader2 size={16} className="dd-cancel-spinner" /> Processing…</>
+                    ) : (
+                      <>{isReject ? <><XCircle size={16} /> Confirm Rejection</> : <><XCircle size={16} /> Confirm Cancellation</>}</>
+                    )}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 };

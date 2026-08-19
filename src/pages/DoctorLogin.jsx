@@ -43,9 +43,14 @@ const DoctorLogin = () => {
       const data = await response.json();
 
       if (response.ok) {
+        const rawName = `${data.doctor?.first_name || ''} ${data.doctor?.last_name || ''}`.trim() || email.split('@')[0];
+        const docName = rawName.replace(/^(dr\.\s*|dr\s+)/i, '');
+        sessionStorage.setItem('doctorToken', data.token);
+        sessionStorage.setItem('doctorEmail', email);
+        sessionStorage.setItem('doctorName', docName);
         localStorage.setItem('doctorToken', data.token);
         localStorage.setItem('doctorEmail', email);
-        localStorage.setItem('doctorName', data.doctor?.first_name || email.split('@')[0]);
+        localStorage.setItem('doctorName', docName);
         navigate('/doctor/dashboard');
       } else {
         setErrorMsg(data.message || 'Invalid email or password. Please try again.');
