@@ -178,7 +178,7 @@ const fetchAndFormatOrders = async (token) => {
         const parsed = JSON.parse(storedUser);
         userName = parsed.name || parsed.first_name || 'there';
       }
-    } catch (e) {}
+    } catch (e) { /* ignore parse error */ }
 
     let reply = "";
 
@@ -485,7 +485,7 @@ const Chatbot = () => {
     setMessages(prev => prev.map(msg => ({ ...msg, options: null })));
 
     // Normalize text for quick checking
-    const cleanText = userText.toLowerCase().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, "").trim();
+    const cleanText = userText.toLowerCase().replace(/[.,/#!$%\^&*:{}=\-_`~()?]/g, "").trim();
 
     // Check if the user typed confirmation to continue or end the chat
     if (['yes', 'yeah', 'yep', 'y', 'sure', 'yes please', 'continue'].includes(cleanText)) {

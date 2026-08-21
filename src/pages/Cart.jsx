@@ -16,6 +16,44 @@ const Cart = () => {
   const navigate = useNavigate();
   const token = localStorage.getItem('userToken');
 
+  const fetchCart = async () => {
+    try {
+      const res = await fetch('http://localhost:5000/cart', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      setCartItems(data.success && data.cart ? data.cart : []);
+    } catch (err) {
+      console.error('Error fetching cart:', err);
+      setCartItems([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchUserProfileAddress = async () => {
+    // 1. Try local storage user profile first
+    try {
+      const storedUser = localStorage.getItem('user') || localStorage.getItem('userInfo');
+      if (storedUser) {
+        const parsed = JSON.parse(storedUser);
+        fillAddressFromObjOrString(parsed.address, parsed.city, parsed.state, parsed.zip_code || parsed.pincode);
+      }
+    } catch (e) { /* ignore parse error */ }
+
+    // 2. Fetch profile from backend user profile endpoint
+    try {
+      const API_URL = import.meta.env.VITE_URL || 'http://localhost:5000';
+      const res = await fetch(`${API_URL}/user/profile`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok && data.user) {
+        fillAddressFromObjOrString(data.user.address, data.user.city, data.user.state, data.user.zip_code || data.user.pincode);
+      }
+    } catch { /* silently fallback to default/local storage */ }
+  };
+
   useEffect(() => {
     if (!token) { navigate('/login'); return; }
     fetchCart();
@@ -59,32 +97,6 @@ const Cart = () => {
         state: state || prev.state,
         zip_code: zip || prev.zip_code
       }));
-    }
-  };
-
-  const fetchUserProfileAddress = async () => {
-    // 1. Try local storage user profile first
-    try {
-      const storedUser = localStorage.getItem('user') || localStorage.getItem('userInfo');
-      if (storedUser) {
-        const parsed = JSON.parse(storedUser);
-        fillAddressFromObjOrString(parsed.address, parsed.city, parsed.state, parsed.zip_code || parsed.pincode);
-      }
-    } catch (e) {}
-
-    // 2. Fetch profile from backend user profile endpoint
-    try {
-      const API_URL = import.meta.env.VITE_URL || 'http://localhost:5000';
-      const res = await fetch(`${API_URL}/user/profile`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      const data = await res.json();
-      const user = data.user || data;
-      if (user) {
-        fillAddressFromObjOrString(user.address, user.city, user.state, user.zip_code || user.pincode);
-      }
-    } catch (err) {
-      console.error('Error fetching user profile address:', err);
     }
   };
 
@@ -144,21 +156,6 @@ const Cart = () => {
       },
       { timeout: 10000, enableHighAccuracy: true }
     );
-  };
-
-  const fetchCart = async () => {
-    try {
-      const res = await fetch('http://localhost:5000/cart', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      const data = await res.json();
-      setCartItems(data.success && data.cart ? data.cart : []);
-    } catch (err) {
-      console.error('Error fetching cart:', err);
-      setCartItems([]);
-    } finally {
-      setLoading(false);
-    }
   };
 
   // ── Optimistic quantity update ───────────────────────────
