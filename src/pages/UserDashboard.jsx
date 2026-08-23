@@ -4,7 +4,7 @@ import {
   Activity, CalendarCheck, Stethoscope, Pill, Bell, User, LogOut,
   ArrowRight, Clock, Heart, ShieldCheck, ArrowUpRight, Users,
   X, CheckCircle2, AlertCircle, XCircle, Loader2, Plus, Video, Package, Truck, Trash2, CreditCard,
-  ChevronLeft, ChevronRight
+  ChevronLeft, ChevronRight, Headphones, RotateCcw, Check
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import './UserDashboard.css';
@@ -37,6 +37,12 @@ const ORDER_STATUS_CONFIG = {
 
 const TRACKING_STEPS = ['paid', 'processing', 'shipped', 'out_for_delivery', 'delivered'];
 
+const getStatusColorClass = (statusStr) => {
+  if (statusStr === 'cancelled') return 'red';
+  if (statusStr === 'delivered') return 'blue';
+  return 'green';
+};
+
 /* ── views ── */
 const VIEWS = {
   DASHBOARD: 'dashboard',
@@ -53,6 +59,13 @@ const UserDashboard = () => {
   const [greeting, setGreeting] = useState('');
   const [view, setView] = useState(VIEWS.DASHBOARD);
   const [isBookModalOpen, setIsBookModalOpen] = useState(false);
+  const [trackingModalItem, setTrackingModalItem] = useState(null);
+  const [isTrackingModalOpen, setIsTrackingModalOpen] = useState(false);
+
+  const handleTrackItem = (flatItem) => {
+    setTrackingModalItem(flatItem);
+    setIsTrackingModalOpen(true);
+  };
 
   /* ── API data ── */
   const [appointments, setAppointments] = useState([]);
@@ -157,6 +170,45 @@ const UserDashboard = () => {
       toast.error('Error removing order');
     }
   };
+
+  const handleCancelOrder = async (orderId) => {
+    if (!window.confirm('Are you sure you want to cancel this order?')) return;
+    const token = getToken();
+    try {
+      const res = await fetch(`${API}/api/payment/update-order-status/${orderId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ status: 'cancelled' })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        toast.success('Order cancelled successfully!');
+        setOrders(prev => prev.map(o => o._id === orderId ? { ...o, status: 'cancelled' } : o));
+      } else {
+        toast.error(data.message || 'Failed to cancel order');
+      }
+    } catch (err) {
+      toast.error('Error cancelling order');
+    }
+  };
+
+  const handleNeedHelp = (order, item) => {
+    window.dispatchEvent(new CustomEvent('open-chatbot-help', {
+      detail: { order, item }
+    }));
+  };
+
+  useEffect(() => {
+    const handleOrderStatusUpdated = (e) => {
+      const { orderId, status } = e.detail;
+      setOrders(prev => prev.map(o => o._id === orderId ? { ...o, status } : o));
+    };
+    window.addEventListener('order-status-updated', handleOrderStatusUpdated);
+    return () => window.removeEventListener('order-status-updated', handleOrderStatusUpdated);
+  }, []);
 
   useEffect(() => {
     fetchAppointments();
@@ -726,96 +778,104 @@ const UserDashboard = () => {
                   </Link>
                 </div>
               ) : (
-                <div className="mo-body" style={{ padding: 0, maxWidth: '100%', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '24px' }}>
-                  {orders.map(order => {
-                    const status = ORDER_STATUS_CONFIG[order.status] || ORDER_STATUS_CONFIG.pending;
-                    const StatusIcon = status.icon;
-                    return (
-                      <div className="mo-order-card" key={order._id}>
-                        {/* Order Header */}
-                        <div className="mo-order-header">
-                          <div className="mo-order-meta">
-                            <div className="mo-order-id">
-                              <Package size={15} />
-                              <span>#{order._id?.slice(-8).toUpperCase() || 'N/A'}</span>
-                            </div>
-                            <div className="mo-order-date">{formatDate(order.placed_at || order.createdAt)}</div>
-                          </div>
-                          <div
-                            className="mo-status-badge"
-                            style={{ color: status.color, background: status.bg, border: `1px solid ${status.border}` }}
-                          >
-                            <StatusIcon size={13} />
-                            {status.label}
-                          </div>
-                        </div>
+                <div className="mo-single-col-body">
+                  {(() => {
+                    const orderItems = [];
+                    orders.forEach(order => {
+                      order.items.forEach(item => {
+                        orderItems.push({
+                          ...order,
+                          orderId: order._id,
+                          item
+                        });
+                      });
+                    });
 
-                        {/* Visual Tracking */}
-                        {status.step > 0 && order.status !== 'cancelled' && (
-                          <div className="mo-tracking-container">
-                            <div className="mo-tracking-steps" style={{ maxWidth: '100%' }}>
-                              {TRACKING_STEPS.map((stepKey, i) => {
-                                const stepConfig = ORDER_STATUS_CONFIG[stepKey];
-                                const isCompleted = status.step >= stepConfig.step;
-                                const isCurrent = status.step === stepConfig.step;
-                                
-                                return (
-                                  <div className={`mo-track-step ${isCompleted ? 'completed' : ''} ${isCurrent ? 'current' : ''}`} key={stepKey}>
-                                    <div className="mo-track-icon-wrapper">
-                                      <div className={`mo-track-line ${isCompleted && i > 0 ? 'filled' : ''}`}></div>
-                                      <div className="mo-track-dot">
-                                          {isCompleted ? <CheckCircle2 size={16} strokeWidth={3} /> : <div className="mo-dot-inner"></div>}
-                                      </div>
-                                    </div>
-                                    <span className="mo-track-label">{stepConfig.label}</span>
-                                  </div>
-                                )
-                              })}
-                            </div>
-                            {order.delivery_address && (
-                              <div className="mo-delivery-address">
-                                <strong>Delivery Address:</strong> {order.delivery_address.street}, {order.delivery_address.city}, {order.delivery_address.state} {order.delivery_address.zip_code}
-                              </div>
-                            )}
-                          </div>
-                        )}
+                    return orderItems.map((flatItem, idx) => {
+                      const { orderId, item, status: orderStatus, placed_at } = flatItem;
+                      const statusCfg = ORDER_STATUS_CONFIG[orderStatus] || ORDER_STATUS_CONFIG.pending;
+                      const StatusIcon = statusCfg.icon;
+                      const colorClass = getStatusColorClass(orderStatus);
 
-                        {/* Items */}
-                        <div className="mo-items-list">
-                          {order.items.map((item, idx) => (
-                            <div className="mo-item-row" key={idx}>
+                      let timelineText = '';
+                      if (orderStatus === 'cancelled') {
+                        timelineText = `on ${new Date(placed_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })} As per your request`;
+                      } else if (orderStatus === 'delivered') {
+                        timelineText = `on ${new Date(flatItem.tracking?.delivered_at || placed_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}`;
+                      } else {
+                        const estDate = new Date(placed_at);
+                        estDate.setDate(estDate.getDate() + 3);
+                        const dateStr = estDate.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
+                        timelineText = `Arriving by ${dateStr}`;
+                      }
+
+                      const isCancelled = orderStatus === 'cancelled';
+                      const isDelivered = orderStatus === 'delivered';
+                      const isActive = !isCancelled && !isDelivered;
+
+                      return (
+                        <div className="mo-item-card" key={`${orderId}-${idx}`} style={{ padding: '20px', background: 'white' }}>
+                          {/* Header status */}
+                          <div className="mo-card-status-header">
+                            <div className={`mo-status-icon-box ${colorClass}`}>
+                              <StatusIcon size={18} />
+                            </div>
+                            <div className="mo-status-text-details">
+                              <span className={`mo-status-title-text ${colorClass}`}>
+                                {statusCfg.label}
+                              </span>
+                              <span className="mo-status-sub-text">{timelineText}</span>
+                            </div>
+                          </div>
+
+                          {/* Item info box */}
+                          <Link to="/pharmacy" className="mo-nested-item-box">
+                            <div className="mo-nested-img-wrapper">
                               <img
                                 src={item.medicine_image || '/img/medicine_bottle.png'}
                                 alt={item.medicine_name}
-                                className="mo-item-img"
+                                className="mo-nested-img"
                                 onError={e => { e.target.src = '/img/medicine_bottle.png'; }}
                               />
-                              <div className="mo-item-info">
-                                <span className="mo-item-name">{item.medicine_name}</span>
-                                <span className="mo-item-qty">Qty: {item.quantity} × ₹{item.price}</span>
-                              </div>
-                              <span className="mo-item-total">₹{item.subtotal.toFixed(2)}</span>
                             </div>
-                          ))}
-                        </div>
+                            <div className="mo-nested-info">
+                              <span className="mo-nested-brand">{item.medicine_name}</span>
+                              <span className="mo-nested-desc">Prescription Medicine • Qty: {item.quantity}</span>
+                              <span className="mo-nested-price-qty">₹{item.price.toFixed(2)} each</span>
+                            </div>
+                            <ChevronRight size={18} className="mo-nested-chevron" />
+                          </Link>
 
-                        {/* Footer */}
-                        <div className="mo-order-footer">
-                          <div className="mo-order-summary">
-                            <span>{order.total_quantity} item{order.total_quantity > 1 ? 's' : ''}</span>
-                            <span className="mo-dot">·</span>
-                            <span>Order Total</span>
-                          </div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                            <div className="mo-order-total">₹{order.grand_total.toFixed(2)}</div>
-                            <button onClick={() => handleRemoveOrder(order._id)} style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', borderRadius: '8px', padding: '6px 12px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }} title="Delete Order">
-                              <Trash2 size={16} />
-                            </button>
-                          </div>
+                          {/* Action buttons (only for non-cancelled) */}
+                          {!isCancelled && (
+                            <div className="mo-actions-button-row">
+                              {isActive && (
+                                <>
+                                  <button
+                                    className="mo-action-btn-flat"
+                                    onClick={() => handleTrackItem(flatItem)}
+                                  >
+                                    <Truck size={15} /> Track Item
+                                  </button>
+                                  <button className="mo-action-btn-flat" onClick={() => handleCancelOrder(orderId)}>
+                                    <XCircle size={15} /> Cancel Item
+                                  </button>
+                                </>
+                              )}
+                              {isDelivered && (
+                                <button className="mo-action-btn-flat" onClick={() => toast.success('Return period expired')}>
+                                  <RotateCcw size={15} /> Return Item
+                                </button>
+                              )}
+                              <button className="mo-action-btn-flat" onClick={() => handleNeedHelp(flatItem, item)}>
+                                <Headphones size={15} /> Need Help?
+                              </button>
+                            </div>
+                          )}
                         </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    });
+                  })()}
                 </div>
               )}
             </div>
@@ -910,9 +970,132 @@ const UserDashboard = () => {
         onClose={handleBookClose}
       />
 
+      <TrackingModal
+        isOpen={isTrackingModalOpen}
+        onClose={() => setIsTrackingModalOpen(false)}
+        flatItem={trackingModalItem}
+        STATUS_CONFIG={ORDER_STATUS_CONFIG}
+        TRACKING_STEPS={TRACKING_STEPS}
+      />
+
       <style>{`
         @keyframes spin { to { transform: rotate(360deg); } }
       `}</style>
+    </div>
+  );
+};
+
+// Vertical timeline tracking modal component
+const TrackingModal = ({ isOpen, onClose, flatItem, STATUS_CONFIG, TRACKING_STEPS }) => {
+  if (!isOpen || !flatItem) return null;
+
+  const { orderId, status: orderStatus, placed_at } = flatItem;
+  const statusCfg = STATUS_CONFIG[orderStatus] || STATUS_CONFIG.pending;
+
+  const getStepTime = (stepKey) => {
+    if (stepKey === 'paid') return placed_at;
+    if (stepKey === 'processing') return flatItem.tracking?.processing_at;
+    if (stepKey === 'shipped') return flatItem.tracking?.shipped_at;
+    if (stepKey === 'out_for_delivery') return flatItem.tracking?.out_for_delivery_at;
+    if (stepKey === 'delivered') return flatItem.tracking?.delivered_at;
+    return null;
+  };
+
+  return (
+    <div className="mo-track-modal-overlay" onClick={onClose}>
+      <div className="mo-track-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="mo-track-modal-header">
+          <h3 className="mo-track-modal-title">Track Shipment</h3>
+          <button className="mo-track-modal-close" onClick={onClose}>
+            <X size={18} />
+          </button>
+        </div>
+        <div className="mo-track-modal-body">
+          {/* Order Details Header */}
+          <div style={{ marginBottom: '20px', borderBottom: '1px solid #f1f5f9', paddingBottom: '12px' }}>
+            <div style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 700 }}>ORDER ID</div>
+            <div style={{ fontSize: '15px', color: '#1e293b', fontWeight: 800, textTransform: 'uppercase' }}>#{orderId.toUpperCase()}</div>
+            <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>
+              Placed on {new Date(placed_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+            </div>
+          </div>
+
+          {/* Vertical Stepper */}
+          <div className="mo-vertical-timeline">
+            {TRACKING_STEPS.map((stepKey, i) => {
+              const stepConfig = STATUS_CONFIG[stepKey];
+              const isStepCompleted = statusCfg.step >= stepConfig.step;
+              const isStepCurrent = statusCfg.step === stepConfig.step;
+              
+              const stepTime = getStepTime(stepKey);
+              const timeText = stepTime
+                ? new Date(stepTime).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
+                : '';
+
+              const nextStepKey = TRACKING_STEPS[i + 1];
+              const isLineFilled = nextStepKey && statusCfg.step >= STATUS_CONFIG[nextStepKey].step;
+
+              return (
+                <div className={`mo-vertical-step ${isStepCompleted ? 'completed' : ''} ${isStepCurrent ? 'current' : ''}`} key={stepKey}>
+                  <div className="mo-vertical-line-wrapper">
+                    <div className="mo-vertical-dot">
+                      {isStepCompleted ? <Check size={12} strokeWidth={4} /> : <div className="mo-vertical-dot-inner"></div>}
+                    </div>
+                    <div className={`mo-vertical-line ${isLineFilled ? 'filled' : ''}`}></div>
+                  </div>
+                  <div className="mo-vertical-text-wrapper">
+                    <span className="mo-vertical-label">{stepConfig.label}</span>
+                    <span className="mo-vertical-desc">
+                      {isStepCurrent && `In Progress — `}
+                      {timeText || (isStepCompleted ? 'Completed' : 'Pending')}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Address Box */}
+          {flatItem.delivery_address && (
+            <div className="mo-delivery-address" style={{ marginTop: '0', marginBottom: '16px', background: '#f8fafc' }}>
+              <strong>Delivery Address:</strong>
+              <p style={{ margin: '4px 0 0', fontSize: '13px', color: '#475569', lineHeight: '1.4' }}>
+                {flatItem.delivery_address.street}, {flatItem.delivery_address.city}, {flatItem.delivery_address.state} {flatItem.delivery_address.zip_code}
+              </p>
+            </div>
+          )}
+
+          {/* Payment Status Box */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 16,
+            fontSize: 13,
+            padding: '10px 14px',
+            background: (flatItem.payment_mode === 'COD' && flatItem.payment_status !== 'paid') ? '#fff7ed' : '#f0fdf4',
+            borderRadius: 8,
+            border: `1px solid ${(flatItem.payment_mode === 'COD' && flatItem.payment_status !== 'paid') ? '#fed7aa' : '#bbf7d0'}`
+          }}>
+            <div>
+              <span style={{ color: '#475569', fontWeight: 500 }}>Mode: </span>
+              <strong style={{ color: '#0f172a' }}>{flatItem.payment_mode || 'UPI'}</strong>
+            </div>
+            <div>
+              <span style={{ color: '#475569', fontWeight: 500 }}>Status: </span>
+              <span style={{
+                padding: '2px 8px',
+                borderRadius: 10,
+                fontSize: 11,
+                fontWeight: 700,
+                background: (flatItem.payment_status === 'paid' || flatItem.payment_mode === 'UPI') ? '#16a34a' : '#f97316',
+                color: '#ffffff'
+              }}>
+                {(flatItem.payment_status === 'paid' || flatItem.payment_mode === 'UPI') ? 'Done' : 'Pending'}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 };

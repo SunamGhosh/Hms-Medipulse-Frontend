@@ -256,6 +256,47 @@ const Chatbot = () => {
     };
   }, [messages, isLoading]);
 
+  useEffect(() => {
+    const handleOpenHelp = (event) => {
+      const { order, item } = event.detail;
+      setIsOpen(true);
+      setIsFinished(false);
+      
+      // Disable previous options
+      setMessages(prev => prev.map(msg => ({ ...msg, options: null })));
+      
+      const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      
+      // Add custom user message
+      const userMsg = {
+        id: Date.now() + Math.random(),
+        role: 'user',
+        text: `Need Help with my order for **${item.medicine_name}** (Order ID: #${order._id.slice(-8).toUpperCase()})`,
+        time
+      };
+      
+      // Add custom bot message with order-specific options
+      const botMsg = {
+        id: Date.now() + Math.random(),
+        role: 'bot',
+        text: `Sure, I'd be happy to help you with your order for **${item.medicine_name}**.\n\nStatus: **${order.status.toUpperCase()}**\nPlaced on: **${new Date(order.placed_at || order.createdAt).toLocaleDateString('en-IN')}**\n\nWhat can I assist you with?`,
+        time,
+        options: [
+          { label: 'Track Order', value: `track_order_${order._id}` },
+          { label: 'Cancel Order', value: `cancel_order_${order._id}` },
+          { label: 'Payment Query', value: `payment_query_${order._id}` },
+          { label: 'Delivery Address', value: `address_query_${order._id}` },
+          { label: 'Back to main menu', value: 'yes' }
+        ]
+      };
+      
+      setMessages(prev => [...prev, userMsg, botMsg]);
+    };
+    
+    window.addEventListener('open-chatbot-help', handleOpenHelp);
+    return () => window.removeEventListener('open-chatbot-help', handleOpenHelp);
+  }, []);
+
   const addMessage = (role, text, options = null, data = null) => {
     setMessages(prev => [...prev, {
       id: Date.now() + Math.random(),
@@ -295,6 +336,118 @@ const Chatbot = () => {
 
     // Simulate slight delay for natural feeling
     await new Promise(resolve => setTimeout(resolve, 600));
+
+    // Handle order-specific flows (Meesho style)
+    if (option.value.startsWith('track_order_')) {
+      const orderId = option.value.replace('track_order_', '');
+      try {
+        const token = localStorage.getItem('userToken');
+        const res = await fetch(`${API}/api/payment/my-orders`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        const data = await res.json();
+        const order = data.orders?.find(o => o._id === orderId);
+        if (order) {
+          const estDate = new Date(order.placed_at || order.createdAt || Date.now());
+          estDate.setDate(estDate.getDate() + 3);
+          const formattedEstDate = estDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+          addMessage('bot', `Your order status is **${order.status.toUpperCase()}**.\n\nEstimated delivery date: **${formattedEstDate}**.\n\nTracking timeline:\n- Placed at: ${new Date(order.placed_at || order.createdAt).toLocaleDateString('en-IN')}\n- Current status: ${order.status}`);
+        } else {
+          addMessage('bot', 'Sorry, I could not retrieve tracking details for this order. Please try again.');
+        }
+      } catch (err) {
+        addMessage('bot', 'Failed to retrieve tracking. Please check your network connection.');
+      }
+      setTimeout(() => addMessage('bot', 'Do you have any other queries?', orderSupportYesNoOptions), 1000);
+      setIsLoading(false);
+      return;
+    }
+
+    if (option.value.startsWith('cancel_order_')) {
+      const orderId = option.value.replace('cancel_order_', '');
+      try {
+        const token = localStorage.getItem('userToken');
+        const res = await fetch(`${API}/api/payment/my-orders`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        const data = await res.json();
+        const order = data.orders?.find(o => o._id === orderId);
+        if (order) {
+          if (['cancelled', 'shipped', 'out_for_delivery', 'delivered'].includes(order.status)) {
+            addMessage('bot', `This order status is **${order.status}** and cannot be cancelled now.`);
+          } else {
+            const cancelRes = await fetch(`${API}/api/payment/update-order-status/${orderId}`, {
+              method: 'PUT',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${token}`
+              },
+              body: JSON.stringify({ status: 'cancelled' })
+            });
+            const cancelData = await cancelRes.json();
+            if (cancelRes.ok && cancelData.success) {
+              addMessage('bot', `Your order #${orderId.slice(-8).toUpperCase()} has been successfully **CANCELLED**.`);
+              // Fire custom event to notify My Orders lists
+              window.dispatchEvent(new CustomEvent('order-status-updated', { detail: { orderId, status: 'cancelled' } }));
+            } else {
+              addMessage('bot', cancelData.message || 'Failed to cancel the order. Please try from My Orders page.');
+            }
+          }
+        } else {
+          addMessage('bot', 'Order not found.');
+        }
+      } catch (err) {
+        addMessage('bot', 'Failed to cancel order due to network issue.');
+      }
+      setTimeout(() => addMessage('bot', 'Do you have any other queries?', orderSupportYesNoOptions), 1000);
+      setIsLoading(false);
+      return;
+    }
+
+    if (option.value.startsWith('payment_query_')) {
+      const orderId = option.value.replace('payment_query_', '');
+      try {
+        const token = localStorage.getItem('userToken');
+        const res = await fetch(`${API}/api/payment/my-orders`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        const data = await res.json();
+        const order = data.orders?.find(o => o._id === orderId);
+        if (order) {
+          addMessage('bot', `Payment details for order #${orderId.slice(-8).toUpperCase()}:\n\n- **Payment Mode:** ${order.payment_mode || 'UPI'}\n- **Payment Status:** ${order.payment_status || 'Paid'}\n- **Grand Total:** ₹${order.grand_total.toFixed(2)}\n\nIf you have been charged twice, please wait 24-48 hours for an automatic refund to your source account.`);
+        } else {
+          addMessage('bot', 'Could not retrieve payment info.');
+        }
+      } catch (err) {
+        addMessage('bot', 'Failed to retrieve payment details.');
+      }
+      setTimeout(() => addMessage('bot', 'Do you have any other queries?', orderSupportYesNoOptions), 1000);
+      setIsLoading(false);
+      return;
+    }
+
+    if (option.value.startsWith('address_query_')) {
+      const orderId = option.value.replace('address_query_', '');
+      try {
+        const token = localStorage.getItem('userToken');
+        const res = await fetch(`${API}/api/payment/my-orders`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        const data = await res.json();
+        const order = data.orders?.find(o => o._id === orderId);
+        if (order && order.delivery_address) {
+          const addr = order.delivery_address;
+          addMessage('bot', `Your order will be delivered to:\n\n**${addr.street}, ${addr.city}, ${addr.state} - ${addr.zip_code}**\n\nNote: We cannot change the delivery address once the order is shipped.`);
+        } else {
+          addMessage('bot', 'No shipping address found.');
+        }
+      } catch (err) {
+        addMessage('bot', 'Failed to retrieve shipping details.');
+      }
+      setTimeout(() => addMessage('bot', 'Do you have any other queries?', orderSupportYesNoOptions), 1000);
+      setIsLoading(false);
+      return;
+    }
 
     if (option.value === 'yes') {
       addMessage('bot', 'Certainly. Please choose an option below or type your query directly, and I will assist you further.', initialOptions);
