@@ -170,6 +170,7 @@ const AppointmentsList = () => {
         <span>Booked By</span>
         <span>Date</span>
         <span>Time</span>
+        <span>Meeting Time</span>
         <span>Mode</span>
         <span>Disease</span>
         <span>Status</span>
@@ -203,6 +204,28 @@ const AppointmentsList = () => {
                 <div className="al-cell" title={bookedBy(appointment)}>{bookedBy(appointment)}</div>
                 <div className="al-cell al-cell-sub">{new Date(appointment.appointment_date).toLocaleDateString()}</div>
                 <div className="al-cell al-cell-sub">{appointment.appointment_time}</div>
+                {/* Meeting Time Column */}
+                <div className="al-cell" title={appointment.status === 'completed' && appointment.meet_time_start ? 'Meeting time details' : 'No meeting recorded'}>
+                  {appointment.status === 'completed' && (appointment.meet_time_start || appointment.meet_time_end) ? (
+                    <span style={{ display: 'flex', flexDirection: 'column', gap: 2, fontSize: 11 }}>
+                      {appointment.meet_time_start && (
+                        <span style={{ color: '#0d9488', fontWeight: 600 }}>
+                          ▶ {new Date(appointment.meet_time_start).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })}
+                        </span>
+                      )}
+                      {appointment.meet_time_end && (
+                        <span style={{ color: '#dc2626', fontWeight: 600 }}>
+                          ■ {new Date(appointment.meet_time_end).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })}
+                        </span>
+                      )}
+                      {appointment.meet_time != null && (
+                        <span style={{ color: '#7c3aed', fontWeight: 700 }}>{appointment.meet_time} min</span>
+                      )}
+                    </span>
+                  ) : (
+                    <span style={{ color: '#94a3b8' }}>—</span>
+                  )}
+                </div>
                 <div className="al-cell al-cell-sub" style={{ textTransform: 'capitalize' }}>{appointment.consult_mode}</div>
                 <div className="al-cell" title={appointment.disease}>{appointment.disease}</div>
                 <div className="al-cell">

@@ -17,37 +17,6 @@ const MapPickerModal = ({ isOpen, onClose, onConfirmAddress, initialAddress }) =
     fullText: 'Move pin on map to select location...'
   });
 
-  useEffect(() => {
-    if (!isOpen) return;
-
-    // Load Leaflet CSS dynamically if not present
-    if (!document.getElementById('leaflet-css')) {
-      const link = document.createElement('link');
-      link.id = 'leaflet-css';
-      link.rel = 'stylesheet';
-      link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
-      document.head.appendChild(link);
-    }
-
-    // Load Leaflet JS dynamically if not present
-    if (!window.L) {
-      const script = document.createElement('script');
-      script.id = 'leaflet-js';
-      script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
-      script.onload = () => initMap();
-      document.body.appendChild(script);
-    } else {
-      setTimeout(initMap, 150);
-    }
-
-    return () => {
-      if (leafletMap.current) {
-        leafletMap.current.remove();
-        leafletMap.current = null;
-      }
-    };
-  }, [isOpen]);
-
   const reverseGeocode = async (lat, lng) => {
     setLoadingAddr(true);
     try {
@@ -81,26 +50,6 @@ const MapPickerModal = ({ isOpen, onClose, onConfirmAddress, initialAddress }) =
       console.error('Reverse geocode error:', err);
     } finally {
       setLoadingAddr(false);
-    }
-  };
-
-  const initMap = () => {
-    if (!mapRef.current || !window.L) return;
-    if (leafletMap.current) return;
-
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          const lat = pos.coords.latitude;
-          const lng = pos.coords.longitude;
-          setupLeaflet(lat, lng, 15);
-        },
-        () => {
-          setupLeaflet(20.5937, 78.9629, 5);
-        }
-      );
-    } else {
-      setupLeaflet(20.5937, 78.9629, 5);
     }
   };
 
@@ -138,6 +87,57 @@ const MapPickerModal = ({ isOpen, onClose, onConfirmAddress, initialAddress }) =
       reverseGeocode(clickLat, clickLng);
     });
   };
+
+  const initMap = () => {
+    if (!mapRef.current || !window.L) return;
+    if (leafletMap.current) return;
+
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const lat = pos.coords.latitude;
+          const lng = pos.coords.longitude;
+          setupLeaflet(lat, lng, 15);
+        },
+        () => {
+          setupLeaflet(20.5937, 78.9629, 5);
+        }
+      );
+    } else {
+      setupLeaflet(20.5937, 78.9629, 5);
+    }
+  };
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    // Load Leaflet CSS dynamically if not present
+    if (!document.getElementById('leaflet-css')) {
+      const link = document.createElement('link');
+      link.id = 'leaflet-css';
+      link.rel = 'stylesheet';
+      link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+      document.head.appendChild(link);
+    }
+
+    // Load Leaflet JS dynamically if not present
+    if (!window.L) {
+      const script = document.createElement('script');
+      script.id = 'leaflet-js';
+      script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+      script.onload = () => initMap();
+      document.body.appendChild(script);
+    } else {
+      setTimeout(initMap, 150);
+    }
+
+    return () => {
+      if (leafletMap.current) {
+        leafletMap.current.remove();
+        leafletMap.current = null;
+      }
+    };
+  }, [isOpen]);
 
   const handleRecenterGPS = () => {
     if (!navigator.geolocation) {

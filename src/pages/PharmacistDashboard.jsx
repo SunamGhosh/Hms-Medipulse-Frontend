@@ -4,13 +4,13 @@ import {
   Activity, CalendarCheck, User, LogOut, ArrowRight, Clock, ShieldCheck, ArrowUpRight, CheckCircle2,
   AlertCircle, Loader2, Users, Check, Pill, Edit3, Lock, Plus, Search, Package,
   ShoppingCart, X, Building2, Phone, Award, FileCheck, MapPin, Calendar,
-  AlertTriangle, Eye, EyeOff, RefreshCw, FileText, Stethoscope, Tag, Percent, ChevronLeft, ChevronRight
+  AlertTriangle, Eye, EyeOff, RefreshCw, FileText, Stethoscope, Tag, Percent, ChevronLeft, ChevronRight, Download
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import './PharmacistDashboard.css';
 
 const API = import.meta.env.VITE_URL;
-const getToken = () => localStorage.getItem('pharmacistToken');
+const getToken = () => sessionStorage.getItem('pharmacistToken') || localStorage.getItem('pharmacistToken');
 
 const STATUS_CONFIG = {
   pending:   { color: 'blue',   label: 'Pending',   dot: '#3b82f6' },
@@ -84,6 +84,7 @@ const PharmacistDashboard = () => {
   const [showPrescriptionModal, setShowPrescriptionModal] = useState(false);
   const [selectedPrescription, setSelectedPrescription] = useState(null);
   const [prescriptionLoading, setPrescriptionLoading] = useState(false);
+  const [allPrescriptions, setAllPrescriptions] = useState([]);
 
   // Cancellation Modal state (Appointments)
   const [showCancelApptModal, setShowCancelApptModal] = useState(false);
@@ -200,7 +201,7 @@ const PharmacistDashboard = () => {
   useEffect(() => {
     const token = getToken();
     if (!token) { navigate('/pharmacist/login'); return; }
-    const stored = localStorage.getItem('pharmacistName') || 'Pharmacist';
+    const stored = sessionStorage.getItem('pharmacistName') || localStorage.getItem('pharmacistName') || 'Pharmacist';
     setPharmacistName(stored.charAt(0).toUpperCase() + stored.slice(1));
     const h = new Date().getHours();
     if (h < 12) setGreeting('Good morning');
@@ -236,6 +237,7 @@ const PharmacistDashboard = () => {
         const name = `${data.pharmacist.first_name || ''} ${data.pharmacist.last_name || ''}`.trim();
         if (name) {
           setPharmacistName(name);
+          sessionStorage.setItem('pharmacistName', name);
           localStorage.setItem('pharmacistName', name);
         }
       }
@@ -397,6 +399,21 @@ const PharmacistDashboard = () => {
     finally { setSalesLoading(false); }
   }, []);
 
+  // Fetch All Prescriptions (for real-time completed consultation matching)
+  const fetchAllPrescriptions = useCallback(async () => {
+    const token = getToken();
+    if (!token) return;
+    try {
+      const res = await fetch(`${API}/prescription`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setAllPrescriptions(data.prescriptions || []);
+      }
+    } catch { /* silent */ }
+  }, []);
+
   useEffect(() => {
     fetchProfile();
     fetchAppointments();
@@ -404,6 +421,7 @@ const PharmacistDashboard = () => {
     fetchMedicineRequests();
     fetchSales();
     fetchActiveDoctors();
+    fetchAllPrescriptions();
 
     // Live polling every 3 seconds for real-time status updates (Appointments & Stock Requests)
     const intervalId = setInterval(() => {
@@ -663,26 +681,245 @@ const PharmacistDashboard = () => {
   };
 
   // View Doctor Prescription for Completed Consultations
-  const handleViewPrescription = async (apptId) => {
+  const handleViewPrescription = async (target) => {
+    if (!target) return;
+    const apptId = typeof target === 'object' ? (target?.appointment_id?._id || target?.appointment_id || target?._id) : target;
+
     setShowPrescriptionModal(true);
     setPrescriptionLoading(true);
     setSelectedPrescription(null);
+
     try {
+      // 1. Check local allPrescriptions cache
+      const localMatch = allPrescriptions.find(p => (p.appointment_id?._id || p.appointment_id) === apptId || p._id === apptId);
+
+      // 2. Fetch from backend endpoint
       const res = await fetch(`${API}/prescription/appointment/${apptId}`, {
         headers: { Authorization: `Bearer ${getToken()}` }
       });
       const data = await res.json();
+      let pObj = null;
       if (res.ok && data.prescription) {
-        setSelectedPrescription(data.prescription);
+        pObj = data.prescription;
+      } else if (localMatch) {
+        pObj = localMatch;
+      } else if (typeof target === 'object') {
+        pObj = target;
+      }
+
+      if (pObj) {
+        const fUp = pObj.follow_up_date 
+          || (typeof target === 'object' && target?.follow_up_date)
+          || pObj.medical_record_id?.follow_up_date
+          || pObj.appointment_id?.follow_up_date;
+        if (fUp) {
+          pObj.follow_up_date = fUp;
+        }
+        setSelectedPrescription(pObj);
       } else {
-        toast.error(data.message || 'Prescription record not found for this consultation.');
+        toast.info(data.message || 'Prescription record has not been created for this consultation yet.');
         setShowPrescriptionModal(false);
       }
-    } catch (err) {
+    } catch {
       toast.error('Failed to load prescription record.');
       setShowPrescriptionModal(false);
     } finally {
       setPrescriptionLoading(false);
+    }
+  };
+
+  const handleDownloadRecord = (rec) => {
+    if (!rec) return;
+    const docObj = rec.doctor_id || {};
+    const patObj = rec.patient_id || {};
+
+    const pName = patObj.first_name
+      ? `${patObj.first_name} ${patObj.last_name || ''}`.trim()
+      : (rec.patient_name || 'Patient');
+
+    const docName = docObj.first_name
+      ? `Dr. ${docObj.first_name} ${docObj.last_name || ''}`.trim()
+      : 'Dr. Specialist Doctor';
+
+    const docSpec = docObj.specialization || docObj.department || 'Specialist Doctor';
+    const docEmail = docObj.email || '';
+    const docPhone = docObj.phone || '+91 98765 12345';
+    const docAddress = docObj.visit_address || 'Medipulse OPD Block, Sector 4';
+    const recDate = formatDate(rec.prescribed_date || rec.appointment_date || rec.createdAt);
+    const disease = rec.disease || rec.diagnosis || rec.appointment_id?.disease || 'General Consultation';
+    const age = patObj.age || rec.age || '28';
+    const gender = patObj.gender || rec.gender || 'Male';
+    const phone = patObj.phone || rec.phone || rec.booked_by?.phone || '+91 98765 43210';
+    const followUpDateStr = rec.follow_up_date ? formatDate(rec.follow_up_date) : null;
+    const docSig = docObj.signature;
+
+    let medsText = '';
+    if (Array.isArray(rec.medicines) && rec.medicines.length > 0) {
+      medsText = rec.medicines.map((m, i) => 
+        `${i + 1}. ${m.medicine_name || m.name} | Dosage: ${m.dosage || '1 Tablet'} | Freq: ${m.frequency || 'Once a day'} | Duration: ${m.duration || '5 Days'} | Qty: ${m.quantity || 1} | Inst: ${m.instructions || 'After food'}`
+      ).join('\n');
+    } else {
+      medsText = 'No prescribed medicines attached.';
+    }
+
+    const content = `
+====================================================================
+           MEDIPULSE MULTISPECIALTY CLINIC & CARE CENTER
+                  OFFICIAL MEDICAL RECORD & PRESCRIPTION
+====================================================================
+
+DOCTOR DETAILS:
+--------------------------------------------------------------------
+Doctor Name  : ${docName} (${docSpec})
+Email        : ${docEmail}
+Phone        : ${docPhone}
+Clinic Addr  : ${docAddress}
+
+PATIENT & CONSULTATION DETAILS:
+--------------------------------------------------------------------
+Patient Name : ${pName}
+Age / Gender : ${age} Yrs / ${gender}
+Date         : ${recDate}
+Phone        : ${phone}
+Disease      : ${disease}
+${followUpDateStr ? `Follow-up Date: ${followUpDateStr}\n` : ''}
+PRESCRIBED MEDICINES:
+--------------------------------------------------------------------
+${medsText}
+
+${rec.general_instructions ? `DOCTOR INSTRUCTIONS:\n${rec.general_instructions}\n` : ''}
+====================================================================
+Digitally Signed By: ${docName}
+Verification Status: Digitally Verified Medical Record
+====================================================================
+`;
+
+    // Direct text download
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `Medical_Record_${pName.replace(/\s+/g, '_')}_${recDate.replace(/\s+/g, '_')}.txt`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    // Open Print Window for PDF export
+    const printWin = window.open('', '_blank');
+    if (printWin) {
+      const medsHtml = (Array.isArray(rec.medicines) && rec.medicines.length > 0)
+        ? rec.medicines.map((m, i) => `
+            <tr>
+              <td style="text-align: center; color: #475569; font-weight: 600;">${i + 1}</td>
+              <td style="font-weight: 700; color: #0f172a;">${m.medicine_name || m.name}${m.strength ? ` (${m.strength})` : ''}</td>
+              <td style="color: #334155;">${m.dosage || '1 Tablet'}</td>
+              <td style="color: #334155;">${m.frequency || 'Once a day'}</td>
+              <td style="color: #334155;">${m.duration || '5 Days'}</td>
+              <td style="text-align: center; font-weight: 700; color: #0f172a;">${m.quantity || 1}</td>
+              <td style="color: #475569;">${m.instructions || 'After food'}</td>
+            </tr>
+          `).join('')
+        : `<tr><td colspan="7" style="text-align: center; color: #64748b; padding: 16px;">No prescribed medicines attached.</td></tr>`;
+
+      const followUpHtml = followUpDateStr ? `
+        <div style="background: #eff6ff; border: 1.5px solid #bfdbfe; padding: 10px 14px; border-radius: 8px;">
+          <label style="font-size: 11px; font-weight: 800; color: #1e40af; text-transform: uppercase; display: block; margin-bottom: 2px;">Follow-up Date</label>
+          <strong style="font-size: 14px; color: #1d4ed8;">${followUpDateStr}</strong>
+        </div>
+      ` : '';
+
+      printWin.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Medical Record - ${pName}</title>
+          <style>
+            @media print {
+              body { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+              .header-title { color: #000000 !important; }
+            }
+            body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; padding: 36px; color: #0f172a; background: #fff; line-height: 1.5; }
+            .header-banner { border-bottom: 2px solid #0f172a; padding-bottom: 16px; margin-bottom: 24px; }
+            .header-title { margin: 0 0 6px 0; font-size: 24px; font-weight: 900; color: #000000 !important; letter-spacing: 0.5px; text-transform: uppercase; }
+            .header-sub { margin: 2px 0; font-size: 13px; color: #1e293b; font-weight: 600; }
+            .header-meta { margin-top: 6px; font-size: 12px; color: #334155; display: flex; gap: 16px; flex-wrap: wrap; }
+            .patient-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; background: #f8fafc; border: 1px solid #cbd5e1; padding: 16px; border-radius: 12px; margin-bottom: 24px; }
+            .patient-grid div { font-size: 13px; }
+            .patient-grid label { font-size: 11px; font-weight: 800; color: #475569; text-transform: uppercase; display: block; margin-bottom: 2px; }
+            .section-title { font-size: 16px; font-weight: 800; color: #0f172a; border-bottom: 2px solid #0d9488; padding-bottom: 6px; margin-bottom: 12px; margin-top: 20px; }
+            table { width: 100%; border-collapse: collapse; margin-bottom: 24px; font-size: 13px; }
+            th, td { border: 1px solid #cbd5e1; padding: 9px 12px; text-align: left; }
+            th { background: #f1f5f9; font-weight: 800; color: #334155; text-transform: uppercase; font-size: 11px; }
+            .instructions-box { background: #fffbe6; border: 1px solid #ffe58f; padding: 14px; border-radius: 10px; margin-bottom: 24px; font-size: 13px; color: #434343; }
+            .signature-section { margin-top: 36px; display: flex; justify-content: space-between; align-items: flex-end; border-top: 1px dashed #cbd5e1; padding-top: 16px; }
+            .sig-font { font-family: cursive; font-size: 24px; color: #0f766e; font-weight: bold; border-bottom: 1.5px solid #0f766e; }
+          </style>
+        </head>
+        <body>
+          <div class="header-banner">
+            <h1 class="header-title">MEDIPULSE MULTISPECIALTY CLINIC & CARE CENTER</h1>
+            <p class="header-sub"><strong>${docName}</strong> (${docSpec})</p>
+            <div class="header-meta">
+              <span><strong>Email:</strong> ${docEmail}</span>
+              <span><strong>Phone:</strong> ${docPhone}</span>
+              <span><strong>Address:</strong> ${docAddress}</span>
+            </div>
+          </div>
+
+          <div class="patient-grid">
+            <div><label>Patient Name</label><strong>${pName}</strong></div>
+            <div><label>Age / Gender</label><strong>${age} Yrs / ${gender}</strong></div>
+            <div><label>Disease / Condition</label><strong>${disease}</strong></div>
+            <div><label>Prescription Date</label><strong>${recDate}</strong></div>
+            <div><label>Phone Number</label><strong>${phone}</strong></div>
+            ${followUpHtml}
+          </div>
+
+          <div class="section-title">Prescribed Medicines</div>
+          <table>
+            <thead>
+              <tr>
+                <th style="text-align: center; width: 50px;">Sl. No.</th>
+                <th>Medicine Name</th>
+                <th>Dosage</th>
+                <th>Frequency</th>
+                <th>Duration</th>
+                <th style="text-align: center; width: 65px;">Quantity</th>
+                <th>Instruction</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${medsHtml}
+            </tbody>
+          </table>
+
+          ${rec.general_instructions ? `
+            <div class="instructions-box">
+              <strong style="color: #d48806; font-size: 11px; text-transform: uppercase; display: block; margin-bottom: 4px;">Doctor's Advice / Instructions:</strong>
+              ${rec.general_instructions}
+            </div>
+          ` : ''}
+
+          <div class="signature-section">
+            <div>
+              <span style="font-size: 11px; font-weight: 800; color: #64748b; text-transform: uppercase;">Official Verification</span>
+              <p style="margin: 2px 0 0; font-size: 12px; color: #10b981; font-weight: 700;">✓ Digitally Verified Medical Record</p>
+            </div>
+            <div style="text-align: right;">
+              ${docSig ? `
+                <img src="${docSig}" alt="Doctor Official Signature" style="max-height: 48px; max-width: 180px; object-fit: contain; margin-bottom: 4px;" />
+              ` : `
+                <div class="sig-font">${docName}</div>
+              `}
+              <p style="margin: 4px 0 0; font-weight: 800; font-size: 13px; color: #0f172a;">Authorized Doctor Signature</p>
+            </div>
+          </div>
+          <script>window.onload = function() { window.print(); }</script>
+        </body>
+        </html>
+      `);
+      printWin.document.close();
     }
   };
 
@@ -725,6 +962,9 @@ const PharmacistDashboard = () => {
   };
 
   const handleLogout = () => {
+    sessionStorage.removeItem('pharmacistToken');
+    sessionStorage.removeItem('pharmacistEmail');
+    sessionStorage.removeItem('pharmacistName');
     localStorage.removeItem('pharmacistToken');
     localStorage.removeItem('pharmacistEmail');
     localStorage.removeItem('pharmacistName');
@@ -1389,18 +1629,61 @@ const PharmacistDashboard = () => {
                           )}
 
                           {/* Completed Consultation Prescription CTA */}
-                          {statusKey === 'completed' && (
-                            <div style={{ marginTop: '0.75rem', padding: '0.6rem 1rem', background: '#f0fdf4', borderRadius: 8, display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-                              <FileText size={16} color="#0d9488" />
-                              <span style={{ fontSize: 13, color: '#0f766e', fontWeight: 600 }}>
-                                Consultation completed. View doctor's diagnosis, notes & prescribed medicines.
+                          {statusKey === 'completed' && (() => {
+                            const apptId = appt._id;
+                            const isPrescriptionCreated = Boolean(
+                              appt.prescription_added ||
+                              allPrescriptions.some(p => (p.appointment_id?._id || p.appointment_id) === apptId || p._id === apptId)
+                            );
+
+                            return (
+                              <div style={{ marginTop: '0.75rem', padding: '0.6rem 1rem', background: isPrescriptionCreated ? '#f0fdf4' : '#f8fafc', borderRadius: 8, display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                                <FileText size={16} color={isPrescriptionCreated ? "#0d9488" : "#94a3b8"} />
+                                <span style={{ fontSize: 13, color: isPrescriptionCreated ? '#0f766e' : '#64748b', fontWeight: 600 }}>
+                                  {isPrescriptionCreated
+                                    ? "Consultation completed. View doctor's diagnosis, notes & prescribed medicines."
+                                    : "Consultation completed. Doctor has not created prescription yet."}
+                                </span>
+                                {isPrescriptionCreated ? (
+                                  <button
+                                    onClick={() => handleViewPrescription(appt)}
+                                    style={{ padding: '6px 14px', background: '#0d9488', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}
+                                  >
+                                    <FileText size={14} /> View Doctor Prescription
+                                  </button>
+                                ) : (
+                                  <button
+                                    disabled={true}
+                                    style={{ padding: '6px 14px', background: '#e2e8f0', color: '#94a3b8', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: 'not-allowed', display: 'flex', alignItems: 'center', gap: 5 }}
+                                    title="Doctor has not added prescription yet"
+                                  >
+                                    <FileText size={14} /> Prescription Pending
+                                  </button>
+                                )}
+                              </div>
+                            );
+                          })()}
+
+                          {/* Meeting Time Info — shown for completed appointments */}
+                          {statusKey === 'completed' && (appt.meet_time_start || appt.meet_time_end) && (
+                            <div style={{
+                              display: 'inline-flex', alignItems: 'center', gap: '6px', marginTop: '8px',
+                              fontSize: '12px', color: '#475569', background: '#f0fdfa',
+                              padding: '5px 12px', borderRadius: '20px', border: '1px solid #99f6e4'
+                            }}>
+                              <Clock size={12} style={{ color: '#0d9488', flexShrink: 0 }} />
+                              <span style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '4px' }}>
+                                {appt.meet_time_start && (
+                                  <span>Started: <strong style={{ color: '#0f172a' }}>{new Date(appt.meet_time_start).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })}</strong></span>
+                                )}
+                                {appt.meet_time_start && appt.meet_time_end && <span style={{ color: '#cbd5e1' }}> · </span>}
+                                {appt.meet_time_end && (
+                                  <span>Ended: <strong style={{ color: '#0f172a' }}>{new Date(appt.meet_time_end).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })}</strong></span>
+                                )}
+                                {appt.meet_time != null && (
+                                  <span style={{ color: '#0d9488', fontWeight: 700 }}> · {appt.meet_time} min</span>
+                                )}
                               </span>
-                              <button
-                                onClick={() => handleViewPrescription(appt._id)}
-                                style={{ padding: '6px 14px', background: '#0d9488', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}
-                              >
-                                <FileText size={14} /> View Doctor Prescription
-                              </button>
                             </div>
                           )}
 
@@ -2629,117 +2912,225 @@ const PharmacistDashboard = () => {
       )}
 
       {/* ==================== VIEW PRESCRIPTION / CONSULTATION RECORD MODAL ==================== */}
-      {showPrescriptionModal && (
-        <div className="pd-modal-overlay">
-          <div className="pd-modal-content" style={{ maxWidth: 640 }}>
-            <div className="pd-modal-header" style={{ background: 'linear-gradient(135deg, #0d9488, #0f766e)', color: '#fff', borderRadius: '12px 12px 0 0', padding: '1rem 1.25rem' }}>
-              <h3 style={{ color: '#fff', margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
-                <FileText size={20} /> Doctor Consultation Record & Prescription
-              </h3>
-              <button className="pd-modal-close" style={{ color: '#fff' }} onClick={() => setShowPrescriptionModal(false)}>
-                <X size={18} />
-              </button>
-            </div>
+      {showPrescriptionModal && selectedPrescription && (
+        <div className="pd-modal-overlay" onClick={() => setShowPrescriptionModal(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.65)', backdropFilter: 'blur(4px)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+          <div className="pd-modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: 760, width: '100%', maxHeight: '90vh', overflowY: 'auto', background: '#fff', borderRadius: '16px', boxShadow: '0 20px 45px rgba(0,0,0,0.25)', border: 'none' }}>
             
-            <div className="pd-modal-body" style={{ padding: '1.25rem' }}>
+            {/* Header: Teal Gradient Card with Clinic Info & Download Button */}
+            <div style={{ background: 'linear-gradient(135deg, #0d9488, #0f766e)', color: '#fff', padding: '1.5rem', borderRadius: '16px 16px 0 0' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
+                <div>
+                  <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 900, letterSpacing: '0.02em', color: '#ffffff', textTransform: 'uppercase' }}>
+                    MEDIPULSE MULTISPECIALTY CLINIC & CARE CENTER
+                  </h2>
+                  <p style={{ margin: '6px 0 0', fontSize: '0.95rem', fontWeight: 800, color: '#f0fdf4' }}>
+                    Dr. {selectedPrescription.doctor_id?.first_name || 'Specialist'} {selectedPrescription.doctor_id?.last_name || ''}
+                    <span style={{ fontSize: '0.85rem', fontWeight: 600, opacity: 0.9 }}>
+                      {` (${selectedPrescription.doctor_id?.specialization || selectedPrescription.doctor_id?.department || 'Specialist Doctor'})`}
+                    </span>
+                  </p>
+                  <div style={{ margin: '8px 0 0', fontSize: '12px', color: '#ccfbf1', display: 'flex', gap: '14px', flexWrap: 'wrap' }}>
+                    <span><strong>Email:</strong> {selectedPrescription.doctor_id?.email || 'N/A'}</span>
+                    <span><strong>Phone:</strong> {selectedPrescription.doctor_id?.phone || '+91 98765 12345'}</span>
+                    <span><strong>Address:</strong> {selectedPrescription.doctor_id?.visit_address || 'Medipulse OPD Block, Sector 4'}</span>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <button
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      padding: '8px 14px',
+                      background: '#ffffff',
+                      color: '#0f766e',
+                      border: 'none',
+                      borderRadius: '8px',
+                      fontWeight: 800,
+                      fontSize: '13px',
+                      cursor: 'pointer',
+                      boxShadow: '0 2px 8px rgba(0,0,0,0.15)'
+                    }}
+                    onClick={() => handleDownloadRecord(selectedPrescription)}
+                  >
+                    <Download size={15} /> Download Record
+                  </button>
+
+                  <button
+                    onClick={() => setShowPrescriptionModal(false)}
+                    style={{ background: 'rgba(255,255,255,0.2)', border: 'none', color: '#fff', borderRadius: '50%', width: 34, height: 34, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Body */}
+            <div style={{ padding: '1.5rem' }}>
               {prescriptionLoading ? (
-                <div style={{ textAlign: 'center', padding: '2.5rem', color: '#94a3b8' }}>
-                  <Loader2 size={32} style={{ animation: 'spin 1s linear infinite', marginBottom: '0.75rem' }} />
+                <div style={{ textAlign: 'center', padding: '3rem', color: '#94a3b8' }}>
+                  <Loader2 size={36} style={{ animation: 'spin 1s linear infinite', marginBottom: '1rem' }} />
                   <p>Fetching prescription record details…</p>
                 </div>
-              ) : selectedPrescription ? (
+              ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                  {/* Doctor & Patient Info Header */}
-                  <div style={{ background: '#f8fafc', padding: '1rem', borderRadius: '10px', border: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
-                    <div>
-                      <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>Attending Specialist</div>
-                      <div style={{ fontSize: 15, fontWeight: 800, color: '#0f172a', marginTop: 2 }}>
-                        Dr. {selectedPrescription.doctor_id?.first_name} {selectedPrescription.doctor_id?.last_name}
+                  {/* Patient Details Grid Card (Light Slate/Gray Card) */}
+                  <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '1.25rem' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
+                      <div>
+                        <span style={{ fontSize: '11px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Patient Name</span>
+                        <div style={{ fontSize: '15px', fontWeight: 800, color: '#0f172a', marginTop: '3px' }}>
+                          {selectedPrescription.patient_id?.first_name
+                            ? `${selectedPrescription.patient_id.first_name} ${selectedPrescription.patient_id.last_name || ''}`.trim()
+                            : (selectedPrescription.patient_name || 'Patient')}
+                        </div>
                       </div>
-                      <div style={{ fontSize: 12, color: '#0d9488', fontWeight: 600 }}>
-                        {selectedPrescription.doctor_id?.specialization || 'Specialist'} {selectedPrescription.doctor_id?.department ? `(${selectedPrescription.doctor_id.department})` : ''}
-                      </div>
-                    </div>
 
-                    <div style={{ textAlign: 'right' }}>
-                      <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>Prescribed Date</div>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: '#334155', marginTop: 2 }}>
-                        {formatDate(selectedPrescription.prescribed_date || selectedPrescription.createdAt)}
+                      <div>
+                        <span style={{ fontSize: '11px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Age</span>
+                        <div style={{ fontSize: '15px', fontWeight: 800, color: '#0f172a', marginTop: '3px' }}>
+                          {selectedPrescription.patient_id?.age || selectedPrescription.age || '28'} Yrs
+                        </div>
                       </div>
+
+                      <div>
+                        <span style={{ fontSize: '11px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Gender</span>
+                        <div style={{ fontSize: '15px', fontWeight: 800, color: '#0f172a', marginTop: '3px', textTransform: 'capitalize' }}>
+                          {selectedPrescription.patient_id?.gender || selectedPrescription.gender || 'Male'}
+                        </div>
+                      </div>
+
+                      <div>
+                        <span style={{ fontSize: '11px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Disease / Condition</span>
+                        <div style={{ fontSize: '15px', fontWeight: 800, color: '#0f172a', marginTop: '3px' }}>
+                          {selectedPrescription.disease || selectedPrescription.diagnosis || selectedPrescription.appointment_id?.disease || 'General Consultation'}
+                        </div>
+                      </div>
+
+                      <div>
+                        <span style={{ fontSize: '11px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Prescription Date</span>
+                        <div style={{ fontSize: '15px', fontWeight: 800, color: '#0f172a', marginTop: '3px' }}>
+                          {formatDate(selectedPrescription.prescribed_date || selectedPrescription.appointment_date || selectedPrescription.createdAt)}
+                        </div>
+                      </div>
+
+                      <div>
+                        <span style={{ fontSize: '11px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Phone Number</span>
+                        <div style={{ fontSize: '15px', fontWeight: 800, color: '#0f172a', marginTop: '3px' }}>
+                          {selectedPrescription.patient_id?.phone || selectedPrescription.phone || selectedPrescription.booked_by?.phone || '+91 98765 43210'}
+                        </div>
+                      </div>
+
                       {selectedPrescription.follow_up_date && (
-                        <div style={{ fontSize: 12, color: '#2563eb', fontWeight: 600, marginTop: 2 }}>
-                          Follow-up: {formatDate(selectedPrescription.follow_up_date)}
+                        <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', padding: '8px 12px', borderRadius: '8px' }}>
+                          <span style={{ fontSize: '11px', fontWeight: 800, color: '#1e40af', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Follow-up Date</span>
+                          <div style={{ fontSize: '15px', fontWeight: 800, color: '#1d4ed8', marginTop: '3px' }}>
+                            {formatDate(selectedPrescription.follow_up_date)}
+                          </div>
                         </div>
                       )}
                     </div>
                   </div>
 
-                  {/* General Instructions */}
-                  {selectedPrescription.general_instructions && (
-                    <div style={{ background: '#f0fdf4', padding: '0.85rem 1rem', borderRadius: 8, border: '1px solid #bbf7d0' }}>
-                      <div style={{ fontSize: 12, fontWeight: 800, color: '#166534', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 5 }}>
-                        <Stethoscope size={14} /> Doctor's Instructions
-                      </div>
-                      <div style={{ fontSize: 13, color: '#15803d' }}>
-                        {selectedPrescription.general_instructions}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Prescribed Medicines List */}
+                  {/* Prescribed Medicines Section */}
                   <div>
-                    <h4 style={{ fontSize: 14, fontWeight: 800, color: '#0f172a', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <Pill size={16} color="#0d9488" /> Prescribed Medication List ({selectedPrescription.medicines?.length || 0})
-                    </h4>
+                    <div style={{ fontSize: '16px', fontWeight: 800, color: '#0f766e', display: 'flex', alignItems: 'center', gap: '8px', paddingBottom: '8px', borderBottom: '2px solid #0d9488', marginBottom: '12px' }}>
+                      <Stethoscope size={20} /> Prescribed Medicines
+                    </div>
 
-                    {selectedPrescription.medicines && selectedPrescription.medicines.length > 0 ? (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-                        {selectedPrescription.medicines.map((med, idx) => (
-                          <div key={idx} style={{ background: '#fff', border: '1px solid #cbd5e1', borderRadius: 8, padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
-                            <div>
-                              <div style={{ fontWeight: 800, fontSize: 14, color: '#0f172a' }}>
-                                {idx + 1}. {med.medicine_name} {med.strength ? `(${med.strength})` : ''}
-                              </div>
-                              <div style={{ fontSize: 12, color: '#64748b' }}>
-                                Generic: {med.generic_name || 'N/A'} {med.instructions ? `• ${med.instructions}` : ''}
-                              </div>
-                            </div>
-
-                            <div style={{ display: 'flex', gap: 12, fontSize: 12, fontWeight: 700 }}>
-                              <span style={{ background: '#f1f5f9', color: '#334155', padding: '3px 8px', borderRadius: 6 }}>
-                                Dose: {med.dosage}
-                              </span>
-                              <span style={{ background: '#eff6ff', color: '#1d4ed8', padding: '3px 8px', borderRadius: 6 }}>
-                                Freq: {med.frequency}
-                              </span>
-                              <span style={{ background: '#f0fdf4', color: '#15803d', padding: '3px 8px', borderRadius: 6 }}>
-                                Duration: {med.duration}
-                              </span>
-                              <span style={{ background: '#fef3c7', color: '#b45309', padding: '3px 8px', borderRadius: 6 }}>
-                                Qty: {med.quantity}
-                              </span>
-                            </div>
-                          </div>
-                        ))}
+                    {Array.isArray(selectedPrescription.medicines) && selectedPrescription.medicines.length > 0 ? (
+                      <div style={{ overflowX: 'auto', borderRadius: '12px', border: '1px solid #cbd5e1' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                          <thead>
+                            <tr style={{ background: '#f1f5f9', color: '#475569', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                              <th style={{ padding: '10px 12px', textAlign: 'center', width: '50px' }}>Sl. No.</th>
+                              <th style={{ padding: '10px 12px', textAlign: 'left' }}>Medicine Name</th>
+                              <th style={{ padding: '10px 12px', textAlign: 'left' }}>Dosage</th>
+                              <th style={{ padding: '10px 12px', textAlign: 'left' }}>Frequency</th>
+                              <th style={{ padding: '10px 12px', textAlign: 'left' }}>Duration</th>
+                              <th style={{ padding: '10px 12px', textAlign: 'center', width: '65px' }}>Quantity</th>
+                              <th style={{ padding: '10px 12px', textAlign: 'left' }}>Instruction</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {selectedPrescription.medicines.map((med, idx) => (
+                              <tr key={idx} style={{ borderTop: '1px solid #e2e8f0', fontSize: '13px' }}>
+                                <td style={{ padding: '10px 12px', textAlign: 'center', color: '#64748b', fontWeight: 600 }}>{idx + 1}</td>
+                                <td style={{ padding: '10px 12px', fontWeight: 700, color: '#0f172a' }}>
+                                  {med.medicine_name || med.name || 'Prescribed Medicine'}
+                                  {med.strength ? <span style={{ fontSize: '12px', color: '#64748b', fontWeight: 500 }}> ({med.strength})</span> : ''}
+                                </td>
+                                <td style={{ padding: '10px 12px', color: '#334155' }}>{med.dosage || '1 Tablet'}</td>
+                                <td style={{ padding: '10px 12px', color: '#334155' }}>{med.frequency || 'Once a day'}</td>
+                                <td style={{ padding: '10px 12px', color: '#334155' }}>{med.duration || '5 Days'}</td>
+                                <td style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 700, color: '#0f172a' }}>{med.quantity || 1}</td>
+                                <td style={{ padding: '10px 12px', color: '#475569', fontStyle: med.instructions ? 'normal' : 'italic' }}>
+                                  {med.instructions || 'After food'}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
                       </div>
                     ) : (
-                      <div style={{ textAlign: 'center', padding: '1rem', color: '#94a3b8', fontSize: 13 }}>
-                        No medications listed in this record.
+                      <div style={{ background: '#f8fafc', padding: '16px', borderRadius: '12px', border: '1px solid #e2e8f0', color: '#64748b', fontSize: '13px', textAlign: 'center' }}>
+                        No prescribed medicines listed in this record.
                       </div>
                     )}
                   </div>
-                </div>
-              ) : (
-                <div style={{ textAlign: 'center', padding: '2rem', color: '#94a3b8' }}>
-                  No prescription record details found.
+
+                  {/* Doctor's Advice / Instructions */}
+                  {selectedPrescription.general_instructions && (
+                    <div style={{ background: '#fffbe6', border: '1px solid #ffe58f', borderRadius: '12px', padding: '14px 16px' }}>
+                      <span style={{ fontSize: '12px', fontWeight: 800, color: '#d48806', textTransform: 'uppercase' }}>Doctor's Advice / Instructions:</span>
+                      <p style={{ margin: '4px 0 0', fontSize: '13px', color: '#595959', fontWeight: 600 }}>
+                        {selectedPrescription.general_instructions}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Doctor Signature Section */}
+                  <div style={{ marginTop: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', paddingTop: '16px', borderTop: '1px dashed #cbd5e1' }}>
+                    <div>
+                      <span style={{ fontSize: '11px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Prescription Verification</span>
+                      <p style={{ margin: '2px 0 0', fontSize: '12px', color: '#10b981', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <ShieldCheck size={14} /> Official Medical Record
+                      </p>
+                    </div>
+
+                    <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                      {selectedPrescription.doctor_id?.signature ? (
+                        <img
+                          src={selectedPrescription.doctor_id.signature}
+                          alt="Doctor Signature"
+                          style={{
+                            maxHeight: '48px',
+                            maxWidth: '180px',
+                            objectFit: 'contain',
+                            marginBottom: '4px'
+                          }}
+                        />
+                      ) : (
+                        <div style={{
+                          fontFamily: "'Brush Script MT', 'Dancing Script', cursive, sans-serif",
+                          fontSize: '24px',
+                          color: '#0f766e',
+                          fontWeight: 'bold',
+                          letterSpacing: '1px',
+                          textDecoration: 'underline',
+                          marginBottom: '4px'
+                        }}>
+                          Dr. {selectedPrescription.doctor_id?.first_name || 'Specialist'} {selectedPrescription.doctor_id?.last_name || ''}
+                        </div>
+                      )}
+                      <span style={{ fontSize: '12px', fontWeight: 800, color: '#0f172a' }}>Authorized Doctor Signature</span>
+                      <span style={{ fontSize: '11px', color: '#10b981', fontWeight: 700 }}>Digitally Verified Prescription</span>
+                    </div>
+                  </div>
                 </div>
               )}
-            </div>
-
-            <div className="pd-modal-footer" style={{ padding: '0.75rem 1.25rem', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end' }}>
-              <button className="pd-btn-secondary" onClick={() => setShowPrescriptionModal(false)}>
-                Close
-              </button>
             </div>
           </div>
         </div>

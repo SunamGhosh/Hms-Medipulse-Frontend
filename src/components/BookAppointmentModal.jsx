@@ -102,6 +102,28 @@ const BookAppointmentModal = ({ isOpen, onClose, preselectedDoctorId = null }) =
   }, [selectedDoctor, appt.appointment_date]);
 
   /* reset on open */
+  const loadPatients = async () => {
+    const token = getToken();
+    if (!token) return;
+    setPatientsLoading(true);
+    try {
+      const res = await fetch(`${API}/patient/my`, { headers: { Authorization: `Bearer ${token}` } });
+      const data = await res.json();
+      if (res.ok) setPatients(data.patients || []);
+    } catch { /* silently fail */ }
+    finally { setPatientsLoading(false); }
+  };
+
+  const loadDoctors = async () => {
+    setDoctorsLoading(true);
+    try {
+      const res = await fetch(`${API}/doctor/active`);
+      const data = await res.json();
+      if (res.ok) setDoctors(data.doctors || []);
+    } catch { /* silently fail */ }
+    finally { setDoctorsLoading(false); }
+  };
+
   useEffect(() => {
     if (isOpen) {
       setStep(1);
@@ -124,28 +146,6 @@ const BookAppointmentModal = ({ isOpen, onClose, preselectedDoctorId = null }) =
       if (doc) setSelectedDoctor(doc);
     }
   }, [doctors, preselectedDoctorId]);
-
-  const loadPatients = async () => {
-    const token = getToken();
-    if (!token) return;
-    setPatientsLoading(true);
-    try {
-      const res = await fetch(`${API}/patient/my`, { headers: { Authorization: `Bearer ${token}` } });
-      const data = await res.json();
-      if (res.ok) setPatients(data.patients || []);
-    } catch { /* silently fail */ }
-    finally { setPatientsLoading(false); }
-  };
-
-  const loadDoctors = async () => {
-    setDoctorsLoading(true);
-    try {
-      const res = await fetch(`${API}/doctor/active`);
-      const data = await res.json();
-      if (res.ok) setDoctors(data.doctors || []);
-    } catch { /* silently fail */ }
-    finally { setDoctorsLoading(false); }
-  };
 
   /* ── Patient creation ── */
   const handleAddPatient = async (e) => {

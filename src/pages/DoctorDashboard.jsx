@@ -13,7 +13,7 @@ import WritePrescriptionModal from '../components/WritePrescriptionModal';
 import PatientRecordsModal from '../components/PatientRecordsModal';
 
 const API = import.meta.env.VITE_URL;
-const getToken = () => localStorage.getItem('doctorToken');
+const getToken = () => sessionStorage.getItem('doctorToken') || localStorage.getItem('doctorToken');
 
 const formatTime24 = (timeStr) => {
   if (!timeStr) return '';
@@ -39,6 +39,7 @@ const STATUS_CONFIG = {
   completed: { color: 'green',  label: 'Completed', dot: '#10b981' },
   cancelled: { color: 'rose',   label: 'Cancelled', dot: '#f43f5e' },
   rejected:  { color: 'orange', label: 'Rejected',  dot: '#f97316' },
+  expired:   { color: 'gray',   label: 'Expired',   dot: '#94a3b8' },
 };
 
 const VIEWS = {
@@ -61,6 +62,14 @@ const DoctorDashboard = () => {
 
   const [isPatientRecordsModalOpen, setIsPatientRecordsModalOpen] = useState(false);
   const [selectedPatientForRecords, setSelectedPatientForRecords] = useState(null);
+
+  // Cancellation / Rejection modal state
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [cancelModalAppt, setCancelModalAppt] = useState(null);       // appointment being acted on
+  const [cancelModalType, setCancelModalType] = useState('cancel');   // 'cancel' | 'rejected'
+  const [cancelReason, setCancelReason] = useState('');
+  const [cancelRemarks, setCancelRemarks] = useState('');
+  const [cancelSubmitting, setCancelSubmitting] = useState(false);
   
   const [appointments, setAppointments] = useState([]);
   const [apptLoading, setApptLoading] = useState(false);
@@ -77,10 +86,68 @@ const DoctorDashboard = () => {
   const [showSpecsModal, setShowSpecsModal] = useState(false);
   const [prescriptions, setPrescriptions] = useState([]);
   const [prescLoading, setPrescLoading] = useState(false);
+  const [medicalRecords, setMedicalRecords] = useState([]);
+  const [medRecLoading, setMedRecLoading] = useState(false);
   const [recordSearchQuery, setRecordSearchQuery] = useState('');
   const [selectedRecordSheet, setSelectedRecordSheet] = useState(null);
   const [showRecordSheet, setShowRecordSheet] = useState(false);
   const [doctorProfile, setDoctorProfile] = useState(null);
+
+  // Real-time clock for appointment meeting time validation
+  const [nowTime, setNowTime] = useState(() => new Date());
+  useEffect(() => {
+    const timer = setInterval(() => setNowTime(new Date()), 15000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // Parse appointment scheduled Date object from appointment_date and appointment_time
+  const getScheduledDateTime = useCallback((appt) => {
+    if (!appt?.appointment_date || !appt?.appointment_time) return null;
+    const d = new Date(appt.appointment_date);
+    const timeStr = String(appt.appointment_time).trim();
+    let hours = 0;
+    let minutes = 0;
+    if (timeStr.toLowerCase().includes('am') || timeStr.toLowerCase().includes('pm')) {
+      const isPm = timeStr.toLowerCase().includes('pm');
+      const cleanTime = timeStr.replace(/(am|pm)/gi, '').trim();
+      const parts = cleanTime.split(':').map(Number);
+      hours = parts[0] || 0;
+      minutes = parts[1] || 0;
+      if (isPm && hours < 12) hours += 12;
+      if (!isPm && hours === 12) hours = 0;
+    } else {
+      const parts = timeStr.split(':').map(Number);
+      hours = parts[0] || 0;
+      minutes = parts[1] || 0;
+    }
+    d.setHours(hours, minutes, 0, 0);
+    return d;
+  }, []);
+
+  // Check if current time is before scheduled appointment time
+  const isBeforeScheduledTime = useCallback((appt) => {
+    const scheduled = getScheduledDateTime(appt);
+    if (!scheduled) return false;
+    return nowTime < scheduled;
+  }, [getScheduledDateTime, nowTime]);
+
+  // Dynamic effective status (if pending/confirmed past scheduled time or meeting limit without action, status is expired)
+  const getEffectiveStatus = useCallback((appt) => {
+    const st = (appt?.status || 'pending').toLowerCase().trim();
+    if (['completed', 'cancelled', 'rejected', 'expired'].includes(st)) return st;
+
+    const scheduled = getScheduledDateTime(appt);
+    if (scheduled) {
+      if (st === 'pending' && nowTime > scheduled) {
+        return 'expired';
+      }
+      if (st === 'confirmed' && !appt.meet_time_start) {
+        const expireTime = new Date(scheduled.getTime() + 30 * 60 * 1000);
+        if (nowTime > expireTime) return 'expired';
+      }
+    }
+    return st;
+  }, [getScheduledDateTime, nowTime]);
 
   // Profile Edit & View states
   const [profileLoading, setProfileLoading] = useState(false);
@@ -229,7 +296,7 @@ const DoctorDashboard = () => {
   useEffect(() => {
     const token = getToken();
     if (!token) { navigate('/doctor/login'); return; }
-    const stored = localStorage.getItem('doctorName') || 'Doctor';
+    const stored = (sessionStorage.getItem('doctorName') || localStorage.getItem('doctorName') || 'Doctor').replace(/^(dr\.\s*|dr\s+)/i, '');
     setDoctorName(stored.charAt(0).toUpperCase() + stored.slice(1));
     const h = new Date().getHours();
     if (h < 12) setGreeting('Good morning');
@@ -260,7 +327,7 @@ const DoctorDashboard = () => {
       const data = await res.json();
       if (res.ok) {
         const appts = data.appointments || [];
-        const newPendingCount = appts.filter(a => a.status === 'pending').length;
+        const newPendingCount = appts.filter(a => getEffectiveStatus(a) === 'pending').length;
         if (isPolling && newPendingCount > pendingCountRef.current) {
           setNotification('New appointment request received!');
           setTimeout(() => setNotification(''), 5000);
@@ -284,8 +351,15 @@ const DoctorDashboard = () => {
         headers: { Authorization: `Bearer ${token}` }
       });
       const data = await res.json();
-      if (res.ok) {
+      if (res.ok && data.doctor) {
         setDoctorProfile(data.doctor);
+        const rawName = `${data.doctor.first_name || ''} ${data.doctor.last_name || ''}`.trim();
+        const cleanName = rawName.replace(/^(dr\.\s*|dr\s+)/i, '');
+        if (cleanName) {
+          setDoctorName(cleanName);
+          sessionStorage.setItem('doctorName', cleanName);
+          localStorage.setItem('doctorName', cleanName);
+        }
         setEditForm({
           phone: data.doctor.phone || '',
           consult_fee: data.doctor.consult_fee || '',
@@ -334,16 +408,36 @@ const DoctorDashboard = () => {
     finally { setPrescLoading(false); }
   }, []);
 
+  const fetchDoctorMedicalRecords = useCallback(async () => {
+    const token = getToken();
+    if (!token) return;
+    setMedRecLoading(true);
+    try {
+      const res = await fetch(`${API}/med-rec/my-records`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setMedicalRecords(data.data || []);
+      }
+    } catch { /* silent */ }
+    finally { setMedRecLoading(false); }
+  }, []);
+
   useEffect(() => {
     fetchAppointments();
     fetchProfile();
     fetchPatients();
     fetchDoctorPrescriptions();
+    fetchDoctorMedicalRecords();
     const intervalId = setInterval(() => fetchAppointments(true), 15000);
     return () => clearInterval(intervalId);
-  }, [fetchAppointments, fetchProfile, fetchPatients, fetchDoctorPrescriptions]);
+  }, [fetchAppointments, fetchProfile, fetchPatients, fetchDoctorPrescriptions, fetchDoctorMedicalRecords]);
 
   const handleLogout = () => {
+    sessionStorage.removeItem('doctorToken');
+    sessionStorage.removeItem('doctorEmail');
+    sessionStorage.removeItem('doctorName');
     localStorage.removeItem('doctorToken');
     localStorage.removeItem('doctorEmail');
     localStorage.removeItem('doctorName');
@@ -351,7 +445,7 @@ const DoctorDashboard = () => {
     navigate('/doctor/login');
   };
 
-  const handleStatusUpdate = async (id, status) => {
+  const handleStatusUpdate = async (id, status, cancelReasonText = '') => {
     const token = getToken();
     try {
       const endpoint = status === 'confirmed' ? 'confirmed' : status === 'completed' ? 'complete' : status === 'rejected' ? 'reject' : 'cancel';
@@ -359,21 +453,77 @@ const DoctorDashboard = () => {
       const res = await fetch(`${API}/appointment/doctor/${id}/${endpoint}`, {
         method,
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ cancel_reason: 'Updated by doctor' })
+        body: JSON.stringify({ cancel_reason: cancelReasonText || 'Updated by doctor' })
       });
       if (res.ok) fetchAppointments();
     } catch { /* silent */ }
   };
 
+  // Start meeting — stamps meet_time_start on the appointment
+  const handleStartMeeting = async (appt) => {
+    const apptId = typeof appt === 'object' ? appt._id : appt;
+    const mode = typeof appt === 'object' ? appt.consult_mode : 'offline';
+    const token = getToken();
+    try {
+      const res = await fetch(`${API}/appointment/doctor/${apptId}/start-meeting`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        toast.success('Meeting started! Time tracking initiated.');
+        fetchAppointments();
+        if (mode === 'online') {
+          handleJoinVideoCall(apptId);
+        }
+      } else {
+        const data = await res.json();
+        toast.error(data.message || 'Failed to start meeting');
+      }
+    } catch { toast.error('Network error starting meeting'); }
+  };
+
+  // Open the cancellation / rejection modal
+  const handleOpenCancelModal = (appt, type) => {
+    setCancelModalAppt(appt);
+    setCancelModalType(type);  // 'cancel' | 'rejected'
+    setCancelReason('');
+    setCancelRemarks('');
+    setShowCancelModal(true);
+  };
+
+  // Submit the cancellation / rejection with the form data
+  const handleCancelSubmit = async (e) => {
+    e.preventDefault();
+    if (!cancelReason) { toast.error('Please select a reason.'); return; }
+    setCancelSubmitting(true);
+    const fullReason = cancelRemarks ? `${cancelReason} — ${cancelRemarks}` : cancelReason;
+    await handleStatusUpdate(cancelModalAppt._id, cancelModalType, fullReason);
+    setCancelSubmitting(false);
+    setShowCancelModal(false);
+    setCancelModalAppt(null);
+    toast.success(
+      cancelModalType === 'rejected'
+        ? 'Appointment rejected successfully.'
+        : 'Appointment cancelled successfully.'
+    );
+  };
+
   const handleJoinVideoCall = async (apptId) => {
     const token = getToken();
-    fetch(`${API}/appointment/${apptId}/video-call-reminder`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`
-      }
-    }).catch(err => console.error('Video call reminder failed:', err));
+    // Mark appointment as completed because doctor is attending the meet
+    try {
+      await fetch(`${API}/appointment/doctor/${apptId}/call-complete`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        }
+      });
+      // Refresh appointments list so status reflects immediately
+      fetchAppointments();
+    } catch (err) {
+      console.error('Call complete notification failed:', err);
+    }
 
     navigate(`/video-call/MediPulse_${apptId}`);
   };
@@ -409,13 +559,14 @@ const DoctorDashboard = () => {
 
 
 
-  const pendingAppts = appointments.filter(a => a.status === 'pending').length;
+  const pendingAppts = appointments.filter(a => getEffectiveStatus(a) === 'pending').length;
   const todaysAppts = appointments.filter(a => new Date(a.appointment_date).toDateString() === new Date().toDateString()).length;
-  const totalCompleted = appointments.filter(a => a.status === 'completed').length;
+  const completedAppointments = appointments.filter(a => (a.status || '').toLowerCase() === 'completed');
+  const totalCompleted = completedAppointments.length;
   
   const stats = [
     { icon: <CalendarCheck size={22} />, label: 'Today\'s Visits', value: apptLoading ? '…' : todaysAppts, trend: 'Patients', color: 'teal' },
-    { icon: <Users size={22} />,         label: 'Total Patients',  value: apptLoading ? '…' : appointments.length, trend: 'All time',    color: 'blue' },
+    { icon: <Users size={22} />,         label: 'Total Patients',  value: apptLoading ? '…' : completedAppointments.length, trend: 'All time',    color: 'blue' },
     { icon: <CheckCircle2 size={22} />,  label: 'Completed',       value: apptLoading ? '…' : totalCompleted, trend: 'Consultations', color: 'purple' },
     { icon: <AlertCircle size={22} />,   label: 'Pending',         value: apptLoading ? '…' : pendingAppts, trend: 'Require action',         color: 'rose' },
   ];
@@ -424,7 +575,7 @@ const DoctorDashboard = () => {
 
   const getStatusCount = (key) => {
     if (key === 'all') return appointments.length;
-    return appointments.filter(a => (a.status || '').toLowerCase() === key).length;
+    return appointments.filter(a => getEffectiveStatus(a) === key).length;
   };
 
   const statusOptions = [
@@ -440,7 +591,7 @@ const DoctorDashboard = () => {
   const filteredAppointments = appointments.filter((appt) => {
     // 1. Status Filter
     if (statusFilter !== 'all') {
-      const apptStatus = (appt.status || '').toLowerCase();
+      const apptStatus = getEffectiveStatus(appt);
       if (apptStatus !== statusFilter) {
         return false;
       }
@@ -487,8 +638,6 @@ const DoctorDashboard = () => {
     return true;
   });
 
-  const completedAppointments = appointments.filter(a => (a.status || '').toLowerCase() === 'completed');
-
   const filteredPatientsList = completedAppointments.filter((appt) => {
     if (!patientSearchQuery.trim()) return true;
     const q = patientSearchQuery.toLowerCase().trim();
@@ -501,7 +650,86 @@ const DoctorDashboard = () => {
     return pName.includes(q) || bName.includes(q) || disease.includes(q) || email.includes(q) || phone.includes(q);
   });
 
-  const filteredPatientRecords = (prescriptions.length > 0 ? prescriptions : completedAppointments).filter((rec) => {
+  const handleViewDoctorRecordSheet = async (target) => {
+    try {
+      const token = getToken();
+      if (!target) return;
+      
+      const apptId = typeof target.appointment_id === 'object' 
+        ? target.appointment_id?._id 
+        : (target.appointment_id || (target._id && String(target._id).startsWith('APPOINTMENT') ? target._id : null));
+      
+      let fetchedPrescription = null;
+
+      // 1. Try fetching by appointment ID
+      if (apptId) {
+        const res = await fetch(`${API}/prescription/appointment/${apptId}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.prescription) fetchedPrescription = data.prescription;
+        }
+      }
+
+      // 2. If target is a prescription/record object (and not an appointment ID string), try fetching by ID
+      if (!fetchedPrescription && target._id && !String(target._id).startsWith('APPOINTMENT')) {
+        const resDirect = await fetch(`${API}/prescription/${target._id}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (resDirect.ok) {
+          const dataDirect = await resDirect.json();
+          if (dataDirect.prescription) fetchedPrescription = dataDirect.prescription;
+        }
+      }
+
+      // 3. Fallback to local prescriptions array or medicalRecords array
+      if (!fetchedPrescription) {
+        const foundPresc = prescriptions.find(p => 
+          (p.appointment_id?._id || p.appointment_id) === (apptId || target._id) || p._id === target._id
+        );
+        if (foundPresc) {
+          fetchedPrescription = foundPresc;
+        } else {
+          const foundRec = medicalRecords.find(r => 
+            (r.appointment_id?._id || r.appointment_id) === (apptId || target._id) || r._id === target._id
+          );
+          if (foundRec) {
+            fetchedPrescription = {
+              _id: foundRec._id,
+              appointment_id: foundRec.appointment_id,
+              patient_id: foundRec.patient_id,
+              doctor_id: foundRec.doctor_id,
+              medicines: (foundRec.medicines_prescribed || []).map(m => ({
+                medicine_name: m.medicine_id?.medicine_name || m.medicine_name || 'Prescribed Item',
+                dosage: m.dosage || '',
+                frequency: m.frequency || '',
+                duration: m.duration || '',
+                quantity: m.quantity || 1,
+                instructions: m.instructions || ''
+              })),
+              general_instructions: foundRec.doctor_notes || foundRec.prescription || '',
+              follow_up_date: foundRec.follow_up_date,
+              prescribed_date: foundRec.visit_date || foundRec.createdAt,
+              diagnosis: foundRec.diagnosis,
+              symptoms: foundRec.symptoms
+            };
+          }
+        }
+      }
+
+      if (fetchedPrescription) {
+        setSelectedRecordSheet(fetchedPrescription);
+        setShowRecordSheet(true);
+      } else {
+        toast.info('No consultation record or prescription has been created for this appointment yet.');
+      }
+    } catch (err) {
+      toast.error('Failed to load prescription record.');
+    }
+  };
+
+  const filteredPatientRecords = completedAppointments.filter((rec) => {
     if (!recordSearchQuery.trim()) return true;
     const q = recordSearchQuery.toLowerCase().trim();
     const pName = (rec.patient_id?.first_name
@@ -509,30 +737,38 @@ const DoctorDashboard = () => {
       : `${rec.patient_name || ''}`).toLowerCase();
     const disease = (rec.disease || rec.diagnosis || rec.appointment_id?.disease || '').toLowerCase();
     const prescId = (rec.prescription_id || rec._id || '').toLowerCase();
-    const date = (rec.prescribed_date || rec.appointment_date || '').toLowerCase();
+    const date = (rec.prescribed_date || rec.visit_date || rec.appointment_date || '').toLowerCase();
 
     return pName.includes(q) || disease.includes(q) || prescId.includes(q) || date.includes(q);
   });
 
   const handleDownloadRecord = (rec) => {
+    if (!rec) return;
     const pName = rec.patient_id?.first_name
       ? `${rec.patient_id.first_name} ${rec.patient_id.last_name || ''}`.trim()
       : (rec.patient_name || 'Patient');
-    const docName = `Dr. ${doctorProfile?.first_name || doctorName} ${doctorProfile?.last_name || ''}`;
-    const docEmail = doctorProfile?.email || localStorage.getItem('doctorEmail') || 'dr.somnath@medipulse.com';
-    const docPhone = doctorProfile?.phone || '+91 98765 12345';
-    const docAddress = doctorProfile?.visit_address || 'Medipulse Healthcare Tower, Sector 4';
+    const docName = rec.doctor_id?.first_name 
+      ? `Dr. ${rec.doctor_id.first_name} ${rec.doctor_id.last_name || ''}`
+      : `Dr. ${doctorProfile?.first_name || doctorName} ${doctorProfile?.last_name || ''}`;
+    const docSpec = rec.doctor_id?.specialization || doctorProfile?.specialization || 'Specialist Doctor';
+    const docEmail = rec.doctor_id?.email || doctorProfile?.email || localStorage.getItem('doctorEmail') || '';
+    const docPhone = rec.doctor_id?.phone || doctorProfile?.phone || '+91 98765 12345';
+    const docAddress = rec.doctor_id?.visit_address || doctorProfile?.visit_address || 'Medipulse OPD Block, Sector 4';
     const recDate = formatDate(rec.prescribed_date || rec.appointment_date || rec.createdAt);
     const disease = rec.disease || rec.diagnosis || rec.appointment_id?.disease || 'General Consultation';
     const age = rec.patient_id?.age || rec.age || '28';
     const gender = rec.patient_id?.gender || rec.gender || 'Male';
     const phone = rec.patient_id?.phone || rec.phone || rec.booked_by?.phone || '+91 98765 43210';
+    const followUpDateStr = rec.follow_up_date ? formatDate(rec.follow_up_date) : null;
+    const docSig = rec.doctor_id?.signature || doctorProfile?.signature;
 
     let medsText = '';
     if (Array.isArray(rec.medicines) && rec.medicines.length > 0) {
-      medsText = rec.medicines.map((m, i) => `${i + 1}. ${m.medicine_name || m.name} - Dosage: ${m.dosage || '1 Tablet'} (${m.duration || m.frequency || '5 Days'})`).join('\n');
+      medsText = rec.medicines.map((m, i) => 
+        `${i + 1}. ${m.medicine_name || m.name} | Dosage: ${m.dosage || '1 Tablet'} | Freq: ${m.frequency || 'Once a day'} | Duration: ${m.duration || '5 Days'} | Qty: ${m.quantity || 1} | Inst: ${m.instructions || 'After food'}`
+      ).join('\n');
     } else {
-      medsText = '1. Paracetamol 500mg - 1 Tablet After Meals (5 Days)\n2. Amoxicillin 250mg - 1 Tablet Twice Daily (3 Days)\n3. Multivitamin Supplement - 1 Tablet Before Sleep (7 Days)';
+      medsText = 'No prescribed medicines attached.';
     }
 
     const content = `
@@ -543,7 +779,7 @@ const DoctorDashboard = () => {
 
 DOCTOR DETAILS:
 --------------------------------------------------------------------
-Doctor Name  : ${docName}
+Doctor Name  : ${docName} (${docSpec})
 Email        : ${docEmail}
 Phone        : ${docPhone}
 Clinic Addr  : ${docAddress}
@@ -555,8 +791,8 @@ Age / Gender : ${age} Yrs / ${gender}
 Date         : ${recDate}
 Phone        : ${phone}
 Disease      : ${disease}
-
-PRESCRIBED MEDICINES (Rx):
+${followUpDateStr ? `Follow-up Date: ${followUpDateStr}\n` : ''}
+PRESCRIBED MEDICINES:
 --------------------------------------------------------------------
 ${medsText}
 
@@ -581,63 +817,112 @@ Verification Status: Digitally Verified Medical Record
     // 2. Open Print Window for PDF Export
     const printWin = window.open('', '_blank');
     if (printWin) {
+      const medsHtml = (Array.isArray(rec.medicines) && rec.medicines.length > 0)
+        ? rec.medicines.map((m, i) => `
+            <tr>
+              <td style="text-align: center; color: #475569; font-weight: 600;">${i + 1}</td>
+              <td style="font-weight: 700; color: #0f172a;">${m.medicine_name || m.name}${m.strength ? ` (${m.strength})` : ''}</td>
+              <td style="color: #334155;">${m.dosage || '1 Tablet'}</td>
+              <td style="color: #334155;">${m.frequency || 'Once a day'}</td>
+              <td style="color: #334155;">${m.duration || '5 Days'}</td>
+              <td style="text-align: center; font-weight: 700; color: #0f172a;">${m.quantity || 1}</td>
+              <td style="color: #475569;">${m.instructions || 'After food'}</td>
+            </tr>
+          `).join('')
+        : `<tr><td colspan="7" style="text-align: center; color: #64748b; padding: 16px;">No prescribed medicines attached.</td></tr>`;
+
+      const followUpHtml = followUpDateStr ? `
+        <div style="background: #eff6ff; border: 1.5px solid #bfdbfe; padding: 10px 14px; border-radius: 8px;">
+          <label style="font-size: 11px; font-weight: 800; color: #1e40af; text-transform: uppercase; display: block; margin-bottom: 2px;">Follow-up Date</label>
+          <strong style="font-size: 14px; color: #1d4ed8;">${followUpDateStr}</strong>
+        </div>
+      ` : '';
+
       printWin.document.write(`
         <!DOCTYPE html>
         <html>
         <head>
           <title>Medical Record - ${pName}</title>
           <style>
-            body { font-family: 'Segoe UI', Arial, sans-serif; padding: 40px; color: #0f172a; }
-            .header { background: #0f766e; color: #fff; padding: 24px; border-radius: 12px; margin-bottom: 24px; }
-            .header h1 { margin: 0 0 6px 0; font-size: 22px; text-transform: uppercase; }
-            .header p { margin: 2px 0; font-size: 13px; opacity: 0.9; }
-            .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; background: #f8fafc; border: 1px solid #cbd5e1; padding: 20px; border-radius: 12px; margin-bottom: 24px; }
-            .grid div { font-size: 14px; }
-            .grid label { font-size: 11px; font-weight: bold; color: #64748b; text-transform: uppercase; display: block; }
-            .rx-title { font-size: 18px; font-weight: bold; color: #0d9488; border-bottom: 2px solid #0d9488; padding-bottom: 6px; margin-bottom: 14px; }
-            table { width: 100%; border-collapse: collapse; margin-bottom: 24px; }
-            th, td { border: 1px solid #cbd5e1; padding: 10px 14px; text-align: left; font-size: 13px; }
-            th { background: #f1f5f9; font-weight: bold; }
-            .signature { margin-top: 40px; text-align: right; border-top: 1px dashed #cbd5e1; padding-top: 20px; }
-            .sig-font { font-family: cursive; font-size: 24px; color: #0f766e; font-weight: bold; text-decoration: underline; }
+            @media print {
+              body { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+              .header-title { color: #000000 !important; }
+            }
+            body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; padding: 36px; color: #0f172a; background: #fff; line-height: 1.5; }
+            .header-banner { border-bottom: 2px solid #0f172a; padding-bottom: 16px; margin-bottom: 24px; }
+            .header-title { margin: 0 0 6px 0; font-size: 24px; font-weight: 900; color: #000000 !important; letter-spacing: 0.5px; text-transform: uppercase; }
+            .header-sub { margin: 2px 0; font-size: 13px; color: #1e293b; font-weight: 600; }
+            .header-meta { margin-top: 6px; font-size: 12px; color: #334155; display: flex; gap: 16px; flex-wrap: wrap; }
+            .patient-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; background: #f8fafc; border: 1px solid #cbd5e1; padding: 16px; border-radius: 12px; margin-bottom: 24px; }
+            .patient-grid div { font-size: 13px; }
+            .patient-grid label { font-size: 11px; font-weight: 800; color: #475569; text-transform: uppercase; display: block; margin-bottom: 2px; }
+            .section-title { font-size: 16px; font-weight: 800; color: #0f172a; border-bottom: 2px solid #0d9488; padding-bottom: 6px; margin-bottom: 12px; margin-top: 20px; }
+            table { width: 100%; border-collapse: collapse; margin-bottom: 24px; font-size: 13px; }
+            th, td { border: 1px solid #cbd5e1; padding: 9px 12px; text-align: left; }
+            th { background: #f1f5f9; font-weight: 800; color: #334155; text-transform: uppercase; font-size: 11px; }
+            .instructions-box { background: #fffbe6; border: 1px solid #ffe58f; padding: 14px; border-radius: 10px; margin-bottom: 24px; font-size: 13px; color: #434343; }
+            .signature-section { margin-top: 36px; display: flex; justify-content: space-between; align-items: flex-end; border-top: 1px dashed #cbd5e1; padding-top: 16px; }
+            .sig-font { font-family: cursive; font-size: 24px; color: #0f766e; font-weight: bold; border-bottom: 1.5px solid #0f766e; }
           </style>
         </head>
         <body>
-          <div class="header">
-            <h1>MEDIPULSE MULTISPECIALTY CLINIC & CARE CENTER</h1>
-            <p><strong>Doctor:</strong> ${docName} | <strong>Email:</strong> ${docEmail} | <strong>Phone:</strong> ${docPhone}</p>
-            <p><strong>Clinic Address:</strong> ${docAddress}</p>
+          <div class="header-banner">
+            <h1 class="header-title">MEDIPULSE MULTISPECIALTY CLINIC & CARE CENTER</h1>
+            <p class="header-sub"><strong>${docName}</strong> (${docSpec})</p>
+            <div class="header-meta">
+              <span><strong>Email:</strong> ${docEmail}</span>
+              <span><strong>Phone:</strong> ${docPhone}</span>
+              <span><strong>Address:</strong> ${docAddress}</span>
+            </div>
           </div>
-          <div class="grid">
+
+          <div class="patient-grid">
             <div><label>Patient Name</label><strong>${pName}</strong></div>
             <div><label>Age / Gender</label><strong>${age} Yrs / ${gender}</strong></div>
             <div><label>Disease / Condition</label><strong>${disease}</strong></div>
             <div><label>Prescription Date</label><strong>${recDate}</strong></div>
             <div><label>Phone Number</label><strong>${phone}</strong></div>
+            ${followUpHtml}
           </div>
-          <div class="rx-title">Prescribed Medicines (Rx)</div>
+
+          <div class="section-title">Prescribed Medicines</div>
           <table>
             <thead>
-              <tr><th>#</th><th>Medicine Name</th><th>Dosage</th><th>Duration / Frequency</th></tr>
+              <tr>
+                <th style="text-align: center; width: 50px;">Sl. No.</th>
+                <th>Medicine Name</th>
+                <th>Dosage</th>
+                <th>Frequency</th>
+                <th>Duration</th>
+                <th style="text-align: center; width: 65px;">Quantity</th>
+                <th>Instruction</th>
+              </tr>
             </thead>
             <tbody>
-              ${Array.isArray(rec.medicines) && rec.medicines.length > 0 ? rec.medicines.map((m, i) => `
-                <tr><td>${i+1}</td><td><strong>${m.medicine_name || m.name}</strong></td><td>${m.dosage || '1 Tablet'}</td><td>${m.duration || m.frequency || '5 Days'}</td></tr>
-              `).join('') : `
-                <tr><td>1</td><td><strong>Paracetamol 500mg</strong></td><td>1 Tablet After Meals</td><td>5 Days (1-0-1)</td></tr>
-                <tr><td>2</td><td><strong>Amoxicillin 250mg</strong></td><td>1 Tablet Twice Daily</td><td>3 Days (1-0-1)</td></tr>
-                <tr><td>3</td><td><strong>Multivitamin Supplement</strong></td><td>1 Tablet Before Sleep</td><td>7 Days (0-0-1)</td></tr>
-              `}
+              ${medsHtml}
             </tbody>
           </table>
-          <div class="signature">
-            ${(rec.doctor_id?.signature || doctorProfile?.signature) ? `
-              <img src="${rec.doctor_id?.signature || doctorProfile?.signature}" alt="Doctor Official Signature" style="max-height: 54px; max-width: 200px; object-fit: contain; margin-bottom: 4px; border-bottom: 1.5px solid #0f766e; padding-bottom: 2px;" />
-            ` : `
-              <div class="sig-font">${docName}</div>
-            `}
-            <p style="margin:4px 0 0; font-weight:bold; font-size:13px;">Authorized Doctor Signature</p>
-            <p style="margin:2px 0 0; font-size:11px; color:#10b981;">Digitally Verified Prescription</p>
+
+          ${rec.general_instructions ? `
+            <div class="instructions-box">
+              <strong style="color: #d48806; font-size: 11px; text-transform: uppercase; display: block; margin-bottom: 4px;">Doctor's Advice / Instructions:</strong>
+              ${rec.general_instructions}
+            </div>
+          ` : ''}
+
+          <div class="signature-section">
+            <div>
+              <span style="font-size: 11px; font-weight: 800; color: #64748b; text-transform: uppercase;">Official Verification</span>
+              <p style="margin: 2px 0 0; font-size: 12px; color: #10b981; font-weight: 700;">✓ Digitally Verified Medical Record</p>
+            </div>
+            <div style="text-align: right;">
+              ${docSig ? `
+                <img src="${docSig}" alt="Doctor Official Signature" style="max-height: 48px; max-width: 180px; object-fit: contain; margin-bottom: 4px;" />
+              ` : `
+                <div class="sig-font">${docName}</div>
+              `}
+              <p style="margin: 4px 0 0; font-weight: 800; font-size: 13px; color: #0f172a;">Authorized Doctor Signature</p>
+            </div>
           </div>
         </body>
         </html>
@@ -780,15 +1065,15 @@ Verification Status: Digitally Verified Medical Record
                   <div style={{ textAlign: 'center', color: '#94a3b8', padding: '2rem' }}>
                     <Loader2 size={24} style={{ animation: 'spin 1s linear infinite' }} />
                   </div>
-                ) : appointments.filter(a => a.status === 'pending').length === 0 ? (
+                ) : appointments.filter(a => getEffectiveStatus(a) === 'pending').length === 0 ? (
                   <div style={{ textAlign: 'center', color: '#94a3b8', padding: '2rem' }}>
                     <CheckCircle2 size={40} style={{ marginBottom: '1rem', opacity: 0.4 }} />
                     <p>No pending appointments to confirm.</p>
                   </div>
                 ) : (
                   <ul className="dd-activity-list">
-                    {appointments.filter(a => a.status === 'pending').slice(0, 4).map((appt, i) => {
-                      const cfg = STATUS_CONFIG[appt.status];
+                    {appointments.filter(a => getEffectiveStatus(a) === 'pending').slice(0, 4).map((appt, i) => {
+                      const cfg = STATUS_CONFIG[getEffectiveStatus(appt)];
                       return (
                         <li key={i} className="dd-activity-item">
                           <div className="dd-activity-dot" style={{ background: cfg.dot, boxShadow: `0 0 0 3px ${cfg.dot}33` }} />
@@ -801,7 +1086,7 @@ Verification Status: Digitally Verified Medical Record
                               <span>{formatDate(appt.appointment_date)} at {appt.appointment_time}</span>
                               <span className={`dd-activity-badge dd-badge-${cfg.color}`}>{cfg.label}</span>
                               <button onClick={() => handleStatusUpdate(appt._id, 'confirmed')} style={{marginLeft: 'auto', background: '#0d9488', color: '#fff', border: 'none', padding: '4px 12px', borderRadius: '6px', fontSize: '12px', cursor: 'pointer', fontWeight: 600}}>Confirm</button>
-                              <button onClick={() => handleStatusUpdate(appt._id, 'rejected')} style={{background: '#fecaca', color: '#dc2626', border: 'none', padding: '4px 12px', borderRadius: '6px', fontSize: '12px', cursor: 'pointer', fontWeight: 600}}>Reject</button>
+                              <button onClick={() => handleOpenCancelModal(appt, 'rejected')} style={{background: '#fecaca', color: '#dc2626', border: 'none', padding: '4px 12px', borderRadius: '6px', fontSize: '12px', cursor: 'pointer', fontWeight: 600}}>Reject</button>
                             </div>
                           </div>
                         </li>
@@ -955,7 +1240,8 @@ Verification Status: Digitally Verified Medical Record
               ) : (
                 <div className="dd-appointments-cards-container">
                   {filteredAppointments.map((appt) => {
-                    const cfg = STATUS_CONFIG[appt.status] || STATUS_CONFIG.pending;
+                    const statusKey = getEffectiveStatus(appt);
+                    const cfg = STATUS_CONFIG[statusKey] || STATUS_CONFIG.pending;
                     const patientName = appt.patient_id
                       ? `${appt.patient_id.first_name || ''} ${appt.patient_id.last_name || ''}`.trim()
                       : 'Unknown Patient';
@@ -974,7 +1260,7 @@ Verification Status: Digitally Verified Medical Record
                     const isPast = apptDateStr && apptDateStr < todayStr;
 
                     return (
-                      <div key={appt._id} className={`dd-appt-card status-${appt.status}`}>
+                      <div key={appt._id} className={`dd-appt-card status-${statusKey}`}>
                         {/* Left Status Accent Bar */}
                         <div className="dd-ac-status-bar" style={{ background: cfg.dot }} />
 
@@ -1049,7 +1335,7 @@ Verification Status: Digitally Verified Medical Record
 
                         {/* Action Buttons */}
                         <div className="dd-ac-actions">
-                          {appt.status === 'pending' && (
+                          {statusKey === 'pending' && (
                             <>
                               <button
                                 className="dd-btn-action btn-confirm"
@@ -1058,55 +1344,101 @@ Verification Status: Digitally Verified Medical Record
                                 <Check size={14} /> Confirm
                               </button>
                               <button
-                                className="dd-btn-action btn-reject"
-                                onClick={() => handleStatusUpdate(appt._id, 'rejected')}
+                                className="dd-btn-action btn-action btn-reject"
+                                onClick={() => handleOpenCancelModal(appt, 'rejected')}
                               >
                                 <XCircle size={14} /> Reject
                               </button>
                             </>
                           )}
 
-                          {appt.status === 'confirmed' && (
+                          {statusKey === 'confirmed' && (
                             <>
-                              {appt.consult_mode === 'online' && (
+                              {!appt.meet_time_start ? (
+                                <button
+                                  className="dd-btn-action btn-start-meeting"
+                                  onClick={() => handleStartMeeting(appt)}
+                                  disabled={isBeforeScheduledTime(appt)}
+                                  title={
+                                    isBeforeScheduledTime(appt)
+                                      ? `Meeting can only be started at scheduled time (${appt.appointment_time})`
+                                      : "Start the consultation meeting"
+                                  }
+                                >
+                                  <Clock size={14} /> Start Meet
+                                </button>
+                              ) : (
                                 <button
                                   className="dd-btn-action btn-video"
-                                  onClick={() => handleJoinVideoCall(appt._id)}
+                                  onClick={() => {
+                                    if (appt.consult_mode === 'online') {
+                                      handleJoinVideoCall(appt._id);
+                                    }
+                                  }}
                                 >
-                                  <Video size={14} /> Start Video Call
+                                  {appt.consult_mode === 'online' ? <Video size={14} /> : <Clock size={14} />}
+                                  {appt.consult_mode === 'online' ? 'Join Video Call' : 'Meeting In Progress'}
                                 </button>
                               )}
                               <button
-                                className="dd-btn-action btn-complete"
-                                onClick={() => handleStatusUpdate(appt._id, 'completed')}
-                              >
-                                <Check size={14} /> Mark Complete
-                              </button>
-                              <button
                                 className="dd-btn-action btn-cancel"
-                                onClick={() => handleStatusUpdate(appt._id, 'cancel')}
+                                onClick={() => handleOpenCancelModal(appt, 'cancel')}
                               >
                                 <XCircle size={14} /> Cancel
                               </button>
                             </>
                           )}
 
-                          {appt.status === 'completed' && !appt.prescription_added && (
-                            <button
-                              className="dd-btn-action btn-prescription"
-                              onClick={() => {
-                                setSelectedApptForPrescription(appt);
-                                setIsPrescriptionModalOpen(true);
-                              }}
-                            >
-                              <Edit2 size={14} /> Write Prescription
-                            </button>
-                          )}
+                          {appt.status === 'completed' && (() => {
+                            const isPrescAdded = Boolean(
+                              appt.prescription_added ||
+                              prescriptions.some(p => (p.appointment_id?._id || p.appointment_id) === appt._id || p._id === appt._id) ||
+                              medicalRecords.some(m => (m.appointment_id?._id || m.appointment_id) === appt._id || m._id === appt._id)
+                            );
 
-                          {appt.status === 'completed' && appt.prescription_added && (
-                            <span className="dd-ac-record-done">
-                              <CheckCircle2 size={16} /> Prescription Added
-                            </span>
+                            return isPrescAdded ? (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                                <span className="dd-ac-record-done">
+                                  <CheckCircle2 size={16} /> Prescription Added
+                                </span>
+                                <button
+                                  className="dd-btn-action btn-prescription"
+                                  style={{ background: '#f0fdf4', color: '#0d9488', borderColor: '#bbf7d0', cursor: 'pointer' }}
+                                  onClick={() => handleViewDoctorRecordSheet(appt)}
+                                >
+                                  <FileText size={14} /> View Prescription
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                className="dd-btn-action btn-prescription"
+                                onClick={() => {
+                                  setSelectedApptForPrescription(appt);
+                                  setIsPrescriptionModalOpen(true);
+                                }}
+                              >
+                                <Edit2 size={14} /> Write Prescription
+                              </button>
+                            );
+                          })()}
+
+                          {/* Meeting Time Info — shown on completed appointments */}
+                          {appt.status === 'completed' && (appt.meet_time_start || appt.meet_time_end) && (
+                            <div className="dd-ac-meeting-info">
+                              <Clock size={13} className="dd-ac-meeting-icon" />
+                              <span className="dd-ac-meeting-text">
+                                {appt.meet_time_start && (
+                                  <span>Started: <strong>{new Date(appt.meet_time_start).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })}</strong></span>
+                                )}
+                                {appt.meet_time_start && appt.meet_time_end && <span className="dd-ac-meeting-sep"> · </span>}
+                                {appt.meet_time_end && (
+                                  <span>Ended: <strong>{new Date(appt.meet_time_end).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })}</strong></span>
+                                )}
+                                {appt.meet_time != null && (
+                                  <span className="dd-ac-meeting-dur"> · <strong>{appt.meet_time} min</strong></span>
+                                )}
+                              </span>
+                            </div>
                           )}
                         </div>
                       </div>
@@ -1234,37 +1566,6 @@ Verification Status: Digitally Verified Medical Record
               </div>
 
               <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
-                <button
-                  className="dd-create-rec-top-btn"
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    padding: '11px 22px',
-                    background: 'linear-gradient(135deg, #0d9488 0%, #0ea5e9 100%)',
-                    color: '#ffffff',
-                    border: 'none',
-                    borderRadius: '12px',
-                    fontWeight: 800,
-                    fontSize: '14px',
-                    cursor: 'pointer',
-                    boxShadow: '0 6px 20px rgba(13, 148, 136, 0.35)',
-                    transition: 'all 0.25s ease'
-                  }}
-                  onClick={() => {
-                    if (completedAppointments.length > 0) {
-                      setSelectedApptForPrescription(completedAppointments[0]);
-                      setIsPrescriptionModalOpen(true);
-                    } else if (appointments.length > 0) {
-                      setSelectedApptForPrescription(appointments[0]);
-                      setIsPrescriptionModalOpen(true);
-                    } else {
-                      toast.error('No appointment found to write record for.');
-                    }
-                  }}
-                >
-                  <Plus size={18} strokeWidth={3} /> Create New Record
-                </button>
                 <span className="appointments-count">{filteredPatientRecords.length} Total Records</span>
               </div>
             </div>
@@ -1302,7 +1603,7 @@ Verification Status: Digitally Verified Medical Record
               </div>
 
               <div className="dd-patients-table-body">
-                {prescLoading ? (
+                {(prescLoading || medRecLoading) ? (
                   <div style={{ textAlign: 'center', color: '#94a3b8', padding: '3rem' }}>
                     <Loader2 size={32} style={{ animation: 'spin 1s linear infinite', marginBottom: '1rem' }} />
                     <p>Loading patient records…</p>
@@ -1323,6 +1624,13 @@ Verification Status: Digitally Verified Medical Record
                       ? `${rec.patient_id.first_name} ${rec.patient_id.last_name || ''}`.trim()
                       : (rec.patient_name || 'Patient');
 
+                    const apptId = rec._id;
+                    const isPrescriptionCreated = Boolean(
+                      rec.prescription_added ||
+                      prescriptions.some(p => (p.appointment_id?._id || p.appointment_id) === apptId || p._id === apptId) ||
+                      medicalRecords.some(m => (m.appointment_id?._id || m.appointment_id) === apptId || m._id === apptId)
+                    );
+
                     return (
                       <div key={rec._id} className="dd-record-table-row">
                         <div className="dd-pt-cell dd-pt-patient" title={pName}>
@@ -1339,16 +1647,24 @@ Verification Status: Digitally Verified Medical Record
                           {formatDate(rec.prescribed_date || rec.appointment_date || rec.createdAt)}
                         </div>
                         <div className="dd-pt-cell">
-                          <button
-                            className="dd-btn-view-specs"
-                            style={{ background: '#f0fdf4', color: '#0d9488', borderColor: '#bbf7d0' }}
-                            onClick={() => {
-                              setSelectedRecordSheet(rec);
-                              setShowRecordSheet(true);
-                            }}
-                          >
-                            <FileText size={14} /> View Record
-                          </button>
+                          {isPrescriptionCreated ? (
+                            <button
+                              className="dd-btn-view-specs"
+                              style={{ background: '#f0fdf4', color: '#0d9488', borderColor: '#bbf7d0', cursor: 'pointer' }}
+                              onClick={() => handleViewDoctorRecordSheet(rec)}
+                            >
+                              <FileText size={14} /> View Prescription
+                            </button>
+                          ) : (
+                            <button
+                              className="dd-btn-view-specs"
+                              disabled={true}
+                              style={{ background: '#f1f5f9', color: '#94a3b8', borderColor: '#cbd5e1', cursor: 'not-allowed', opacity: 0.7 }}
+                              title="Doctor has not created prescription for this appointment yet"
+                            >
+                              <FileText size={14} /> View Prescription (Pending)
+                            </button>
+                          )}
                         </div>
                       </div>
                     );
@@ -1899,7 +2215,9 @@ Verification Status: Digitally Verified Medical Record
           onSuccess={() => {
             setIsPrescriptionModalOpen(false);
             setSelectedApptForPrescription(null);
-            fetchAppointments(); // Refresh to update prescription_added status
+            fetchAppointments(); // Refresh appointment state
+            fetchDoctorPrescriptions(); // Refresh doctor prescriptions list
+            fetchDoctorMedicalRecords(); // Refresh medical records list
             setNotification('Consultation record saved successfully!');
             setTimeout(() => setNotification(''), 4000);
           }}
@@ -2007,33 +2325,166 @@ Verification Status: Digitally Verified Medical Record
                 </div>
               </div>
 
-              {/* View Medical Record Button */}
-              <div style={{ marginTop: '16px', display: 'flex', justifyContent: 'flex-end', paddingTop: '16px', borderTop: '1px solid #e2e8f0' }}>
-                <button
-                  className="dd-btn-primary"
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    padding: '12px 24px',
-                    background: 'linear-gradient(135deg, #0d9488, #0ea5e9)',
-                    color: '#ffffff',
-                    border: 'none',
+              {/* ── Meeting Time Details (Dynamic) ── */}
+              <div style={{
+                marginTop: '16px',
+                background: 'linear-gradient(135deg, #f0fdfa 0%, #ecfdf5 100%)',
+                border: '1.5px solid #99f6e4',
+                borderRadius: '14px',
+                padding: '16px 20px'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'linear-gradient(135deg, #0d9488, #14b8a6)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <Clock size={15} color="#fff" />
+                    </div>
+                    <div>
+                      <span style={{ fontWeight: 800, fontSize: '14px', color: '#0f172a', display: 'block' }}>Meeting Time Details</span>
+                      <span style={{ fontSize: '12px', color: '#64748b' }}>Start time, end time & total consultation duration</span>
+                    </div>
+                  </div>
+                  <span style={{
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    padding: '3px 10px',
                     borderRadius: '12px',
-                    fontWeight: 800,
-                    fontSize: '14px',
-                    cursor: 'pointer',
-                    boxShadow: '0 4px 16px rgba(13, 148, 136, 0.3)',
-                    transition: 'all 0.2s ease'
-                  }}
-                  onClick={() => {
-                    setShowSpecsModal(false);
-                    setView(VIEWS.PATIENT_RECORDS);
-                  }}
-                >
-                  <FileText size={16} /> View Medical Record
-                </button>
+                    background: selectedSpecsPatient.consult_mode === 'online' ? '#eff6ff' : '#f5f3ff',
+                    color: selectedSpecsPatient.consult_mode === 'online' ? '#2563eb' : '#7c3aed',
+                    border: `1px solid ${selectedSpecsPatient.consult_mode === 'online' ? '#bfdbfe' : '#ddd6fe'}`
+                  }}>
+                    {selectedSpecsPatient.consult_mode === 'online' ? 'Online Video Meet' : 'Offline / In-Person Meet'}
+                  </span>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>
+                  {/* Meet Start Time */}
+                  <div style={{ background: '#fff', borderRadius: '10px', padding: '12px 14px', border: '1px solid #ccfbf1', textAlign: 'center' }}>
+                    <div style={{ fontSize: '11px', fontWeight: 700, color: '#0d9488', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
+                      <span style={{ width: 7, height: 7, borderRadius: '50%', background: selectedSpecsPatient.meet_time_start ? '#10b981' : '#cbd5e1', display: 'inline-block' }} />
+                      Meet Start Time
+                    </div>
+                    <div style={{ fontSize: '16px', fontWeight: 800, color: selectedSpecsPatient.meet_time_start ? '#0f172a' : '#94a3b8' }}>
+                      {selectedSpecsPatient.meet_time_start
+                        ? new Date(selectedSpecsPatient.meet_time_start).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })
+                        : '—'}
+                    </div>
+                    {selectedSpecsPatient.meet_time_start && (
+                      <div style={{ fontSize: '11px', color: '#64748b', marginTop: 3 }}>
+                        {new Date(selectedSpecsPatient.meet_time_start).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Meet End Time */}
+                  <div style={{ background: '#fff', borderRadius: '10px', padding: '12px 14px', border: '1px solid #fecaca', textAlign: 'center' }}>
+                    <div style={{ fontSize: '11px', fontWeight: 700, color: '#dc2626', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
+                      <span style={{ width: 7, height: 7, borderRadius: '2px', background: selectedSpecsPatient.meet_time_end ? '#ef4444' : '#cbd5e1', display: 'inline-block' }} />
+                      Meet End Time
+                    </div>
+                    <div style={{ fontSize: '16px', fontWeight: 800, color: selectedSpecsPatient.meet_time_end ? '#0f172a' : '#94a3b8' }}>
+                      {selectedSpecsPatient.meet_time_end
+                        ? new Date(selectedSpecsPatient.meet_time_end).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })
+                        : '—'}
+                    </div>
+                    {selectedSpecsPatient.meet_time_end && (
+                      <div style={{ fontSize: '11px', color: '#64748b', marginTop: 3 }}>
+                        {new Date(selectedSpecsPatient.meet_time_end).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Overall / Total Meet Time */}
+                  <div style={{ background: 'linear-gradient(135deg, #0d9488, #0ea5e9)', borderRadius: '10px', padding: '12px 14px', textAlign: 'center' }}>
+                    <div style={{ fontSize: '11px', fontWeight: 700, color: 'rgba(255,255,255,0.85)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px' }}>
+                      Total Meet Time
+                    </div>
+                    <div style={{ fontSize: '18px', fontWeight: 900, color: '#fff', lineHeight: 1.2 }}>
+                      {selectedSpecsPatient.meet_time != null
+                        ? `${selectedSpecsPatient.meet_time} min`
+                        : (selectedSpecsPatient.meet_time_start && selectedSpecsPatient.meet_time_end
+                            ? `${Math.max(1, Math.round((new Date(selectedSpecsPatient.meet_time_end) - new Date(selectedSpecsPatient.meet_time_start)) / 60000))} min`
+                            : (selectedSpecsPatient.meet_time_start && !selectedSpecsPatient.meet_time_end
+                                ? `${Math.max(1, Math.round((nowTime - new Date(selectedSpecsPatient.meet_time_start)) / 60000))} min`
+                                : '—'))}
+                    </div>
+                    {selectedSpecsPatient.meet_time_start && !selectedSpecsPatient.meet_time_end && (
+                      <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.9)', marginTop: 3, fontWeight: 700 }}>● Live In Progress</div>
+                    )}
+                  </div>
+                </div>
               </div>
+
+              {/* View Medical Record Button */}
+              {(() => {
+                const targetApptId = selectedSpecsPatient?._id || selectedSpecsPatient?.appointment_id?._id || selectedSpecsPatient?.appointment_id;
+                const matchingAppt = appointments.find(a => a._id === targetApptId);
+                const isPrescAddedFlag = Boolean(selectedSpecsPatient?.prescription_added || matchingAppt?.prescription_added);
+
+                const hasPrescriptionDoc = prescriptions.some(p => {
+                  const pApptId = p.appointment_id?._id || p.appointment_id;
+                  return pApptId === targetApptId || p._id === targetApptId;
+                });
+
+                const hasMedicalRecordDoc = medicalRecords.some(r => {
+                  const rApptId = r.appointment_id?._id || r.appointment_id;
+                  return rApptId === targetApptId || r._id === targetApptId;
+                });
+
+                const isSpecsPrescriptionCreated = isPrescAddedFlag || hasPrescriptionDoc || hasMedicalRecordDoc;
+
+                return (
+                  <div style={{ marginTop: '16px', display: 'flex', justifyContent: 'flex-end', paddingTop: '16px', borderTop: '1px solid #e2e8f0' }}>
+                    {isSpecsPrescriptionCreated ? (
+                      <button
+                        className="dd-btn-primary"
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          padding: '12px 24px',
+                          background: 'linear-gradient(135deg, #0d9488, #0ea5e9)',
+                          color: '#ffffff',
+                          border: 'none',
+                          borderRadius: '12px',
+                          fontWeight: 800,
+                          fontSize: '14px',
+                          cursor: 'pointer',
+                          boxShadow: '0 4px 16px rgba(13, 148, 136, 0.3)',
+                          transition: 'all 0.2s ease'
+                        }}
+                        onClick={() => {
+                          setShowSpecsModal(false);
+                          setView(VIEWS.PATIENT_RECORDS);
+                          handleViewDoctorRecordSheet(selectedSpecsPatient);
+                        }}
+                      >
+                        <FileText size={16} /> View Medical Record
+                      </button>
+                    ) : (
+                      <button
+                        disabled={true}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          padding: '12px 24px',
+                          background: '#e2e8f0',
+                          color: '#94a3b8',
+                          border: 'none',
+                          borderRadius: '12px',
+                          fontWeight: 800,
+                          fontSize: '14px',
+                          cursor: 'not-allowed',
+                          boxShadow: 'none'
+                        }}
+                        title="Prescription has not been created for this appointment yet"
+                      >
+                        <FileText size={16} /> View Medical Record (Pending)
+                      </button>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
           </div>
         </div>
@@ -2053,7 +2504,7 @@ Verification Status: Digitally Verified Medical Record
                     {doctorProfile?.specialization ? ` (${doctorProfile.specialization})` : ''}
                   </p>
                   <div style={{ margin: '6px 0 0', fontSize: '12px', color: '#ccfbf1', display: 'flex', gap: '14px', flexWrap: 'wrap' }}>
-                    <span><strong>Email:</strong> {doctorProfile?.email || localStorage.getItem('doctorEmail') || 'dr.somnath@medipulse.com'}</span>
+                    <span><strong>Email:</strong> {doctorProfile?.email || localStorage.getItem('doctorEmail') || ''}</span>
                     <span><strong>Phone:</strong> {doctorProfile?.phone || '+91 98765 12345'}</span>
                     <span><strong>Address:</strong> {doctorProfile?.visit_address || 'Medipulse OPD Block, Sector 4'}</span>
                   </div>
@@ -2134,48 +2585,60 @@ Verification Status: Digitally Verified Medical Record
                     {selectedRecordSheet.patient_id?.phone || selectedRecordSheet.phone || selectedRecordSheet.booked_by?.phone || '+91 98765 43210'}
                   </span>
                 </div>
+
+                {selectedRecordSheet.follow_up_date && (
+                  <div className="dd-ps-detail-item" style={{ background: '#eff6ff', border: '1px solid #bfdbfe' }}>
+                    <span className="dd-ps-detail-label" style={{ color: '#1e40af', fontWeight: 800 }}>Follow-up Date</span>
+                    <span className="dd-ps-detail-val" style={{ color: '#1d4ed8', fontWeight: 800 }}>
+                      {formatDate(selectedRecordSheet.follow_up_date)}
+                    </span>
+                  </div>
+                )}
               </div>
 
               {/* Prescribed Medicines Section */}
               <div style={{ marginTop: '10px' }}>
                 <div className="dd-ps-rx-header">
-                  <Stethoscope size={20} /> Prescribed Medicines (Rx)
+                  <Stethoscope size={20} /> Prescribed Medicines
                 </div>
 
                 {Array.isArray(selectedRecordSheet.medicines) && selectedRecordSheet.medicines.length > 0 ? (
-                  <table className="dd-ps-meds-table">
-                    <thead>
-                      <tr>
-                        <th>#</th>
-                        <th>Medicine Name</th>
-                        <th>Dosage</th>
-                        <th>Frequency & Duration</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {selectedRecordSheet.medicines.map((med, idx) => (
-                        <tr key={idx}>
-                          <td>{idx + 1}</td>
-                          <td style={{ fontWeight: 700, color: '#0f172a' }}>
-                            {med.medicine_name || med.name || 'Prescribed Medicine'}
-                          </td>
-                          <td>{med.dosage || '1 Tablet After Meals'}</td>
-                          <td>{med.duration || med.frequency || '5 Days (1-0-1)'}</td>
+                  <div style={{ overflowX: 'auto', borderRadius: '12px', border: '1px solid #e2e8f0', marginTop: '10px' }}>
+                    <table className="dd-ps-meds-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+                      <thead>
+                        <tr style={{ background: '#f1f5f9', color: '#334155' }}>
+                          <th style={{ padding: '10px 12px', textAlign: 'center', width: '60px' }}>Sl. No.</th>
+                          <th style={{ padding: '10px 12px', textAlign: 'left' }}>Medicine Name</th>
+                          <th style={{ padding: '10px 12px', textAlign: 'left' }}>Dosage</th>
+                          <th style={{ padding: '10px 12px', textAlign: 'left' }}>Frequency</th>
+                          <th style={{ padding: '10px 12px', textAlign: 'left' }}>Duration</th>
+                          <th style={{ padding: '10px 12px', textAlign: 'center', width: '70px' }}>Quantity</th>
+                          <th style={{ padding: '10px 12px', textAlign: 'left' }}>Instruction</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody>
+                        {selectedRecordSheet.medicines.map((med, idx) => (
+                          <tr key={idx} style={{ borderTop: '1px solid #e2e8f0' }}>
+                            <td style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 600, color: '#64748b' }}>{idx + 1}</td>
+                            <td style={{ padding: '10px 12px', fontWeight: 700, color: '#0f172a' }}>
+                              {med.medicine_name || med.name || 'Prescribed Medicine'}
+                              {med.strength ? <span style={{ fontSize: '11px', color: '#64748b', marginLeft: '4px', fontWeight: 400 }}>({med.strength})</span> : null}
+                            </td>
+                            <td style={{ padding: '10px 12px', color: '#334155' }}>{med.dosage || '1 Tablet'}</td>
+                            <td style={{ padding: '10px 12px', color: '#334155' }}>{med.frequency || 'Once a day'}</td>
+                            <td style={{ padding: '10px 12px', color: '#334155' }}>{med.duration || '5 Days'}</td>
+                            <td style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 700, color: '#0f172a' }}>{med.quantity || 1}</td>
+                            <td style={{ padding: '10px 12px', color: '#475569', fontStyle: med.instructions ? 'normal' : 'italic' }}>
+                              {med.instructions || 'After food'}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 ) : (
-                  <div style={{ background: '#f8fafc', padding: '16px', borderRadius: '12px', border: '1px solid #e2e8f0', marginTop: '10px' }}>
-                    <p style={{ margin: '0 0 8px', fontWeight: 700, color: '#0f172a' }}>
-                      1. Paracetamol 500mg (1-0-1) - 5 Days after meals
-                    </p>
-                    <p style={{ margin: '0 0 8px', fontWeight: 700, color: '#0f172a' }}>
-                      2. Amoxicillin 250mg (1-0-1) - 3 Days twice daily
-                    </p>
-                    <p style={{ margin: 0, fontWeight: 700, color: '#0f172a' }}>
-                      3. Multivitamin Supplement - 7 Days before sleep
-                    </p>
+                  <div style={{ background: '#f8fafc', padding: '16px', borderRadius: '12px', border: '1px solid #e2e8f0', marginTop: '10px', color: '#64748b', fontSize: '13px' }}>
+                    No prescribed medicines attached.
                   </div>
                 )}
               </div>
@@ -2236,6 +2699,168 @@ Verification Status: Digitally Verified Medical Record
         @keyframes spin { to { transform: rotate(360deg); } }
         @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
       `}</style>
+
+      {/* ── Cancellation / Rejection Modal ── */}
+      {showCancelModal && cancelModalAppt && (() => {
+        const isReject = cancelModalType === 'rejected';
+        const patientName = cancelModalAppt.patient_id
+          ? `${cancelModalAppt.patient_id.first_name || ''} ${cancelModalAppt.patient_id.last_name || ''}`.trim()
+          : 'Patient';
+        const CANCEL_REASONS = isReject
+          ? [
+              'Schedule conflict',
+              'Patient not eligible for treatment',
+              'Insufficient medical history',
+              'Appointment outside my specialisation',
+              'Duplicate booking detected',
+              'Patient did not provide required documents',
+              'Other',
+            ]
+          : [
+              'Doctor unavailable / emergency leave',
+              'Clinic / facility closed',
+              'Patient requested rescheduling',
+              'Technical issue (video call)',
+              'Appointment time conflict',
+              'Weather or travel disruption',
+              'Other',
+            ];
+        return (
+          <div className="dd-cancel-overlay" onClick={() => setShowCancelModal(false)}>
+            <div
+              className="dd-cancel-modal"
+              onClick={e => e.stopPropagation()}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="cancel-modal-title"
+            >
+              {/* ── Modal Header ── */}
+              <div className={`dd-cancel-modal-header ${isReject ? 'header-reject' : 'header-cancel'}`}>
+                <div className="dd-cancel-modal-header-icon">
+                  {isReject ? <XCircle size={24} /> : <AlertCircle size={24} />}
+                </div>
+                <div>
+                  <h3 id="cancel-modal-title">
+                    {isReject ? 'Reject Appointment' : 'Cancel Appointment'}
+                  </h3>
+                  <p className="dd-cancel-modal-subtitle">
+                    {isReject
+                      ? 'Provide a reason for rejecting this appointment request'
+                      : 'Provide a reason for cancelling this confirmed appointment'}
+                  </p>
+                </div>
+                <button
+                  className="dd-cancel-close-btn"
+                  onClick={() => setShowCancelModal(false)}
+                  aria-label="Close"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              {/* ── Patient Info Strip ── */}
+              <div className="dd-cancel-patient-strip">
+                <div className="dd-cancel-patient-avatar">
+                  {patientName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) || 'P'}
+                </div>
+                <div className="dd-cancel-patient-info">
+                  <span className="dd-cancel-patient-name">{patientName}</span>
+                  <span className="dd-cancel-patient-meta">
+                    <Calendar size={12} />
+                    {formatDate(cancelModalAppt.appointment_date)} &nbsp;·&nbsp; {cancelModalAppt.appointment_time}
+                    &nbsp;·&nbsp;
+                    <span style={{ textTransform: 'capitalize' }}>{cancelModalAppt.consult_mode || 'offline'}</span>
+                  </span>
+                </div>
+                <span className={`dd-cancel-status-badge ${isReject ? 'badge-reject' : 'badge-cancel'}`}>
+                  {isReject ? 'Rejecting' : 'Cancelling'}
+                </span>
+              </div>
+
+              {/* ── Form ── */}
+              <form className="dd-cancel-form" onSubmit={handleCancelSubmit}>
+                {/* Reason Select */}
+                <div className="dd-cancel-field">
+                  <label className="dd-cancel-label" htmlFor="cancel-reason-select">
+                    <FileText size={14} />
+                    {isReject ? 'Rejection Reason' : 'Cancellation Reason'}
+                    <span className="dd-cancel-required">*</span>
+                  </label>
+                  <div className="dd-cancel-reason-grid">
+                    {CANCEL_REASONS.map((reason) => (
+                      <label
+                        key={reason}
+                        className={`dd-cancel-reason-option ${cancelReason === reason ? (isReject ? 'selected-reject' : 'selected-cancel') : ''}`}
+                      >
+                        <input
+                          type="radio"
+                          name="cancelReason"
+                          value={reason}
+                          checked={cancelReason === reason}
+                          onChange={() => setCancelReason(reason)}
+                        />
+                        {reason}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Additional Remarks */}
+                <div className="dd-cancel-field">
+                  <label className="dd-cancel-label" htmlFor="cancel-remarks">
+                    <Edit3 size={14} />
+                    Additional Remarks
+                    <span className="dd-cancel-optional">(optional)</span>
+                  </label>
+                  <textarea
+                    id="cancel-remarks"
+                    className="dd-cancel-textarea"
+                    rows={3}
+                    placeholder={`Provide any additional details about this ${isReject ? 'rejection' : 'cancellation'}…`}
+                    value={cancelRemarks}
+                    onChange={e => setCancelRemarks(e.target.value)}
+                    maxLength={500}
+                  />
+                  <span className="dd-cancel-char-count">{cancelRemarks.length}/500</span>
+                </div>
+
+                {/* Warning Banner */}
+                <div className={`dd-cancel-warning ${isReject ? 'warning-reject' : 'warning-cancel'}`}>
+                  <AlertCircle size={15} />
+                  <span>
+                    {isReject
+                      ? 'The patient will be notified of this rejection and may re-book.'
+                      : 'The patient will be notified of this cancellation. This action cannot be undone.'}
+                  </span>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="dd-cancel-actions">
+                  <button
+                    type="button"
+                    className="dd-cancel-btn-secondary"
+                    onClick={() => setShowCancelModal(false)}
+                    disabled={cancelSubmitting}
+                  >
+                    Go Back
+                  </button>
+                  <button
+                    type="submit"
+                    className={`dd-cancel-btn-primary ${isReject ? 'btn-primary-reject' : 'btn-primary-cancel'}`}
+                    disabled={cancelSubmitting || !cancelReason}
+                  >
+                    {cancelSubmitting ? (
+                      <><Loader2 size={16} className="dd-cancel-spinner" /> Processing…</>
+                    ) : (
+                      <>{isReject ? <><XCircle size={16} /> Confirm Rejection</> : <><XCircle size={16} /> Confirm Cancellation</>}</>
+                    )}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 };

@@ -5,6 +5,53 @@ import './WritePrescriptionModal.css';
 const API = import.meta.env.VITE_URL;
 const getToken = () => localStorage.getItem('doctorToken');
 
+const DOSAGE_OPTIONS = [
+  "1 Tablet",
+  "2 Tablets",
+  "1/2 Tablet",
+  "1 Capsule",
+  "2 Capsules",
+  "5 ml",
+  "10 ml",
+  "15 ml",
+  "1 Drop",
+  "2 Drops",
+  "1 Puff",
+  "2 Puffs",
+  "1 Sachet",
+  "1 Injection",
+  "1 Application"
+];
+
+const FREQUENCY_OPTIONS = [
+  "Once a day (1-0-0)",
+  "Twice a day (1-0-1)",
+  "Thrice a day (1-1-1)",
+  "Four times a day (1-1-1-1)",
+  "Once at night (0-0-1)",
+  "Every 4 hours",
+  "Every 6 hours",
+  "Every 8 hours",
+  "Every 12 hours",
+  "Once every 2 days",
+  "Once a week",
+  "As needed (PRN)"
+];
+
+const DURATION_OPTIONS = [
+  "1 Day",
+  "2 Days",
+  "3 Days",
+  "5 Days",
+  "7 Days (1 Week)",
+  "10 Days",
+  "14 Days (2 Weeks)",
+  "21 Days (3 Weeks)",
+  "1 Month",
+  "2 Months",
+  "3 Months"
+];
+
 const WritePrescriptionModal = ({ isOpen, onClose, appointment, onSuccess }) => {
   const [medicinesList, setMedicinesList] = useState([]);
   const [loadingMedicines, setLoadingMedicines] = useState(false);
@@ -18,26 +65,12 @@ const WritePrescriptionModal = ({ isOpen, onClose, appointment, onSuccess }) => 
   const [followUpDate, setFollowUpDate] = useState('');
   const [prescribedMedicines, setPrescribedMedicines] = useState([]);
 
-  useEffect(() => {
-    if (isOpen) {
-      fetchMedicines();
-      // Reset form
-      setDiagnosis('');
-      setSymptoms('');
-      setDoctorNotes('');
-      setFollowUpDate('');
-      setPrescribedMedicines([]);
-      setErrorMsg('');
-    }
-  }, [isOpen]);
-
   const fetchMedicines = async () => {
     setLoadingMedicines(true);
     try {
       const res = await fetch(`${API}/medicine/`);
       const data = await res.json();
       if (res.ok) {
-        // filter active only
         const allMedicines = data.data || data.medicines || [];
         const active = allMedicines.filter(m => m.status === 'active');
         setMedicinesList(active);
@@ -49,10 +82,32 @@ const WritePrescriptionModal = ({ isOpen, onClose, appointment, onSuccess }) => 
     }
   };
 
+  useEffect(() => {
+    if (isOpen) {
+      fetchMedicines();
+      setDiagnosis('');
+      setSymptoms('');
+      setDoctorNotes('');
+      setFollowUpDate('');
+      setPrescribedMedicines([]);
+      setErrorMsg('');
+    }
+  }, [isOpen]);
+
   const addMedicineRow = () => {
     setPrescribedMedicines([
       ...prescribedMedicines,
-      { medicine_id: '', dosage: '', frequency: '', duration: '', quantity: 1, instructions: '' }
+      {
+        medicine_id: '',
+        dosage: '',
+        dosage_custom: false,
+        frequency: '',
+        frequency_custom: false,
+        duration: '',
+        duration_custom: false,
+        quantity: 1,
+        instructions: ''
+      }
     ]);
   };
 
@@ -78,7 +133,7 @@ const WritePrescriptionModal = ({ isOpen, onClose, appointment, onSuccess }) => 
     // Validate medicine rows
     for (const m of prescribedMedicines) {
       if (!m.medicine_id || !m.dosage || !m.frequency || !m.duration || !m.quantity) {
-        setErrorMsg('Please fill out all required fields for each medicine.');
+        setErrorMsg('Please fill out all required fields (Medicine, Dosage, Frequency, Duration, Quantity) for each prescribed medicine.');
         return;
       }
     }
@@ -88,6 +143,8 @@ const WritePrescriptionModal = ({ isOpen, onClose, appointment, onSuccess }) => 
     const token = getToken();
 
     try {
+      const cleanFollowUpDate = (followUpDate && followUpDate.trim() !== '') ? followUpDate : undefined;
+
       // 1. Create Medical Record
       const medRecPayload = {
         patient_id: appointment.patient_id._id || appointment.patient_id,
@@ -96,7 +153,7 @@ const WritePrescriptionModal = ({ isOpen, onClose, appointment, onSuccess }) => 
         symptoms,
         doctor_notes: doctorNotes,
         visit_date: appointment.appointment_date,
-        follow_up_date: followUpDate || undefined,
+        follow_up_date: cleanFollowUpDate,
         prescription: prescribedMedicines.length > 0 ? 'Prescription attached' : '', 
         medicines_prescribed: prescribedMedicines.map(m => ({
           medicine_id: m.medicine_id,
@@ -121,9 +178,17 @@ const WritePrescriptionModal = ({ isOpen, onClose, appointment, onSuccess }) => 
           appointment_id: appointment._id,
           medical_record_id,
           patient_id: appointment.patient_id._id || appointment.patient_id,
-          medicines: prescribedMedicines,
+          medicines: prescribedMedicines.map(m => ({
+            medicine_id: m.medicine_id,
+            dosage: m.dosage,
+            frequency: m.frequency,
+            duration: m.duration,
+            quantity: Number(m.quantity) || 1,
+            instructions: m.instructions || ''
+          })),
+          quantity: 1,
           general_instructions: doctorNotes,
-          follow_up_date: followUpDate || undefined
+          follow_up_date: cleanFollowUpDate
         };
 
         const presRes = await fetch(`${API}/prescription/`, {
@@ -194,12 +259,12 @@ const WritePrescriptionModal = ({ isOpen, onClose, appointment, onSuccess }) => 
             </div>
 
             <div className="wpm-form-group" style={{ marginTop: '1rem' }}>
-              <label>Doctor Notes</label>
+              <label>Doctor Notes / Instructions</label>
               <textarea
                 rows="2"
                 value={doctorNotes}
                 onChange={e => setDoctorNotes(e.target.value)}
-                placeholder="Additional instructions or notes..."
+                placeholder="Additional advice, diet or general instructions..."
               />
             </div>
 
@@ -217,6 +282,7 @@ const WritePrescriptionModal = ({ isOpen, onClose, appointment, onSuccess }) => 
                 <div className="wpm-meds-list">
                   {prescribedMedicines.map((med, index) => (
                     <div key={index} className="wpm-med-row">
+                      {/* Medicine Select */}
                       <div className="wpm-med-col wpm-med-select">
                         <select
                           required
@@ -231,33 +297,107 @@ const WritePrescriptionModal = ({ isOpen, onClose, appointment, onSuccess }) => 
                           ))}
                         </select>
                       </div>
+
+                      {/* Dosage Dropdown */}
                       <div className="wpm-med-col wpm-med-dosage">
-                        <input
-                          type="text"
-                          required
-                          placeholder="Dosage (e.g. 1 Tablet)"
-                          value={med.dosage}
-                          onChange={e => updateMedicineRow(index, 'dosage', e.target.value)}
-                        />
+                        <select
+                          value={med.dosage_custom ? 'custom' : (DOSAGE_OPTIONS.includes(med.dosage) ? med.dosage : (med.dosage ? 'custom' : ''))}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            if (val === 'custom') {
+                              updateMedicineRow(index, 'dosage_custom', true);
+                              updateMedicineRow(index, 'dosage', '');
+                            } else {
+                              updateMedicineRow(index, 'dosage_custom', false);
+                              updateMedicineRow(index, 'dosage', val);
+                            }
+                          }}
+                        >
+                          <option value="">Select Dosage</option>
+                          {DOSAGE_OPTIONS.map(opt => (
+                            <option key={opt} value={opt}>{opt}</option>
+                          ))}
+                          <option value="custom">Custom...</option>
+                        </select>
+                        {(med.dosage_custom || (!DOSAGE_OPTIONS.includes(med.dosage) && med.dosage)) && (
+                          <input
+                            type="text"
+                            required
+                            placeholder="Custom dosage"
+                            value={med.dosage}
+                            style={{ marginTop: '4px' }}
+                            onChange={e => updateMedicineRow(index, 'dosage', e.target.value)}
+                          />
+                        )}
                       </div>
+
+                      {/* Frequency Dropdown */}
                       <div className="wpm-med-col wpm-med-freq">
-                        <input
-                          type="text"
-                          required
-                          placeholder="Freq (e.g. 1-0-1)"
-                          value={med.frequency}
-                          onChange={e => updateMedicineRow(index, 'frequency', e.target.value)}
-                        />
+                        <select
+                          value={med.frequency_custom ? 'custom' : (FREQUENCY_OPTIONS.includes(med.frequency) ? med.frequency : (med.frequency ? 'custom' : ''))}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            if (val === 'custom') {
+                              updateMedicineRow(index, 'frequency_custom', true);
+                              updateMedicineRow(index, 'frequency', '');
+                            } else {
+                              updateMedicineRow(index, 'frequency_custom', false);
+                              updateMedicineRow(index, 'frequency', val);
+                            }
+                          }}
+                        >
+                          <option value="">Select Frequency</option>
+                          {FREQUENCY_OPTIONS.map(opt => (
+                            <option key={opt} value={opt}>{opt}</option>
+                          ))}
+                          <option value="custom">Custom...</option>
+                        </select>
+                        {(med.frequency_custom || (!FREQUENCY_OPTIONS.includes(med.frequency) && med.frequency)) && (
+                          <input
+                            type="text"
+                            required
+                            placeholder="Custom frequency"
+                            value={med.frequency}
+                            style={{ marginTop: '4px' }}
+                            onChange={e => updateMedicineRow(index, 'frequency', e.target.value)}
+                          />
+                        )}
                       </div>
+
+                      {/* Duration Dropdown */}
                       <div className="wpm-med-col wpm-med-dur">
-                        <input
-                          type="text"
-                          required
-                          placeholder="Duration (e.g. 5 days)"
-                          value={med.duration}
-                          onChange={e => updateMedicineRow(index, 'duration', e.target.value)}
-                        />
+                        <select
+                          value={med.duration_custom ? 'custom' : (DURATION_OPTIONS.includes(med.duration) ? med.duration : (med.duration ? 'custom' : ''))}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            if (val === 'custom') {
+                              updateMedicineRow(index, 'duration_custom', true);
+                              updateMedicineRow(index, 'duration', '');
+                            } else {
+                              updateMedicineRow(index, 'duration_custom', false);
+                              updateMedicineRow(index, 'duration', val);
+                            }
+                          }}
+                        >
+                          <option value="">Select Duration</option>
+                          {DURATION_OPTIONS.map(opt => (
+                            <option key={opt} value={opt}>{opt}</option>
+                          ))}
+                          <option value="custom">Custom...</option>
+                        </select>
+                        {(med.duration_custom || (!DURATION_OPTIONS.includes(med.duration) && med.duration)) && (
+                          <input
+                            type="text"
+                            required
+                            placeholder="Custom duration"
+                            value={med.duration}
+                            style={{ marginTop: '4px' }}
+                            onChange={e => updateMedicineRow(index, 'duration', e.target.value)}
+                          />
+                        )}
                       </div>
+
+                      {/* Quantity Input */}
                       <div className="wpm-med-col wpm-med-qty">
                         <input
                           type="number"
@@ -268,14 +408,18 @@ const WritePrescriptionModal = ({ isOpen, onClose, appointment, onSuccess }) => 
                           onChange={e => updateMedicineRow(index, 'quantity', e.target.value)}
                         />
                       </div>
+
+                      {/* Instruction Input */}
                       <div className="wpm-med-col wpm-med-inst">
                         <input
                           type="text"
-                          placeholder="Instructions (Optional)"
+                          placeholder="Instructions (e.g. After food)"
                           value={med.instructions}
                           onChange={e => updateMedicineRow(index, 'instructions', e.target.value)}
                         />
                       </div>
+
+                      {/* Delete Row Button */}
                       <button
                         type="button"
                         onClick={() => removeMedicineRow(index)}

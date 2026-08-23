@@ -9,12 +9,6 @@ const PatientRecordsModal = ({ isOpen, onClose, patient }) => {
   const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    if (isOpen && patient) {
-      fetchRecords();
-    }
-  }, [isOpen, patient]);
-
   const fetchRecords = async () => {
     setLoading(true);
     try {
@@ -32,6 +26,12 @@ const PatientRecordsModal = ({ isOpen, onClose, patient }) => {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (isOpen && patient) {
+      fetchRecords();
+    }
+  }, [isOpen, patient]);
 
   const formatDate = (dateString) => {
     if (!dateString) return '';
@@ -109,18 +109,30 @@ const PatientRecordsModal = ({ isOpen, onClose, patient }) => {
                       <h4 style={{ margin: '0 0 12px 0', fontSize: '13px', color: '#0f172a', display: 'flex', alignItems: 'center', gap: '6px' }}>
                         <Pill size={15} color="#0d9488" /> Prescribed Medicines
                       </h4>
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '10px' }}>
-                        {record.medicines_prescribed.map((med, idx) => (
-                          <div key={idx} style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '10px 14px' }}>
-                            <div style={{ fontWeight: 700, color: '#0f172a', fontSize: '14px', marginBottom: '2px' }}>
-                              {med.medicine_id?.medicine_name} {med.medicine_id?.strength ? `(${med.medicine_id?.strength})` : ''}
-                            </div>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: '#64748b' }}>
-                              <span>{med.dosage}</span>
-                              <span>{med.duration}</span>
-                            </div>
-                          </div>
-                        ))}
+                      <div style={{ overflowX: 'auto', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                          <thead>
+                            <tr style={{ background: '#f1f5f9', color: '#475569', fontSize: '11px', textTransform: 'uppercase' }}>
+                              <th style={{ padding: '8px 10px', textAlign: 'center', width: '40px' }}>Sl. No.</th>
+                              <th style={{ padding: '8px 10px', textAlign: 'left' }}>Medicine Name</th>
+                              <th style={{ padding: '8px 10px', textAlign: 'left' }}>Dosage</th>
+                              <th style={{ padding: '8px 10px', textAlign: 'left' }}>Duration</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {record.medicines_prescribed.map((med, idx) => (
+                              <tr key={idx} style={{ borderTop: '1px solid #e2e8f0', background: '#fff' }}>
+                                <td style={{ padding: '8px 10px', textAlign: 'center', color: '#64748b' }}>{idx + 1}</td>
+                                <td style={{ padding: '8px 10px', fontWeight: 700, color: '#0f172a' }}>
+                                  {med.medicine_id?.medicine_name || med.medicine_name || 'Prescribed Medicine'}
+                                  {med.medicine_id?.strength ? ` (${med.medicine_id.strength})` : ''}
+                                </td>
+                                <td style={{ padding: '8px 10px', color: '#334155' }}>{med.dosage}</td>
+                                <td style={{ padding: '8px 10px', color: '#334155' }}>{med.duration}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
                       </div>
                     </div>
                   )}

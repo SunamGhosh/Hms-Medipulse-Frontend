@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { LayoutDashboard, Users, UserRound, Settings, LogOut, Activity, User, CalendarDays, Pill, FileText, FileCheck, ChevronLeft, ChevronRight } from 'lucide-react';
+import { LayoutDashboard, Users, UserRound, Settings, LogOut, Activity, User, CalendarDays, Pill, FileText, FileCheck, ChevronLeft, ChevronRight, Truck } from 'lucide-react';
 import './Sidebar.css';
 
 const Sidebar = ({ isCollapsed, toggleCollapse }) => {

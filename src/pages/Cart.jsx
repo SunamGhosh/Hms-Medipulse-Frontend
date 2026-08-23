@@ -16,21 +16,43 @@ const Cart = () => {
   const navigate = useNavigate();
   const token = localStorage.getItem('userToken');
 
-  // Checkout pipeline and address CRUD states
-  const [checkoutStep, setCheckoutStep] = useState('address'); // 'address', 'payment'
-  const [addresses, setAddresses] = useState([]);
-  const [selectedAddressId, setSelectedAddressId] = useState(null);
-  const [userInfo, setUserInfo] = useState({ first_name: '', last_name: '', phone: '' });
-  const [showAddressModal, setShowAddressModal] = useState(false);
-  const [editingAddress, setEditingAddress] = useState(null);
-  const [orderConfirmedInfo, setOrderConfirmedInfo] = useState(null);
+  const fetchCart = async () => {
+    try {
+      const res = await fetch('http://localhost:5000/cart', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      setCartItems(data.success && data.cart ? data.cart : []);
+    } catch (err) {
+      console.error('Error fetching cart:', err);
+      setCartItems([]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  // Address modal form states
-  const [modalStreet, setModalStreet] = useState('');
-  const [modalCity, setModalCity] = useState('');
-  const [modalState, setModalState] = useState('');
-  const [modalZipCode, setModalZipCode] = useState('');
-  const [modalIsDefault, setModalIsDefault] = useState(false);
+  const fetchUserProfileAddress = async () => {
+    // 1. Try local storage user profile first
+    try {
+      const storedUser = localStorage.getItem('user') || localStorage.getItem('userInfo');
+      if (storedUser) {
+        const parsed = JSON.parse(storedUser);
+        fillAddressFromObjOrString(parsed.address, parsed.city, parsed.state, parsed.zip_code || parsed.pincode);
+      }
+    } catch (e) { /* ignore parse error */ }
+
+    // 2. Fetch profile from backend user profile endpoint
+    try {
+      const API_URL = import.meta.env.VITE_URL || 'http://localhost:5000';
+      const res = await fetch(`${API_URL}/user/profile`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok && data.user) {
+        fillAddressFromObjOrString(data.user.address, data.user.city, data.user.state, data.user.zip_code || data.user.pincode);
+      }
+    } catch { /* silently fallback to default/local storage */ }
+  };
 
   useEffect(() => {
     if (!token) { navigate('/login'); return; }
@@ -211,40 +233,6 @@ const Cart = () => {
     }
   };
 
-  const fetchUserProfileAddress = async () => {
-    try {
-      const storedUser = localStorage.getItem('user') || localStorage.getItem('userInfo');
-      if (storedUser) {
-        const parsed = JSON.parse(storedUser);
-        setUserInfo({
-          first_name: parsed.first_name || '',
-          last_name: parsed.last_name || '',
-          phone: parsed.phone || ''
-        });
-        fillAddressFromObjOrString(parsed.address, parsed.city, parsed.state, parsed.zip_code || parsed.pincode);
-      }
-    } catch (e) {}
-
-    try {
-      const API_URL = import.meta.env.VITE_URL || 'http://localhost:5000';
-      const res = await fetch(`${API_URL}/user/profile`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      const data = await res.json();
-      const user = data.user || data;
-      if (user) {
-        setUserInfo({
-          first_name: user.first_name || '',
-          last_name: user.last_name || '',
-          phone: user.phone || ''
-        });
-        fillAddressFromObjOrString(user.address, user.city, user.state, user.zip_code || user.pincode);
-      }
-    } catch (err) {
-      console.error('Error fetching user profile address:', err);
-    }
-  };
-
   const handleDetectLocation = () => {
     if (!navigator.geolocation) {
       toast.error('Geolocation is not supported by your browser.');
@@ -308,21 +296,6 @@ const Cart = () => {
       },
       { timeout: 10000, enableHighAccuracy: true }
     );
-  };
-
-  const fetchCart = async () => {
-    try {
-      const res = await fetch('http://localhost:5000/cart', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      const data = await res.json();
-      setCartItems(data.success && data.cart ? data.cart : []);
-    } catch (err) {
-      console.error('Error fetching cart:', err);
-      setCartItems([]);
-    } finally {
-      setLoading(false);
-    }
   };
 
   // ── Optimistic quantity update ───────────────────────────
