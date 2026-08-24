@@ -246,13 +246,34 @@ const VideoCall = () => {
     }
   };
 
-  const endCall = () => {
+  const endCall = async () => {
     if (localStreamRef.current) {
       localStreamRef.current.getTracks().forEach((t) => t.stop());
     }
     if (peerRef.current) peerRef.current.close();
     if (socketRef.current) socketRef.current.disconnect();
     if (timerRef.current) clearInterval(timerRef.current);
+
+    // If meeting was started by doctor, mark call completed on backend to stamp meet_time_end and calculate meet_time
+    const doctorToken = localStorage.getItem('doctorToken') || sessionStorage.getItem('doctorToken');
+    const token = doctorToken || localStorage.getItem('token') || sessionStorage.getItem('token');
+    const cleanApptId = roomId ? roomId.replace('MediPulse_', '').trim() : '';
+
+    if (cleanApptId && token) {
+      try {
+        const API = import.meta.env.VITE_URL || 'http://localhost:5000/api';
+        await fetch(`${API}/appointment/doctor/${cleanApptId}/call-complete`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          }
+        });
+      } catch (err) {
+        console.error('Call completion sync error:', err);
+      }
+    }
+
     navigate(-1);
   };
 

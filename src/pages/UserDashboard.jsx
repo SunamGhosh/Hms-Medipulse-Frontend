@@ -4,13 +4,14 @@ import {
   Activity, CalendarCheck, Stethoscope, Pill, Bell, User, LogOut,
   ArrowRight, Clock, Heart, ShieldCheck, ArrowUpRight, Users,
   X, CheckCircle2, AlertCircle, XCircle, Loader2, Plus, Video, Package, Truck, Trash2, CreditCard,
-  ChevronLeft, ChevronRight, FileText, Download
+  ChevronLeft, ChevronRight, FileText, Download, Banknote, Check, MapPin
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import './UserDashboard.css';
 import './MyOrders.css';
 import './PharmacyPage.css';
 import BookAppointmentModal from '../components/BookAppointmentModal';
+import DoctorLocationMapModal from '../components/DoctorLocationMapModal';
 
 const API = import.meta.env.VITE_URL;
 const getToken = () => localStorage.getItem('userToken');
@@ -68,6 +69,20 @@ const UserDashboard = () => {
   const [selectedPrescription, setSelectedPrescription] = useState(null);
   const [showPrescriptionModal, setShowPrescriptionModal] = useState(false);
   const [prescriptionLoading, setPrescriptionLoading] = useState(false);
+
+  /* ── Fee Payment Modal State ── */
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [paymentAppt, setPaymentAppt] = useState(null);
+  const [processingPayment, setProcessingPayment] = useState(false);
+
+  /* ── Doctor Clinic Location Map Modal State ── */
+  const [showDoctorMapModal, setShowDoctorMapModal] = useState(false);
+  const [selectedApptForMap, setSelectedApptForMap] = useState(null);
+
+  const openDoctorMapModal = (appt) => {
+    setSelectedApptForMap(appt);
+    setShowDoctorMapModal(true);
+  };
 
   const fetchMyPatientPrescriptions = useCallback(async () => {
     const token = getToken();
@@ -278,20 +293,32 @@ const UserDashboard = () => {
     navigate(`/video-call/MediPulse_${apptId}`);
   };
 
-  /* ── pay for confirmed appointment via Razorpay ── */
-  const handleApptPayment = async (appt) => {
+  /* ── pay for confirmed appointment modal handler ── */
+  const openPaymentModal = (appt) => {
+    setPaymentAppt(appt);
+    setShowPaymentModal(true);
+  };
+
+  const handleConfirmPayment = async () => {
+    if (!paymentAppt) return;
     const token = getToken();
-    if (!token) return;
+    if (!token) {
+      toast.error('Session expired. Please log in again.');
+      return;
+    }
+    setProcessingPayment(true);
+
+    // Online Digital Payment via Razorpay
     try {
-      // Create a Razorpay order for the appointment fee
       const res = await fetch(`${API}/api/payment/create-order`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ amount: appt.consultation_fee, appointment_id: appt._id })
+        body: JSON.stringify({ amount: paymentAppt.consultation_fee, appointment_id: paymentAppt._id })
       });
       const data = await res.json();
       if (!res.ok || !data.success) {
-        toast.error(data.message || 'Failed to initiate payment');
+        toast.error(data.message || 'Failed to initiate digital payment order');
+        setProcessingPayment(false);
         return;
       }
 
@@ -300,7 +327,7 @@ const UserDashboard = () => {
         amount: data.order.amount,
         currency: data.order.currency || 'INR',
         name: 'MediPulse Healthcare',
-        description: `Consultation with Dr. ${appt.doctor_id?.first_name} ${appt.doctor_id?.last_name}`,
+        description: `Consultation Fee with Dr. ${paymentAppt.doctor_id?.first_name || ''} ${paymentAppt.doctor_id?.last_name || ''}`,
         order_id: data.order.id,
         handler: async (response) => {
           try {
@@ -311,19 +338,27 @@ const UserDashboard = () => {
                 razorpay_order_id: response.razorpay_order_id,
                 razorpay_payment_id: response.razorpay_payment_id,
                 razorpay_signature: response.razorpay_signature,
-                appointment_id: appt._id
+                appointment_id: paymentAppt._id
               })
             });
             const verifyData = await verifyRes.json();
             if (verifyRes.ok && verifyData.success) {
-              toast.success('Payment successful! Your appointment is confirmed.');
+              toast.success('Payment verified successfully! Appointment confirmed.');
+              setShowPaymentModal(false);
+              setPaymentAppt(null);
               fetchAppointments();
             } else {
               toast.error(verifyData.message || 'Payment verification failed');
             }
           } catch (err) {
-            console.error('Payment verification error:', err);
             toast.error('Error verifying payment: ' + err.message);
+          } finally {
+            setProcessingPayment(false);
+          }
+        },
+        modal: {
+          ondismiss: () => {
+            setProcessingPayment(false);
           }
         },
         prefill: {
@@ -334,13 +369,15 @@ const UserDashboard = () => {
       };
 
       if (!window.Razorpay) {
-        toast.error('Razorpay not loaded. Please refresh the page.');
+        toast.error('Razorpay SDK not available. Check your internet connection.');
+        setProcessingPayment(false);
         return;
       }
       const rzp = new window.Razorpay(options);
       rzp.open();
-    } catch {
-      toast.error('Error initiating payment');
+    } catch (err) {
+      toast.error('Error initiating digital payment');
+      setProcessingPayment(false);
     }
   };
 
@@ -949,7 +986,7 @@ Verification Status: Digitally Verified Medical Record
                           )}
                           {/* Pay Now button — only for confirmed + unpaid */}
                           {appt.status === 'confirmed' && appt.payment_status !== 'paid' && appt.consultation_fee && (
-                            <button onClick={() => handleApptPayment(appt)}
+                            <button onClick={() => openPaymentModal(appt)}
                               style={{ background: 'linear-gradient(135deg,#0d9488,#14b8a6)', border: 'none', color: '#fff', borderRadius: '8px', padding: '6px 14px', fontWeight: 700, fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', boxShadow: '0 4px 10px rgba(13,148,136,0.35)' }}>
                               <CreditCard size={13} /> Pay Now
                             </button>
@@ -958,6 +995,12 @@ Verification Status: Digitally Verified Medical Record
                             <button onClick={() => handleJoinVideoCall(appt._id)}
                               style={{ background: '#eff6ff', border: '1px solid #bfdbfe', color: '#2563eb', borderRadius: '8px', padding: '6px 14px', fontWeight: 700, fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}>
                               <Video size={13} /> Join Video Call
+                            </button>
+                          )}
+                          {(appt.status === 'confirmed' || appt.status === 'completed') && appt.payment_status === 'paid' && (appt.consult_mode === 'offline' || appt.consult_mode !== 'online') && (
+                            <button onClick={() => openDoctorMapModal(appt)}
+                              style={{ background: '#f0fdfa', border: '1.5px solid #99f6e4', color: '#0d9488', borderRadius: '8px', padding: '6px 14px', fontWeight: 700, fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px', boxShadow: '0 2px 6px rgba(13,148,136,0.15)' }}>
+                              <MapPin size={13} /> View Clinic Map
                             </button>
                           )}
                           {/* Completed Consultation Prescription Actions */}
@@ -1247,8 +1290,9 @@ Verification Status: Digitally Verified Medical Record
                       <p style={{ margin: '2px 0 0', fontWeight: 800, color: '#0f172a' }}>
                         {selectedPrescription.patient_id?.first_name} {selectedPrescription.patient_id?.last_name}
                       </p>
-                      <p style={{ margin: '2px 0 0', fontSize: '12px', color: '#64748b' }}>
-                        {selectedPrescription.patient_id?.gender || 'Patient'} {selectedPrescription.patient_id?.age ? `(${selectedPrescription.patient_id.age} yrs)` : ''}
+                      <p style={{ margin: '2px 0 0', fontSize: '12px', color: '#64748b', textTransform: 'capitalize' }}>
+                        {selectedPrescription.patient_gender || selectedPrescription.gender || selectedPrescription.patient_id?.gender || 'Patient'}
+                        {(selectedPrescription.patient_age || selectedPrescription.age || selectedPrescription.patient_id?.age) ? ` (${selectedPrescription.patient_age || selectedPrescription.age || selectedPrescription.patient_id?.age} yrs)` : ''}
                       </p>
                     </div>
                     <div>
@@ -1326,6 +1370,188 @@ Verification Status: Digitally Verified Medical Record
           </div>
         </div>
       )}
+
+      {/* ════════════ APPOINTMENT FEE PAYMENT MODAL ════════════ */}
+      {showPaymentModal && paymentAppt && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(4px)',
+          zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px'
+        }}>
+          <div style={{
+            background: '#ffffff', borderRadius: '20px', width: '100%', maxWidth: '520px',
+            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)', overflow: 'hidden',
+            border: '1px solid #e2e8f0', animation: 'fadeIn 0.2s ease-out'
+          }}>
+            {/* Header */}
+            <div style={{
+              background: 'linear-gradient(135deg, #0d9488 0%, #0f766e 100%)',
+              color: '#ffffff', padding: '20px 24px', position: 'relative'
+            }}>
+              <button
+                onClick={() => { setShowPaymentModal(false); setPaymentAppt(null); }}
+                style={{
+                  position: 'absolute', right: '16px', top: '16px', background: 'rgba(255,255,255,0.15)',
+                  border: 'none', color: '#ffffff', borderRadius: '50%', width: '32px', height: '32px',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
+                  transition: 'all 0.2s'
+                }}
+              >
+                <X size={18} />
+              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{ background: 'rgba(255,255,255,0.2)', padding: '8px', borderRadius: '12px' }}>
+                  <CreditCard size={22} color="#ffffff" />
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800 }}>Confirm Consultation Payment</h3>
+                  <p style={{ margin: '2px 0 0', fontSize: '12px', color: '#ccfbf1', opacity: 0.9 }}>
+                    Complete your payment to finalize your booking
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Content Body */}
+            <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              {/* Doctor & Appointment Summary Box */}
+              <div style={{
+                background: '#f8fafc', border: '1.5px solid #e2e8f0', borderRadius: '14px', padding: '16px'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
+                  <div>
+                    <h4 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: '#0f172a' }}>
+                      Dr. {paymentAppt.doctor_id?.first_name} {paymentAppt.doctor_id?.last_name}
+                    </h4>
+                    <span style={{ fontSize: '12px', color: '#0d9488', fontWeight: 700 }}>
+                      {paymentAppt.doctor_id?.specialization || 'Specialist'}
+                    </span>
+                  </div>
+                  <span style={{
+                    background: '#f0fdfa', color: '#0d9488', border: '1px solid #99f6e4',
+                    padding: '3px 10px', borderRadius: '12px', fontSize: '11px', fontWeight: 800,
+                    textTransform: 'uppercase'
+                  }}>
+                    {paymentAppt.consult_mode || 'offline'} Mode
+                  </span>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', fontSize: '13px', color: '#475569', borderTop: '1px solid #e2e8f0', paddingTop: '10px', marginTop: '10px' }}>
+                  <div>
+                    <span style={{ fontSize: '11px', color: '#94a3b8', display: 'block', fontWeight: 700 }}>APPOINTMENT DATE</span>
+                    <strong style={{ color: '#0f172a' }}>{formatDate(paymentAppt.appointment_date)}</strong>
+                  </div>
+                  <div>
+                    <span style={{ fontSize: '11px', color: '#94a3b8', display: 'block', fontWeight: 700 }}>SLOT TIME</span>
+                    <strong style={{ color: '#0f172a' }}>{paymentAppt.appointment_time}</strong>
+                  </div>
+                </div>
+              </div>
+
+              {/* Payment Method Display */}
+              <div>
+                <label style={{ fontSize: '13px', fontWeight: 800, color: '#334155', display: 'block', marginBottom: '10px' }}>
+                  Payment Method:
+                </label>
+                <div style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  padding: '14px 16px', borderRadius: '12px',
+                  border: '2px solid #0d9488', background: '#f0fdfa'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{
+                      width: '36px', height: '36px', borderRadius: '10px',
+                      background: '#0d9488', color: '#ffffff',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center'
+                    }}>
+                      <CreditCard size={20} />
+                    </div>
+                    <div>
+                      <strong style={{ display: 'block', fontSize: '14px', color: '#0f172a' }}>Online Digital Payment</strong>
+                      <span style={{ fontSize: '12px', color: '#64748b' }}>UPI, Cards, Net Banking, Wallets (Razorpay)</span>
+                    </div>
+                  </div>
+                  <span style={{
+                    background: '#0d9488', color: '#fff', fontSize: '11px', fontWeight: 800,
+                    padding: '3px 10px', borderRadius: '12px', textTransform: 'uppercase'
+                  }}>
+                    Selected
+                  </span>
+                </div>
+              </div>
+
+              {/* Price Breakdown */}
+              <div style={{
+                background: '#f1f5f9', borderRadius: '12px', padding: '14px 16px',
+                display: 'flex', flexDirection: 'column', gap: '8px'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: '#475569' }}>
+                  <span>Consultation Fee</span>
+                  <span>₹{paymentAppt.consultation_fee}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: '#475569' }}>
+                  <span>Convenience & Taxes</span>
+                  <span style={{ color: '#16a34a', fontWeight: 700 }}>FREE</span>
+                </div>
+                <div style={{
+                  display: 'flex', justifyContent: 'space-between', fontSize: '16px', fontWeight: 800,
+                  color: '#0f172a', borderTop: '1px solid #cbd5e1', paddingTop: '8px', marginTop: '4px'
+                }}>
+                  <span>Total Amount</span>
+                  <span style={{ color: '#0d9488' }}>₹{paymentAppt.consultation_fee}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Actions */}
+            <div style={{
+              padding: '16px 24px 20px', background: '#f8fafc', borderTop: '1px solid #e2e8f0',
+              display: 'flex', justifyContent: 'flex-end', gap: '12px'
+            }}>
+              <button
+                disabled={processingPayment}
+                onClick={() => { setShowPaymentModal(false); setPaymentAppt(null); }}
+                style={{
+                  padding: '10px 20px', borderRadius: '10px', border: '1px solid #cbd5e1',
+                  background: '#ffffff', color: '#475569', fontWeight: 700, fontSize: '14px',
+                  cursor: 'pointer', transition: 'all 0.15s'
+                }}
+              >
+                Cancel
+              </button>
+
+              <button
+                disabled={processingPayment}
+                onClick={handleConfirmPayment}
+                style={{
+                  padding: '10px 24px', borderRadius: '10px', border: 'none',
+                  background: 'linear-gradient(135deg, #0d9488 0%, #0f766e 100%)',
+                  color: '#ffffff', fontWeight: 800, fontSize: '14px', cursor: 'pointer',
+                  boxShadow: '0 4px 12px rgba(13, 148, 136, 0.3)', display: 'flex', alignItems: 'center', gap: '8px'
+                }}
+              >
+                {processingPayment ? (
+                  <>
+                    <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> Processing...
+                  </>
+                ) : (
+                  <>
+                    <Check size={16} /> Pay ₹{paymentAppt.consultation_fee} Now
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Doctor Location Map Modal */}
+      <DoctorLocationMapModal
+        isOpen={showDoctorMapModal}
+        onClose={() => setShowDoctorMapModal(false)}
+        doctor={selectedApptForMap?.doctor_id}
+        appointment={selectedApptForMap}
+      />
 
       <style>{`
         @keyframes spin { to { transform: rotate(360deg); } }

@@ -59,6 +59,8 @@ const WritePrescriptionModal = ({ isOpen, onClose, appointment, onSuccess }) => 
   const [errorMsg, setErrorMsg] = useState('');
 
   // Form State
+  const [patientAge, setPatientAge] = useState('');
+  const [patientGender, setPatientGender] = useState('');
   const [diagnosis, setDiagnosis] = useState('');
   const [symptoms, setSymptoms] = useState('');
   const [doctorNotes, setDoctorNotes] = useState('');
@@ -85,6 +87,11 @@ const WritePrescriptionModal = ({ isOpen, onClose, appointment, onSuccess }) => 
   useEffect(() => {
     if (isOpen) {
       fetchMedicines();
+      const pat = appointment?.patient_id;
+      const initialAge = pat?.age || pat?.patient_age || (pat?.dob ? Math.floor((new Date() - new Date(pat.dob)) / (365.25 * 24 * 60 * 60 * 1000)) : '');
+      const initialGender = pat?.gender ? (pat.gender.charAt(0).toUpperCase() + pat.gender.slice(1).toLowerCase()) : '';
+      setPatientAge(initialAge ? String(initialAge) : '');
+      setPatientGender(initialGender);
       setDiagnosis('');
       setSymptoms('');
       setDoctorNotes('');
@@ -92,7 +99,7 @@ const WritePrescriptionModal = ({ isOpen, onClose, appointment, onSuccess }) => 
       setPrescribedMedicines([]);
       setErrorMsg('');
     }
-  }, [isOpen]);
+  }, [isOpen, appointment]);
 
   const addMedicineRow = () => {
     setPrescribedMedicines([
@@ -149,6 +156,8 @@ const WritePrescriptionModal = ({ isOpen, onClose, appointment, onSuccess }) => 
       const medRecPayload = {
         patient_id: appointment.patient_id._id || appointment.patient_id,
         appointment_id: appointment._id,
+        patient_age: patientAge ? Number(patientAge) : undefined,
+        patient_gender: patientGender || undefined,
         diagnosis,
         symptoms,
         doctor_notes: doctorNotes,
@@ -178,6 +187,8 @@ const WritePrescriptionModal = ({ isOpen, onClose, appointment, onSuccess }) => 
           appointment_id: appointment._id,
           medical_record_id,
           patient_id: appointment.patient_id._id || appointment.patient_id,
+          patient_age: patientAge ? Number(patientAge) : undefined,
+          patient_gender: patientGender || undefined,
           medicines: prescribedMedicines.map(m => ({
             medicine_id: m.medicine_id,
             dosage: m.dosage,
@@ -225,6 +236,35 @@ const WritePrescriptionModal = ({ isOpen, onClose, appointment, onSuccess }) => 
           {errorMsg && <div className="wpm-error">{errorMsg}</div>}
 
           <form id="wpm-form" onSubmit={handleSubmit}>
+            {/* Patient Details Row: Age & Gender */}
+            <div className="wpm-form-grid" style={{ marginBottom: '1rem' }}>
+              <div className="wpm-form-group">
+                <label>Patient Age *</label>
+                <input
+                  type="number"
+                  required
+                  min="0"
+                  max="120"
+                  value={patientAge}
+                  onChange={e => setPatientAge(e.target.value)}
+                  placeholder="E.g. 28"
+                />
+              </div>
+              <div className="wpm-form-group">
+                <label>Patient Gender *</label>
+                <select
+                  required
+                  value={patientGender}
+                  onChange={e => setPatientGender(e.target.value)}
+                >
+                  <option value="">Select Gender</option>
+                  <option value="Male">Male</option>
+                  <option value="Female">Female</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+            </div>
+
             <div className="wpm-form-grid">
               <div className="wpm-form-group">
                 <label>Diagnosis *</label>

@@ -4,10 +4,11 @@ import {
   Activity, CalendarCheck, User, LogOut, ArrowRight, Clock, ShieldCheck, ArrowUpRight, CheckCircle2,
   AlertCircle, Loader2, Users, Check, Pill, Edit3, Lock, Plus, Search, Package,
   ShoppingCart, X, Building2, Phone, Award, FileCheck, MapPin, Calendar,
-  AlertTriangle, Eye, EyeOff, RefreshCw, FileText, Stethoscope, Tag, Percent, ChevronLeft, ChevronRight, Download
+  AlertTriangle, Eye, EyeOff, RefreshCw, FileText, Stethoscope, Tag, Percent, ChevronLeft, ChevronRight, Download, CreditCard, Banknote
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import './PharmacistDashboard.css';
+import DoctorLocationMapModal from '../components/DoctorLocationMapModal';
 
 const API = import.meta.env.VITE_URL;
 const getToken = () => sessionStorage.getItem('pharmacistToken') || localStorage.getItem('pharmacistToken');
@@ -92,6 +93,20 @@ const PharmacistDashboard = () => {
   const [apptCancelCategory, setApptCancelCategory] = useState('Schedule Conflict');
   const [apptCancelReasonText, setApptCancelReasonText] = useState('');
   const [cancellingAppt, setCancellingAppt] = useState(false);
+
+  // Fee Payment Modal state for Pharmacist
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [paymentAppt, setPaymentAppt] = useState(null);
+  const [processingPayment, setProcessingPayment] = useState(false);
+
+  /* ── Doctor Clinic Location Map Modal State ── */
+  const [showDoctorMapModal, setShowDoctorMapModal] = useState(false);
+  const [selectedApptForMap, setSelectedApptForMap] = useState(null);
+
+  const openDoctorMapModal = (appt) => {
+    setSelectedApptForMap(appt);
+    setShowDoctorMapModal(true);
+  };
 
   // Cancellation Modal state (Stock Requests)
   const [showCancelReqModal, setShowCancelReqModal] = useState(false);
@@ -1064,6 +1079,99 @@ Verification Status: Digitally Verified Medical Record
     );
   });
 
+  // Open Pharmacist Consultation Payment Modal
+  const openPaymentModal = (appt) => {
+    setPaymentAppt(appt);
+    setShowPaymentModal(true);
+  };
+
+  // Process Pharmacist Consultation Payment
+  const handleConfirmPharmacistPayment = async () => {
+    if (!paymentAppt) return;
+    const token = getToken();
+    if (!token) {
+      toast.error('Session expired. Please log in again.');
+      return;
+    }
+    setProcessingPayment(true);
+
+    // Digital Online Payment via Razorpay
+    try {
+      const res = await fetch(`${API}/api/payment/create-order`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ amount: paymentAppt.consultation_fee, appointment_id: paymentAppt._id })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        toast.error(data.message || 'Failed to initiate digital payment order');
+        setProcessingPayment(false);
+        return;
+      }
+
+      const docObj = (typeof paymentAppt.doctor_id === 'object' && paymentAppt.doctor_id) 
+        ? paymentAppt.doctor_id 
+        : (doctorsList.find(d => d._id === paymentAppt.doctor_id) || {});
+      const docName = docObj.first_name ? `Dr. ${docObj.first_name} ${docObj.last_name || ''}` : 'Doctor Consultation';
+
+      const options = {
+        key: import.meta.env.VITE_RAZORPAY_KEY_ID,
+        amount: data.order.amount,
+        currency: data.order.currency || 'INR',
+        name: 'MediPulse Pharmacy Portal',
+        description: `Pharmacist Consultation Fee (10% Off) - ${docName}`,
+        order_id: data.order.id,
+        handler: async (response) => {
+          try {
+            const verifyRes = await fetch(`${API}/api/payment/verify-appointment-payment`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+              body: JSON.stringify({
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature,
+                appointment_id: paymentAppt._id
+              })
+            });
+            const verifyData = await verifyRes.json();
+            if (verifyRes.ok && verifyData.success) {
+              toast.success('Digital payment verified successfully! Consultation scheduled.');
+              setShowPaymentModal(false);
+              setPaymentAppt(null);
+              fetchAppointments();
+            } else {
+              toast.error(verifyData.message || 'Payment verification failed');
+            }
+          } catch (err) {
+            toast.error('Error verifying payment: ' + err.message);
+          } finally {
+            setProcessingPayment(false);
+          }
+        },
+        modal: {
+          ondismiss: () => {
+            setProcessingPayment(false);
+          }
+        },
+        prefill: {
+          name: pharmacistName || 'Pharmacist'
+        },
+        theme: { color: '#0d9488' }
+      };
+
+      if (!window.Razorpay) {
+        toast.error('Razorpay SDK not available. Check internet connection.');
+        setProcessingPayment(false);
+        return;
+      }
+      const rzp = new window.Razorpay(options);
+      rzp.open();
+    } catch (err) {
+      toast.error('Error initiating digital payment');
+      setProcessingPayment(false);
+    }
+  };
+
   // Open Stock Request Cancellation Modal
   const openCancelReqModal = (req) => {
     setReqToCancel(req);
@@ -1594,7 +1702,7 @@ Verification Status: Digitally Verified Medical Record
                                 Doctor approved! Complete your payment to finalise the appointment.
                               </span>
                               <button
-                                onClick={() => handlePayAppointment(appt._id)}
+                                onClick={() => openPaymentModal(appt)}
                                 style={{ padding: '6px 14px', background: '#10b981', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}
                               >
                                 Pay ₹{appt.consultation_fee}
@@ -1624,6 +1732,24 @@ Verification Status: Digitally Verified Medical Record
                                 style={{ padding: '6px 14px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}
                               >
                                 <ArrowRight size={14} /> Join Video Call Room
+                              </button>
+                            </div>
+                          )}
+
+                          {/* Clinic Map CTA when confirmed/completed, paid, and offline */}
+                          {(statusKey === 'confirmed' || statusKey === 'completed') && paymentKey === 'paid' && (appt.consult_mode === 'offline' || appt.consult_mode !== 'online') && (
+                            <div style={{ marginTop: '0.75rem', padding: '0.6rem 1rem', background: '#f0fdfa', borderRadius: 8, border: '1px solid #99f6e4', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                <MapPin size={16} color="#0d9488" />
+                                <span style={{ fontSize: 13, color: '#0f766e', fontWeight: 600 }}>
+                                  Offline Clinic Visit Scheduled! View doctor's clinic location on map.
+                                </span>
+                              </div>
+                              <button
+                                onClick={() => openDoctorMapModal(appt)}
+                                style={{ padding: '6px 14px', background: '#0d9488', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5, boxShadow: '0 2px 8px rgba(13,148,136,0.25)' }}
+                              >
+                                <MapPin size={14} /> View Clinic Map
                               </button>
                             </div>
                           )}
@@ -2917,27 +3043,28 @@ Verification Status: Digitally Verified Medical Record
           <div className="pd-modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: 760, width: '100%', maxHeight: '90vh', overflowY: 'auto', background: '#fff', borderRadius: '16px', boxShadow: '0 20px 45px rgba(0,0,0,0.25)', border: 'none' }}>
             
             {/* Header: Teal Gradient Card with Clinic Info & Download Button */}
-            <div style={{ background: 'linear-gradient(135deg, #0d9488, #0f766e)', color: '#fff', padding: '1.5rem', borderRadius: '16px 16px 0 0' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
+            <div style={{ background: 'linear-gradient(135deg, #0f766e 0%, #0d9488 100%)', color: '#fff', padding: '1.5rem', borderRadius: '16px 16px 0 0' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <div>
-                  <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 900, letterSpacing: '0.02em', color: '#ffffff', textTransform: 'uppercase' }}>
+                  <h2 style={{ margin: '0 0 4px 0', fontSize: '20px', fontWeight: 900, letterSpacing: '-0.5px', color: '#ffffff', textTransform: 'uppercase' }}>
                     MEDIPULSE MULTISPECIALTY CLINIC & CARE CENTER
                   </h2>
-                  <p style={{ margin: '6px 0 0', fontSize: '0.95rem', fontWeight: 800, color: '#f0fdf4' }}>
+                  <p style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: '#ccfbf1' }}>
                     Dr. {selectedPrescription.doctor_id?.first_name || 'Specialist'} {selectedPrescription.doctor_id?.last_name || ''}
                     <span style={{ fontSize: '0.85rem', fontWeight: 600, opacity: 0.9 }}>
                       {` (${selectedPrescription.doctor_id?.specialization || selectedPrescription.doctor_id?.department || 'Specialist Doctor'})`}
                     </span>
                   </p>
-                  <div style={{ margin: '8px 0 0', fontSize: '12px', color: '#ccfbf1', display: 'flex', gap: '14px', flexWrap: 'wrap' }}>
+                  <div style={{ margin: '6px 0 0', fontSize: '12px', color: '#ccfbf1', display: 'flex', gap: '14px', flexWrap: 'wrap' }}>
                     <span><strong>Email:</strong> {selectedPrescription.doctor_id?.email || 'N/A'}</span>
                     <span><strong>Phone:</strong> {selectedPrescription.doctor_id?.phone || '+91 98765 12345'}</span>
                     <span><strong>Address:</strong> {selectedPrescription.doctor_id?.visit_address || 'Medipulse OPD Block, Sector 4'}</span>
                   </div>
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0, marginLeft: '12px' }}>
                   <button
+                    className="pd-btn-primary"
                     style={{
                       display: 'inline-flex',
                       alignItems: 'center',
@@ -2959,7 +3086,7 @@ Verification Status: Digitally Verified Medical Record
 
                   <button
                     onClick={() => setShowPrescriptionModal(false)}
-                    style={{ background: 'rgba(255,255,255,0.2)', border: 'none', color: '#fff', borderRadius: '50%', width: 34, height: 34, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+                    style={{ background: 'rgba(255,255,255,0.2)', border: 'none', color: '#fff', borderRadius: '50%', width: 34, height: 34, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}
                   >
                     <X size={18} />
                   </button>
@@ -2991,14 +3118,14 @@ Verification Status: Digitally Verified Medical Record
                       <div>
                         <span style={{ fontSize: '11px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Age</span>
                         <div style={{ fontSize: '15px', fontWeight: 800, color: '#0f172a', marginTop: '3px' }}>
-                          {selectedPrescription.patient_id?.age || selectedPrescription.age || '28'} Yrs
+                          {selectedPrescription.patient_age || selectedPrescription.age || selectedPrescription.patient_id?.age || 'N/A'} Yrs
                         </div>
                       </div>
 
                       <div>
                         <span style={{ fontSize: '11px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Gender</span>
                         <div style={{ fontSize: '15px', fontWeight: 800, color: '#0f172a', marginTop: '3px', textTransform: 'capitalize' }}>
-                          {selectedPrescription.patient_id?.gender || selectedPrescription.gender || 'Male'}
+                          {selectedPrescription.patient_gender || selectedPrescription.gender || selectedPrescription.patient_id?.gender || 'N/A'}
                         </div>
                       </div>
 
@@ -3439,6 +3566,201 @@ Verification Status: Digitally Verified Medical Record
           </div>
         </div>
       )}
+
+      {/* ════════════ PHARMACIST CONSULTATION FEE PAYMENT MODAL ════════════ */}
+      {showPaymentModal && paymentAppt && (() => {
+        const docObj = (typeof paymentAppt.doctor_id === 'object' && paymentAppt.doctor_id) 
+          ? paymentAppt.doctor_id 
+          : (doctorsList.find(d => d._id === paymentAppt.doctor_id) || {});
+        const docName = docObj.first_name ? `Dr. ${docObj.first_name} ${docObj.last_name || ''}` : 'Doctor Consultation';
+        const docSpec = docObj.specialization || paymentAppt.specialization || 'General Specialist';
+        const origFee = paymentAppt.original_fee || (paymentAppt.consultation_fee ? Math.round(paymentAppt.consultation_fee / 0.9) : 500);
+        const netFee = paymentAppt.consultation_fee;
+        const discountVal = Math.max(0, origFee - netFee);
+
+        return (
+          <div style={{
+            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+            background: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(4px)',
+            zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px'
+          }}>
+            <div style={{
+              background: '#ffffff', borderRadius: '20px', width: '100%', maxWidth: '520px',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)', overflow: 'hidden',
+              border: '1px solid #e2e8f0', animation: 'fadeIn 0.2s ease-out'
+            }}>
+              {/* Header */}
+              <div style={{
+                background: 'linear-gradient(135deg, #0d9488 0%, #0f766e 100%)',
+                color: '#ffffff', padding: '20px 24px', position: 'relative'
+              }}>
+                <button
+                  onClick={() => { setShowPaymentModal(false); setPaymentAppt(null); }}
+                  style={{
+                    position: 'absolute', right: '16px', top: '16px', background: 'rgba(255,255,255,0.15)',
+                    border: 'none', color: '#ffffff', borderRadius: '50%', width: '32px', height: '32px',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  <X size={18} />
+                </button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <div style={{ background: 'rgba(255,255,255,0.2)', padding: '8px', borderRadius: '12px' }}>
+                    <CreditCard size={22} color="#ffffff" />
+                  </div>
+                  <div>
+                    <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800 }}>Pharmacist Consultation Payment</h3>
+                    <p style={{ margin: '2px 0 0', fontSize: '12px', color: '#ccfbf1', opacity: 0.9 }}>
+                      Finalize doctor booking with 10% Pharmacist discount
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Content Body */}
+              <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '18px' }}>
+                {/* Doctor Details Summary */}
+                <div style={{
+                  background: '#f8fafc', border: '1.5px solid #e2e8f0', borderRadius: '14px', padding: '16px'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
+                    <div>
+                      <h4 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: '#0f172a' }}>
+                        {docName}
+                      </h4>
+                      <span style={{ fontSize: '12px', color: '#0d9488', fontWeight: 700 }}>
+                        {docSpec}
+                      </span>
+                    </div>
+                    <span style={{
+                      background: '#ecfdf5', color: '#047857', border: '1px solid #a7f3d0',
+                      padding: '3px 10px', borderRadius: '12px', fontSize: '11px', fontWeight: 800,
+                      display: 'flex', alignItems: 'center', gap: 4
+                    }}>
+                      <Percent size={11} /> 10% Discount Applied
+                    </span>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', fontSize: '13px', color: '#475569', borderTop: '1px solid #e2e8f0', paddingTop: '10px', marginTop: '10px' }}>
+                    <div>
+                      <span style={{ fontSize: '11px', color: '#94a3b8', display: 'block', fontWeight: 700 }}>CONSULTATION DATE</span>
+                      <strong style={{ color: '#0f172a' }}>{formatDate(paymentAppt.appointment_date)}</strong>
+                    </div>
+                    <div>
+                      <span style={{ fontSize: '11px', color: '#94a3b8', display: 'block', fontWeight: 700 }}>SLOT TIME</span>
+                      <strong style={{ color: '#0f172a' }}>{paymentAppt.appointment_time}</strong>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Payment Method Display */}
+                <div>
+                  <label style={{ fontSize: '13px', fontWeight: 800, color: '#334155', display: 'block', marginBottom: '10px' }}>
+                    Payment Method:
+                  </label>
+                  <div style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    padding: '14px 16px', borderRadius: '12px',
+                    border: '2px solid #0d9488', background: '#f0fdfa'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <div style={{
+                        width: '36px', height: '36px', borderRadius: '10px',
+                        background: '#0d9488', color: '#ffffff',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center'
+                      }}>
+                        <CreditCard size={20} />
+                      </div>
+                      <div>
+                        <strong style={{ display: 'block', fontSize: '14px', color: '#0f172a' }}>Online Digital Payment</strong>
+                        <span style={{ fontSize: '12px', color: '#64748b' }}>UPI, Cards, Net Banking (Razorpay)</span>
+                      </div>
+                    </div>
+                    <span style={{
+                      background: '#0d9488', color: '#fff', fontSize: '11px', fontWeight: 800,
+                      padding: '3px 10px', borderRadius: '12px', textTransform: 'uppercase'
+                    }}>
+                      Selected
+                    </span>
+                  </div>
+                </div>
+
+                {/* Price Breakdown with Discount Highlight */}
+                <div style={{
+                  background: '#f1f5f9', borderRadius: '12px', padding: '14px 16px',
+                  display: 'flex', flexDirection: 'column', gap: '8px'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: '#475569' }}>
+                    <span>Standard Consultation Fee</span>
+                    <span style={{ textDecoration: discountVal > 0 ? 'line-through' : 'none' }}>₹{origFee}</span>
+                  </div>
+                  {discountVal > 0 && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: '#059669', fontWeight: 700 }}>
+                      <span>10% Pharmacist Privilege Savings</span>
+                      <span>-₹{discountVal}</span>
+                    </div>
+                  )}
+                  <div style={{
+                    display: 'flex', justifyContent: 'space-between', fontSize: '16px', fontWeight: 800,
+                    color: '#0f172a', borderTop: '1px solid #cbd5e1', paddingTop: '8px', marginTop: '4px'
+                  }}>
+                    <span>Net Amount Payable</span>
+                    <span style={{ color: '#0d9488' }}>₹{netFee}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Modal Actions */}
+              <div style={{
+                padding: '16px 24px 20px', background: '#f8fafc', borderTop: '1px solid #e2e8f0',
+                display: 'flex', justifyContent: 'flex-end', gap: '12px'
+              }}>
+                <button
+                  disabled={processingPayment}
+                  onClick={() => { setShowPaymentModal(false); setPaymentAppt(null); }}
+                  style={{
+                    padding: '10px 20px', borderRadius: '10px', border: '1px solid #cbd5e1',
+                    background: '#ffffff', color: '#475569', fontWeight: 700, fontSize: '14px',
+                    cursor: 'pointer', transition: 'all 0.15s'
+                  }}
+                >
+                  Cancel
+                </button>
+
+                <button
+                  disabled={processingPayment}
+                  onClick={handleConfirmPharmacistPayment}
+                  style={{
+                    padding: '10px 24px', borderRadius: '10px', border: 'none',
+                    background: 'linear-gradient(135deg, #0d9488 0%, #0f766e 100%)',
+                    color: '#ffffff', fontWeight: 800, fontSize: '14px', cursor: 'pointer',
+                    boxShadow: '0 4px 12px rgba(13, 148, 136, 0.3)', display: 'flex', alignItems: 'center', gap: '8px'
+                  }}
+                >
+                  {processingPayment ? (
+                    <>
+                      <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> Processing...
+                    </>
+                  ) : (
+                    <>
+                      <Check size={16} /> Pay ₹{netFee} Now
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Doctor Location Map Modal */}
+      <DoctorLocationMapModal
+        isOpen={showDoctorMapModal}
+        onClose={() => setShowDoctorMapModal(false)}
+        doctor={selectedApptForMap?.doctor_id}
+        appointment={selectedApptForMap}
+      />
 
       <style>{`
         @keyframes spin { to { transform: rotate(360deg); } }

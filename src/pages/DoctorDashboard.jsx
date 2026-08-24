@@ -4,7 +4,7 @@ import {
   Activity, CalendarCheck, User, LogOut, ArrowRight, Clock, ShieldCheck, ArrowUpRight, CheckCircle2,
   AlertCircle, XCircle, Loader2, Users, Stethoscope, Check, Bell, Video, Edit2, Edit3, Lock, Save, X,
   ChevronLeft, ChevronRight, Camera, Calendar, Plus, Eye, EyeOff, Building2, Award, Phone, FileCheck, MapPin,
-  Search, Filter, CalendarDays, RotateCcw, RefreshCw, Mail, IndianRupee, FileText, Download
+  Search, Filter, CalendarDays, RotateCcw, RefreshCw, Mail, IndianRupee, FileText, Download, CreditCard, Pill, Tag
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import './DoctorDashboard.css';
@@ -129,6 +129,28 @@ const DoctorDashboard = () => {
     const scheduled = getScheduledDateTime(appt);
     if (!scheduled) return false;
     return nowTime < scheduled;
+  }, [getScheduledDateTime, nowTime]);
+
+  // Check if start meet button is enabled: enabled at scheduled time and up to 30 mins after scheduled time
+  const isStartMeetEnabled = useCallback((appt) => {
+    const scheduled = getScheduledDateTime(appt);
+    if (!scheduled) return true;
+    const windowEnd = new Date(scheduled.getTime() + 30 * 60 * 1000);
+    return nowTime >= scheduled && nowTime <= windowEnd;
+  }, [getScheduledDateTime, nowTime]);
+
+  // Tooltip/title for Start Meet button
+  const getStartMeetTooltip = useCallback((appt) => {
+    const scheduled = getScheduledDateTime(appt);
+    if (!scheduled) return "Start the consultation meeting";
+    const windowEnd = new Date(scheduled.getTime() + 30 * 60 * 1000);
+    if (nowTime < scheduled) {
+      return `Meeting can only be started at scheduled time (${appt.appointment_time || ''})`;
+    }
+    if (nowTime > windowEnd) {
+      return "Meeting start window (30 mins from scheduled time) has expired";
+    }
+    return "Start the consultation meeting";
   }, [getScheduledDateTime, nowTime]);
 
   // Dynamic effective status (if pending/confirmed past scheduled time or meeting limit without action, status is expired)
@@ -508,23 +530,7 @@ const DoctorDashboard = () => {
     );
   };
 
-  const handleJoinVideoCall = async (apptId) => {
-    const token = getToken();
-    // Mark appointment as completed because doctor is attending the meet
-    try {
-      await fetch(`${API}/appointment/doctor/${apptId}/call-complete`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        }
-      });
-      // Refresh appointments list so status reflects immediately
-      fetchAppointments();
-    } catch (err) {
-      console.error('Call complete notification failed:', err);
-    }
-
+  const handleJoinVideoCall = (apptId) => {
     navigate(`/video-call/MediPulse_${apptId}`);
   };
 
@@ -1078,8 +1084,17 @@ Verification Status: Digitally Verified Medical Record
                         <li key={i} className="dd-activity-item">
                           <div className="dd-activity-dot" style={{ background: cfg.dot, boxShadow: `0 0 0 3px ${cfg.dot}33` }} />
                           <div className="dd-activity-content">
-                            <p className="dd-activity-title">
-                              Patient: {appt.patient_id?.first_name} {appt.patient_id?.last_name}
+                            <p className="dd-activity-title" style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                              <span>Patient: {appt.patient_id?.first_name} {appt.patient_id?.last_name}</span>
+                              {appt.booker_role === 'pharmacist' ? (
+                                <span style={{ background: '#f0fdfa', border: '1px solid #99f6e4', color: '#0d9488', borderRadius: '12px', padding: '1px 8px', fontSize: '10px', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                                  <Pill size={10} /> Pharmacist (10% Off)
+                                </span>
+                              ) : (
+                                <span style={{ background: '#eff6ff', border: '1px solid #bfdbfe', color: '#2563eb', borderRadius: '12px', padding: '1px 8px', fontSize: '10px', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                                  <User size={10} /> Patient
+                                </span>
+                              )}
                             </p>
                             <div className="dd-activity-meta">
                               <Clock size={11} />
@@ -1259,26 +1274,69 @@ Verification Status: Digitally Verified Medical Record
                     const isToday = apptDateStr === todayStr;
                     const isPast = apptDateStr && apptDateStr < todayStr;
 
+                    const isPharmacistBooked = appt.booker_role === 'pharmacist';
+
                     return (
                       <div key={appt._id} className={`dd-appt-card status-${statusKey}`}>
                         {/* Left Status Accent Bar */}
-                        <div className="dd-ac-status-bar" style={{ background: cfg.dot }} />
+                        <div className="dd-ac-status-bar" style={{ background: isPharmacistBooked ? '#0d9488' : cfg.dot }} />
 
                         {/* Patient Avatar & Main Info */}
                         <div className="dd-ac-patient-info">
-                          <div className="dd-ac-avatar">
+                          <div className="dd-ac-avatar" style={{
+                            background: isPharmacistBooked
+                              ? 'linear-gradient(135deg, #0d9488 0%, #0f766e 100%)'
+                              : 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)',
+                            color: '#ffffff',
+                            border: isPharmacistBooked ? '2px solid #99f6e4' : '2px solid #bfdbfe',
+                            boxShadow: isPharmacistBooked ? '0 4px 12px rgba(13, 148, 136, 0.35)' : '0 4px 12px rgba(59, 130, 246, 0.25)'
+                          }}>
                             {initials}
                           </div>
                           <div className="dd-ac-details">
-                            <div className="dd-ac-name-row">
-                              <h4 className="dd-ac-patient-name">{patientName}</h4>
-                              <span className={`dd-ac-status-pill dd-badge-${cfg.color}`}>
+                            <div className="dd-ac-name-row" style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                              <h4 className="dd-ac-patient-name" style={{ margin: 0 }}>{patientName}</h4>
+                              
+                              {/* Booker Role Badge */}
+                              {isPharmacistBooked ? (
+                                <span style={{
+                                  background: '#f0fdfa', border: '1.5px solid #99f6e4', color: '#0d9488',
+                                  borderRadius: '20px', padding: '2px 10px', fontSize: '11px', fontWeight: 800,
+                                  display: 'inline-flex', alignItems: 'center', gap: '4px'
+                                }} title="Booked by logged-in Pharmacist with 10% Privilege Offer">
+                                  <Pill size={12} /> Pharmacist (10% Off Offer)
+                                </span>
+                              ) : (
+                                <span style={{
+                                  background: '#eff6ff', border: '1.5px solid #bfdbfe', color: '#2563eb',
+                                  borderRadius: '20px', padding: '2px 10px', fontSize: '11px', fontWeight: 700,
+                                  display: 'inline-flex', alignItems: 'center', gap: '4px'
+                                }}>
+                                  <User size={12} /> Direct Patient
+                                </span>
+                              )}
+
+                              <span className={`dd-ac-status-pill dd-badge-${cfg.color}`} style={{ marginLeft: 'auto' }}>
                                 <span className="dd-ac-status-dot" style={{ background: cfg.dot }} />
                                 {cfg.label}
                               </span>
                             </div>
                             
                             <div className="dd-ac-meta-grid">
+                              {/* Booker Role Details */}
+                              <div className="dd-ac-meta-item">
+                                {isPharmacistBooked ? (
+                                  <Pill size={14} className="dd-ac-meta-icon text-teal" />
+                                ) : (
+                                  <User size={14} className="dd-ac-meta-icon text-blue" />
+                                )}
+                                <span className="dd-ac-meta-text">
+                                  Booker: <strong style={{ color: isPharmacistBooked ? '#0d9488' : '#2563eb' }}>
+                                    {isPharmacistBooked ? 'Pharmacist (10% Privilege)' : 'Patient User'}
+                                  </strong>
+                                </span>
+                              </div>
+
                               {/* Date & Time Tracking */}
                               <div className="dd-ac-meta-item">
                                 <Clock size={14} className="dd-ac-meta-icon" />
@@ -1312,84 +1370,104 @@ Verification Status: Digitally Verified Medical Record
                                 </div>
                               )}
 
-                              {/* Patient Contact phone if available */}
-                              {appt.patient_id?.phone && (
-                                <div className="dd-ac-meta-item">
-                                  <Phone size={14} className="dd-ac-meta-icon text-green" />
-                                  <span className="dd-ac-meta-text">{appt.patient_id.phone}</span>
-                                </div>
-                              )}
-                            </div>
+                               {/* Payment Status & Fee */}
+                               <div className="dd-ac-meta-item">
+                                 <CreditCard size={14} className="dd-ac-meta-icon text-green" />
+                                 <span className="dd-ac-meta-text">
+                                   Fee (₹{appt.consultation_fee}): <strong style={{ color: appt.payment_status === 'paid' ? '#059669' : '#f97316' }}>
+                                     {appt.payment_status === 'paid' ? '✓ Paid' : 'Pending'}
+                                   </strong>
+                                 </span>
+                               </div>
+                             </div>
 
-                            {/* Symptoms Pills */}
-                            {Array.isArray(appt.symptoms) && appt.symptoms.length > 0 && (
-                              <div className="dd-ac-symptoms-list">
-                                <span className="dd-ac-symptoms-label">Symptoms:</span>
-                                {appt.symptoms.map((s, idx) => (
-                                  <span key={idx} className="dd-ac-symptom-tag">{s}</span>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        </div>
+                             {/* Symptoms Pills */}
+                             {Array.isArray(appt.symptoms) && appt.symptoms.length > 0 && (
+                               <div className="dd-ac-symptoms-list">
+                                 <span className="dd-ac-symptoms-label">Symptoms:</span>
+                                 {appt.symptoms.map((s, idx) => (
+                                   <span key={idx} className="dd-ac-symptom-tag">{s}</span>
+                                 ))}
+                               </div>
+                             )}
+                           </div>
+                         </div>
 
-                        {/* Action Buttons */}
-                        <div className="dd-ac-actions">
-                          {statusKey === 'pending' && (
-                            <>
-                              <button
-                                className="dd-btn-action btn-confirm"
-                                onClick={() => handleStatusUpdate(appt._id, 'confirmed')}
-                              >
-                                <Check size={14} /> Confirm
-                              </button>
-                              <button
-                                className="dd-btn-action btn-action btn-reject"
-                                onClick={() => handleOpenCancelModal(appt, 'rejected')}
-                              >
-                                <XCircle size={14} /> Reject
-                              </button>
-                            </>
-                          )}
+                         {/* Action Buttons */}
+                         <div className="dd-ac-actions">
+                           {statusKey === 'pending' && (
+                             <>
+                               <button
+                                 className="dd-btn-action btn-confirm"
+                                 onClick={() => handleStatusUpdate(appt._id, 'confirmed')}
+                               >
+                                 <Check size={14} /> Confirm
+                               </button>
+                               <button
+                                 className="dd-btn-action btn-action btn-reject"
+                                 onClick={() => handleOpenCancelModal(appt, 'rejected')}
+                               >
+                                 <XCircle size={14} /> Reject
+                               </button>
+                             </>
+                           )}
 
-                          {statusKey === 'confirmed' && (
-                            <>
-                              {!appt.meet_time_start ? (
-                                <button
-                                  className="dd-btn-action btn-start-meeting"
-                                  onClick={() => handleStartMeeting(appt)}
-                                  disabled={isBeforeScheduledTime(appt)}
-                                  title={
-                                    isBeforeScheduledTime(appt)
-                                      ? `Meeting can only be started at scheduled time (${appt.appointment_time})`
-                                      : "Start the consultation meeting"
-                                  }
-                                >
-                                  <Clock size={14} /> Start Meet
-                                </button>
-                              ) : (
-                                <button
-                                  className="dd-btn-action btn-video"
-                                  onClick={() => {
-                                    if (appt.consult_mode === 'online') {
-                                      handleJoinVideoCall(appt._id);
-                                    }
-                                  }}
-                                >
-                                  {appt.consult_mode === 'online' ? <Video size={14} /> : <Clock size={14} />}
-                                  {appt.consult_mode === 'online' ? 'Join Video Call' : 'Meeting In Progress'}
-                                </button>
-                              )}
-                              <button
-                                className="dd-btn-action btn-cancel"
-                                onClick={() => handleOpenCancelModal(appt, 'cancel')}
-                              >
-                                <XCircle size={14} /> Cancel
-                              </button>
-                            </>
-                          )}
+                           {statusKey === 'confirmed' && (
+                             <>
+                               {appt.consult_mode === 'online' ? (
+                                 !appt.meet_time_start ? (
+                                   <button
+                                     className="dd-btn-action btn-start-meeting"
+                                     onClick={() => handleStartMeeting(appt)}
+                                     disabled={!isStartMeetEnabled(appt)}
+                                     title={getStartMeetTooltip(appt)}
+                                   >
+                                     <Clock size={14} /> Start Meet
+                                   </button>
+                                 ) : (
+                                   <button
+                                     className="dd-btn-action btn-video"
+                                     onClick={() => handleJoinVideoCall(appt._id)}
+                                   >
+                                     <Video size={14} /> Join Video Call
+                                   </button>
+                                 )
+                               ) : (
+                                 /* Offline Consultation Mark Completed Button — enabled for 30 mins from scheduled time */
+                                 <button
+                                   className="dd-btn-action btn-confirm"
+                                   onClick={() => handleStatusUpdate(appt._id, 'completed')}
+                                   disabled={!isStartMeetEnabled(appt)}
+                                   title={
+                                     isBeforeScheduledTime(appt)
+                                       ? `Mark Completed can only be clicked at scheduled time (${appt.appointment_time || ''})`
+                                       : !isStartMeetEnabled(appt)
+                                       ? "Mark completed window (30 mins from scheduled time) has expired"
+                                       : "Mark offline consultation as completed"
+                                   }
+                                   style={{
+                                     background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                                     color: '#ffffff', border: 'none', borderRadius: '8px', padding: '6px 14px',
+                                     fontWeight: 700, fontSize: '13px',
+                                     cursor: isStartMeetEnabled(appt) ? 'pointer' : 'not-allowed',
+                                     opacity: isStartMeetEnabled(appt) ? 1 : 0.65,
+                                     display: 'flex', alignItems: 'center', gap: '5px',
+                                     boxShadow: isStartMeetEnabled(appt) ? '0 4px 10px rgba(16,185,129,0.35)' : 'none'
+                                   }}
+                                 >
+                                   <CheckCircle2 size={14} /> Mark Completed
+                                 </button>
+                               )}
+                               <button
+                                 className="dd-btn-action btn-cancel"
+                                 onClick={() => handleOpenCancelModal(appt, 'cancel')}
+                               >
+                                 <XCircle size={14} /> Cancel Meet
+                               </button>
+                             </>
+                           )}
 
-                          {appt.status === 'completed' && (() => {
+                          {(appt.status === 'completed' || statusKey === 'completed') && (() => {
                             const isPrescAdded = Boolean(
                               appt.prescription_added ||
                               prescriptions.some(p => (p.appointment_id?._id || p.appointment_id) === appt._id || p._id === appt._id) ||
@@ -2326,93 +2404,132 @@ Verification Status: Digitally Verified Medical Record
               </div>
 
               {/* ── Meeting Time Details (Dynamic) ── */}
-              <div style={{
-                marginTop: '16px',
-                background: 'linear-gradient(135deg, #f0fdfa 0%, #ecfdf5 100%)',
-                border: '1.5px solid #99f6e4',
-                borderRadius: '14px',
-                padding: '16px 20px'
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'linear-gradient(135deg, #0d9488, #14b8a6)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                      <Clock size={15} color="#fff" />
-                    </div>
-                    <div>
-                      <span style={{ fontWeight: 800, fontSize: '14px', color: '#0f172a', display: 'block' }}>Meeting Time Details</span>
-                      <span style={{ fontSize: '12px', color: '#64748b' }}>Start time, end time & total consultation duration</span>
-                    </div>
-                  </div>
-                  <span style={{
-                    fontSize: '11px',
-                    fontWeight: 700,
-                    padding: '3px 10px',
-                    borderRadius: '12px',
-                    background: selectedSpecsPatient.consult_mode === 'online' ? '#eff6ff' : '#f5f3ff',
-                    color: selectedSpecsPatient.consult_mode === 'online' ? '#2563eb' : '#7c3aed',
-                    border: `1px solid ${selectedSpecsPatient.consult_mode === 'online' ? '#bfdbfe' : '#ddd6fe'}`
+              {(() => {
+                const apptDateObj = getScheduledDateTime(selectedSpecsPatient);
+                const todayStart = new Date();
+                todayStart.setHours(0, 0, 0, 0);
+
+                // Past meet happened: scheduled date is before today, OR status is completed/expired/cancelled/rejected without meet_time_start tracked
+                const isPastAppt = Boolean(
+                  (apptDateObj && apptDateObj < todayStart) ||
+                  (['completed', 'expired', 'cancelled', 'rejected'].includes((selectedSpecsPatient.status || '').toLowerCase()) && !selectedSpecsPatient.meet_time_start)
+                );
+
+                const hasMeetStarted = Boolean(selectedSpecsPatient.meet_time_start);
+                const hasMeetEnded = Boolean(selectedSpecsPatient.meet_time_end);
+
+                const formatTime = (ts) => {
+                  if (!ts) return '—';
+                  return new Date(ts).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+                };
+
+                const formatDateSub = (ts) => {
+                  if (!ts) return null;
+                  return new Date(ts).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+                };
+
+                const startTimeDisplay = isPastAppt ? '—' : (hasMeetStarted ? formatTime(selectedSpecsPatient.meet_time_start) : '—');
+                const startTimeSub = isPastAppt ? null : (hasMeetStarted ? formatDateSub(selectedSpecsPatient.meet_time_start) : null);
+
+                const endTimeDisplay = isPastAppt ? '—' : (hasMeetEnded ? formatTime(selectedSpecsPatient.meet_time_end) : '—');
+                const endTimeSub = isPastAppt ? null : (hasMeetEnded ? formatDateSub(selectedSpecsPatient.meet_time_end) : null);
+
+                let totalTimeDisplay = '—';
+                let isLiveProgress = false;
+
+                if (!isPastAppt) {
+                  if (selectedSpecsPatient.meet_time != null) {
+                    totalTimeDisplay = `${selectedSpecsPatient.meet_time} min`;
+                  } else if (hasMeetStarted && hasMeetEnded) {
+                    const durationMins = Math.max(1, Math.round((new Date(selectedSpecsPatient.meet_time_end) - new Date(selectedSpecsPatient.meet_time_start)) / 60000));
+                    totalTimeDisplay = `${durationMins} min`;
+                  } else if (hasMeetStarted && !hasMeetEnded) {
+                    const liveMins = Math.max(1, Math.round((nowTime - new Date(selectedSpecsPatient.meet_time_start)) / 60000));
+                    totalTimeDisplay = `${liveMins} min`;
+                    isLiveProgress = true;
+                  }
+                }
+
+                return (
+                  <div style={{
+                    marginTop: '16px',
+                    background: 'linear-gradient(135deg, #f0fdfa 0%, #ecfdf5 100%)',
+                    border: '1.5px solid #99f6e4',
+                    borderRadius: '14px',
+                    padding: '16px 20px'
                   }}>
-                    {selectedSpecsPatient.consult_mode === 'online' ? 'Online Video Meet' : 'Offline / In-Person Meet'}
-                  </span>
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>
-                  {/* Meet Start Time */}
-                  <div style={{ background: '#fff', borderRadius: '10px', padding: '12px 14px', border: '1px solid #ccfbf1', textAlign: 'center' }}>
-                    <div style={{ fontSize: '11px', fontWeight: 700, color: '#0d9488', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
-                      <span style={{ width: 7, height: 7, borderRadius: '50%', background: selectedSpecsPatient.meet_time_start ? '#10b981' : '#cbd5e1', display: 'inline-block' }} />
-                      Meet Start Time
-                    </div>
-                    <div style={{ fontSize: '16px', fontWeight: 800, color: selectedSpecsPatient.meet_time_start ? '#0f172a' : '#94a3b8' }}>
-                      {selectedSpecsPatient.meet_time_start
-                        ? new Date(selectedSpecsPatient.meet_time_start).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })
-                        : '—'}
-                    </div>
-                    {selectedSpecsPatient.meet_time_start && (
-                      <div style={{ fontSize: '11px', color: '#64748b', marginTop: 3 }}>
-                        {new Date(selectedSpecsPatient.meet_time_start).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'linear-gradient(135deg, #0d9488, #14b8a6)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                          <Clock size={15} color="#fff" />
+                        </div>
+                        <div>
+                          <span style={{ fontWeight: 800, fontSize: '14px', color: '#0f172a', display: 'block' }}>Meeting Time Details</span>
+                          <span style={{ fontSize: '12px', color: '#64748b' }}>Start time, end time & total consultation duration</span>
+                        </div>
                       </div>
-                    )}
-                  </div>
+                      <span style={{
+                        fontSize: '11px',
+                        fontWeight: 700,
+                        padding: '3px 10px',
+                        borderRadius: '12px',
+                        background: selectedSpecsPatient.consult_mode === 'online' ? '#eff6ff' : '#f5f3ff',
+                        color: selectedSpecsPatient.consult_mode === 'online' ? '#2563eb' : '#7c3aed',
+                        border: `1px solid ${selectedSpecsPatient.consult_mode === 'online' ? '#bfdbfe' : '#ddd6fe'}`
+                      }}>
+                        {selectedSpecsPatient.consult_mode === 'online' ? 'Online Video Meet' : 'Offline / In-Person Meet'}
+                      </span>
+                    </div>
 
-                  {/* Meet End Time */}
-                  <div style={{ background: '#fff', borderRadius: '10px', padding: '12px 14px', border: '1px solid #fecaca', textAlign: 'center' }}>
-                    <div style={{ fontSize: '11px', fontWeight: 700, color: '#dc2626', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
-                      <span style={{ width: 7, height: 7, borderRadius: '2px', background: selectedSpecsPatient.meet_time_end ? '#ef4444' : '#cbd5e1', display: 'inline-block' }} />
-                      Meet End Time
-                    </div>
-                    <div style={{ fontSize: '16px', fontWeight: 800, color: selectedSpecsPatient.meet_time_end ? '#0f172a' : '#94a3b8' }}>
-                      {selectedSpecsPatient.meet_time_end
-                        ? new Date(selectedSpecsPatient.meet_time_end).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })
-                        : '—'}
-                    </div>
-                    {selectedSpecsPatient.meet_time_end && (
-                      <div style={{ fontSize: '11px', color: '#64748b', marginTop: 3 }}>
-                        {new Date(selectedSpecsPatient.meet_time_end).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>
+                      {/* Meet Start Time */}
+                      <div style={{ background: '#fff', borderRadius: '10px', padding: '12px 14px', border: '1px solid #ccfbf1', textAlign: 'center' }}>
+                        <div style={{ fontSize: '11px', fontWeight: 700, color: '#0d9488', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
+                          <span style={{ width: 7, height: 7, borderRadius: '50%', background: (!isPastAppt && hasMeetStarted) ? '#10b981' : '#cbd5e1', display: 'inline-block' }} />
+                          Meet Start Time
+                        </div>
+                        <div style={{ fontSize: '16px', fontWeight: 800, color: (!isPastAppt && hasMeetStarted) ? '#0f172a' : '#94a3b8' }}>
+                          {startTimeDisplay}
+                        </div>
+                        {startTimeSub && (
+                          <div style={{ fontSize: '11px', color: '#64748b', marginTop: 3 }}>
+                            {startTimeSub}
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </div>
 
-                  {/* Overall / Total Meet Time */}
-                  <div style={{ background: 'linear-gradient(135deg, #0d9488, #0ea5e9)', borderRadius: '10px', padding: '12px 14px', textAlign: 'center' }}>
-                    <div style={{ fontSize: '11px', fontWeight: 700, color: 'rgba(255,255,255,0.85)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px' }}>
-                      Total Meet Time
+                      {/* Meet End Time */}
+                      <div style={{ background: '#fff', borderRadius: '10px', padding: '12px 14px', border: '1px solid #fecaca', textAlign: 'center' }}>
+                        <div style={{ fontSize: '11px', fontWeight: 700, color: '#dc2626', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
+                          <span style={{ width: 7, height: 7, borderRadius: '2px', background: (!isPastAppt && hasMeetEnded) ? '#ef4444' : '#cbd5e1', display: 'inline-block' }} />
+                          Meet End Time
+                        </div>
+                        <div style={{ fontSize: '16px', fontWeight: 800, color: (!isPastAppt && hasMeetEnded) ? '#0f172a' : '#94a3b8' }}>
+                          {endTimeDisplay}
+                        </div>
+                        {endTimeSub && (
+                          <div style={{ fontSize: '11px', color: '#64748b', marginTop: 3 }}>
+                            {endTimeSub}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Overall / Total Meet Time */}
+                      <div style={{ background: 'linear-gradient(135deg, #0d9488, #0ea5e9)', borderRadius: '10px', padding: '12px 14px', textAlign: 'center' }}>
+                        <div style={{ fontSize: '11px', fontWeight: 700, color: 'rgba(255,255,255,0.85)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px' }}>
+                          Total Meet Time
+                        </div>
+                        <div style={{ fontSize: '18px', fontWeight: 900, color: '#fff', lineHeight: 1.2 }}>
+                          {totalTimeDisplay}
+                        </div>
+                        {isLiveProgress && (
+                          <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.9)', marginTop: 3, fontWeight: 700 }}>● Live In Progress</div>
+                        )}
+                      </div>
                     </div>
-                    <div style={{ fontSize: '18px', fontWeight: 900, color: '#fff', lineHeight: 1.2 }}>
-                      {selectedSpecsPatient.meet_time != null
-                        ? `${selectedSpecsPatient.meet_time} min`
-                        : (selectedSpecsPatient.meet_time_start && selectedSpecsPatient.meet_time_end
-                            ? `${Math.max(1, Math.round((new Date(selectedSpecsPatient.meet_time_end) - new Date(selectedSpecsPatient.meet_time_start)) / 60000))} min`
-                            : (selectedSpecsPatient.meet_time_start && !selectedSpecsPatient.meet_time_end
-                                ? `${Math.max(1, Math.round((nowTime - new Date(selectedSpecsPatient.meet_time_start)) / 60000))} min`
-                                : '—'))}
-                    </div>
-                    {selectedSpecsPatient.meet_time_start && !selectedSpecsPatient.meet_time_end && (
-                      <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.9)', marginTop: 3, fontWeight: 700 }}>● Live In Progress</div>
-                    )}
                   </div>
-                </div>
-              </div>
+                );
+              })()}
 
               {/* View Medical Record Button */}
               {(() => {

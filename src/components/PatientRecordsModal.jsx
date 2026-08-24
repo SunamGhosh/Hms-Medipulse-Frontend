@@ -47,7 +47,15 @@ const PatientRecordsModal = ({ isOpen, onClose, patient }) => {
         <div className="prm-header">
           <div className="prm-header-title">
             <ShieldCheck size={20} color="#0d9488" />
-            <h2>Medical History: {patient?.first_name} {patient?.last_name}</h2>
+            <div>
+              <h2 style={{ margin: 0, fontSize: '1.2rem' }}>Medical History: {patient?.first_name} {patient?.last_name}</h2>
+              {(patient?.gender || patient?.age || patient?.patient_age) && (
+                <span style={{ fontSize: '12px', color: '#ccfbf1', fontWeight: 600 }}>
+                  {patient?.gender ? (patient.gender.charAt(0).toUpperCase() + patient.gender.slice(1).toLowerCase()) : ''}
+                  {(patient?.age || patient?.patient_age) ? ` • ${patient.age || patient.patient_age} Years` : ''}
+                </span>
+              )}
+            </div>
           </div>
           <button onClick={onClose} className="prm-close-btn"><X size={20} /></button>
         </div>
