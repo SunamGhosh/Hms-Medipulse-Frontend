@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 import './BookAppointmentModal.css';
 
-const API = import.meta.env.VITE_URL;
+const API = import.meta.env.VITE_URL || 'http://localhost:5000';
 
 /* ── helpers ── */
 const getToken = () => localStorage.getItem('userToken');

@@ -10,7 +10,7 @@ import toast from 'react-hot-toast';
 import './PharmacistDashboard.css';
 import DoctorLocationMapModal from '../components/DoctorLocationMapModal';
 
-const API = import.meta.env.VITE_URL;
+const API = import.meta.env.VITE_URL || 'http://localhost:5000';
 const getToken = () => sessionStorage.getItem('pharmacistToken') || localStorage.getItem('pharmacistToken');
 
 const STATUS_CONFIG = {
@@ -354,13 +354,19 @@ const PharmacistDashboard = () => {
   const fetchActiveDoctors = useCallback(async () => {
     setDoctorsLoading(true);
     try {
-      const res = await fetch(`${API}/doctor/active`);
+      const apiBase = API || import.meta.env.VITE_URL || 'http://localhost:5000';
+      const res = await fetch(`${apiBase}/doctor/active`);
       const data = await res.json();
       if (res.ok) {
-        setDoctorsList(data.doctors || []);
+        setDoctorsList(data.doctors || data.data || (Array.isArray(data) ? data : []));
+      } else {
+        console.error("Failed to fetch active doctors:", data?.message);
       }
-    } catch { /* silent */ }
-    finally { setDoctorsLoading(false); }
+    } catch (err) {
+      console.error("Error fetching active doctors:", err);
+    } finally {
+      setDoctorsLoading(false);
+    }
   }, []);
 
   // Fetch Medicine Inventory
@@ -457,6 +463,13 @@ const PharmacistDashboard = () => {
       window.removeEventListener('resize', handleResize);
     };
   }, [fetchProfile, fetchAppointments, fetchMedicines, fetchMedicineRequests, fetchSales, fetchActiveDoctors]);
+
+  // Refetch active doctors whenever consultation booking modal opens
+  useEffect(() => {
+    if (showBookModal) {
+      fetchActiveDoctors();
+    }
+  }, [showBookModal, fetchActiveDoctors]);
 
   // Open Edit Profile Modal
   const openEditModal = () => {
@@ -2458,7 +2471,7 @@ Verification Status: Digitally Verified Medical Record
                           if (!doctorSearch.trim()) return true;
                           const q = doctorSearch.toLowerCase();
                           return (
-                            `${d.first_name} ${d.last_name}`.toLowerCase().includes(q) ||
+                            `${d.first_name || ''} ${d.last_name || ''}`.toLowerCase().includes(q) ||
                             (d.specialization || '').toLowerCase().includes(q) ||
                             (d.department || '').toLowerCase().includes(q)
                           );
@@ -2513,11 +2526,26 @@ Verification Status: Digitally Verified Medical Record
                       {doctorsList.filter(d => {
                         if (!doctorSearch.trim()) return true;
                         const q = doctorSearch.toLowerCase();
-                        return `${d.first_name} ${d.last_name}`.toLowerCase().includes(q) ||
-                          (d.specialization || '').toLowerCase().includes(q);
+                        return `${d.first_name || ''} ${d.last_name || ''}`.toLowerCase().includes(q) ||
+                          (d.specialization || '').toLowerCase().includes(q) ||
+                          (d.department || '').toLowerCase().includes(q);
                       }).length === 0 && (
                         <div style={{ textAlign: 'center', padding: '1rem', color: '#94a3b8', fontSize: 13 }}>
-                          No doctors found matching "{doctorSearch}"
+                          {doctorsList.length === 0 ? (
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+                              <p style={{ margin: 0 }}>No active doctors available at the moment.</p>
+                              <button
+                                type="button"
+                                onClick={fetchActiveDoctors}
+                                className="pd-btn-secondary"
+                                style={{ fontSize: 12, padding: '4px 12px' }}
+                              >
+                                Retry Loading Doctors
+                              </button>
+                            </div>
+                          ) : (
+                            `No doctors found matching "${doctorSearch}"`
+                          )}
                         </div>
                       )}
                     </div>
