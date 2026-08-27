@@ -1,10 +1,10 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Activity, CalendarCheck, User, LogOut, ArrowRight, Clock, ShieldCheck, ArrowUpRight, CheckCircle2,
+  Activity, CalendarCheck, User, LogOut, ArrowRight, Clock, ShieldCheck, ArrowUpRight, CheckCircle2, XCircle,
   AlertCircle, Loader2, Users, Check, Pill, Edit3, Lock, Plus, Search, Package,
   ShoppingCart, X, Building2, Phone, Award, FileCheck, MapPin, Calendar,
-  AlertTriangle, Eye, EyeOff, RefreshCw, FileText, Stethoscope, Tag, Percent, ChevronLeft, ChevronRight, Download, CreditCard, Banknote
+  AlertTriangle, Eye, EyeOff, RefreshCw, FileText, Stethoscope, Tag, Percent, ChevronLeft, ChevronRight, Download, CreditCard, Banknote, Video
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import './PharmacistDashboard.css';
@@ -234,7 +234,7 @@ const PharmacistDashboard = () => {
       }
     }).catch(err => console.error('Video call reminder failed:', err));
 
-    navigate(`/video-call/${apptId}`);
+    navigate(`/video-call/MediPulse_${apptId}`);
   };
 
   // Fetch Profile
@@ -1702,10 +1702,29 @@ Verification Status: Digitally Verified Medical Record
                                 )}
                               </span>
                             )}
-                            <span style={{ color: appt.payment_status === 'paid' ? '#059669' : '#f97316', fontWeight: 600 }}>
-                              Payment: {appt.payment_status === 'paid' ? '✓ Paid' : 'Pending'}
+                          {/* Payment status pill in metadata */}
+                            <span style={{ color: appt.payment_status === 'refunded' || appt.refund_status === 'refunded' ? '#0d9488' : appt.payment_status === 'paid' ? '#059669' : '#f97316', fontWeight: 600 }}>
+                              Payment: {appt.refund_status === 'refunded' || appt.payment_status === 'refunded' ? '✓ Refunded (100%)' : appt.payment_status === 'paid' ? '✓ Paid' : 'Pending'}
                             </span>
                           </div>
+
+                          {/* Refund Status Banner */}
+                          {appt.refund_status === 'refunded' ? (
+                            <div style={{ marginTop: '0.6rem', padding: '0.6rem 1rem', background: '#f0fdfa', borderRadius: 8, border: '1.5px solid #99f6e4', fontSize: 13, color: '#0f766e', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <CheckCircle2 size={16} color="#0d9488" />
+                              100% Refund Done (₹{appt.refund_amount || appt.consultation_fee}) — Refunded to your account by Doctor
+                            </div>
+                          ) : paymentKey === 'paid' && appt.refund_status === 'pending' ? (
+                            <div style={{ marginTop: '0.6rem', padding: '0.6rem 1rem', background: '#fff7ed', borderRadius: 8, border: '1.5px solid #fed7aa', fontSize: 13, color: '#c2410c', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <Clock size={16} color="#d97706" />
+                              Eligible for 100% Refund (₹{appt.consultation_fee}). Doctor will process refund to your account.
+                            </div>
+                          ) : statusKey === 'expired' && appt.refund_status === 'not_applicable' ? (
+                            <div style={{ marginTop: '0.6rem', padding: '0.6rem 1rem', background: '#fef2f2', borderRadius: 8, border: '1.5px solid #fecaca', fontSize: 13, color: '#dc2626', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <XCircle size={16} color="#dc2626" />
+                              Expired (No Refund - Patient No-Show / Missed Appointment)
+                            </div>
+                          ) : null}
 
                           {/* Payment CTA when doctor has confirmed */}
                           {needsPayment && (
@@ -1733,18 +1752,18 @@ Verification Status: Digitally Verified Medical Record
                             </div>
                           )}
 
-                          {/* Video Call CTA when confirmed, paid, and online */}
-                          {statusKey === 'confirmed' && paymentKey === 'paid' && appt.consult_mode === 'online' && (
+                          {/* Video Call CTA when confirmed, paid, online, and doctor has not ended meeting */}
+                          {statusKey === 'confirmed' && paymentKey === 'paid' && appt.consult_mode === 'online' && !appt.meet_time_end && (
                             <div style={{ marginTop: '0.75rem', padding: '0.6rem 1rem', background: '#eff6ff', borderRadius: 8, display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
                               <Stethoscope size={16} color="#2563eb" />
                               <span style={{ fontSize: 13, color: '#1e40af', fontWeight: 600 }}>
-                                Online Consultation Scheduled! Click below to enter the video call room.
+                                {appt.meet_time_start ? 'Video Consultation is Live! Click below to rejoin the call.' : 'Online Consultation Scheduled! Click below to enter the video call room.'}
                               </span>
                               <button
                                 onClick={() => handleJoinVideoCall(appt._id)}
                                 style={{ padding: '6px 14px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}
                               >
-                                <ArrowRight size={14} /> Join Video Call Room
+                                <Video size={14} /> {appt.meet_time_start ? 'Rejoin Video Call Room' : 'Join Video Call Room'}
                               </button>
                             </div>
                           )}

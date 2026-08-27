@@ -892,7 +892,7 @@ Verification Status: Digitally Verified Medical Record
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                   {appointments.map((appt) => {
                     const cfg = STATUS_CONFIG[appt.status] || STATUS_CONFIG.pending;
-                    const canCancel = appt.status === 'pending' || appt.status === 'confirmed';
+                    const canCancel = (appt.status === 'pending' || appt.status === 'confirmed') && appt.payment_status !== 'paid';
                     return (
                       <div key={appt._id} style={{
                         background: '#fff',
@@ -978,12 +978,24 @@ Verification Status: Digitally Verified Medical Record
                         </span>
 
                         <div style={{ display: 'flex', gap: '8px', flexShrink: 0, flexWrap: 'wrap', alignItems: 'center' }}>
-                          {/* Payment Done badge */}
-                          {appt.payment_status === 'paid' && (
+                          {/* Refund & Expiry Status badges */}
+                          {appt.refund_status === 'refunded' ? (
+                            <span style={{ background: '#ccfbf1', border: '1.5px solid #99f6e4', color: '#0f766e', borderRadius: '20px', padding: '5px 13px', fontSize: '12px', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                              <CheckCircle2 size={12} /> 100% Refund Received (₹{appt.refund_amount || appt.consultation_fee})
+                            </span>
+                          ) : appt.payment_status === 'paid' && appt.refund_status === 'pending' ? (
+                            <span style={{ background: '#fff7ed', border: '1.5px solid #fed7aa', color: '#c2410c', borderRadius: '20px', padding: '5px 13px', fontSize: '12px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                              <Clock size={12} /> 100% Refund Pending by Doctor
+                            </span>
+                          ) : appt.status === 'expired' && appt.refund_status === 'not_applicable' ? (
+                            <span style={{ background: '#fef2f2', border: '1.5px solid #fecaca', color: '#dc2626', borderRadius: '20px', padding: '5px 13px', fontSize: '12px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                              <XCircle size={12} /> Expired (No Refund - Patient No-Show)
+                            </span>
+                          ) : appt.payment_status === 'paid' ? (
                             <span style={{ background: '#f0fdf4', border: '1.5px solid #86efac', color: '#16a34a', borderRadius: '20px', padding: '5px 13px', fontSize: '12px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
                               <CheckCircle2 size={12} /> Payment Done
                             </span>
-                          )}
+                          ) : null}
                           {/* Pay Now button — only for confirmed + unpaid */}
                           {appt.status === 'confirmed' && appt.payment_status !== 'paid' && appt.consultation_fee && (
                             <button onClick={() => openPaymentModal(appt)}
@@ -991,10 +1003,10 @@ Verification Status: Digitally Verified Medical Record
                               <CreditCard size={13} /> Pay Now
                             </button>
                           )}
-                          {appt.status === 'confirmed' && appt.payment_status === 'paid' && appt.consult_mode === 'online' && (
+                          {appt.status === 'confirmed' && appt.payment_status === 'paid' && appt.consult_mode === 'online' && !appt.meet_time_end && (
                             <button onClick={() => handleJoinVideoCall(appt._id)}
-                              style={{ background: '#eff6ff', border: '1px solid #bfdbfe', color: '#2563eb', borderRadius: '8px', padding: '6px 14px', fontWeight: 700, fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                              <Video size={13} /> Join Video Call
+                              style={{ background: '#eff6ff', border: '1px solid #bfdbfe', color: '#2563eb', borderRadius: '8px', padding: '6px 14px', fontWeight: 700, fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                              <Video size={13} /> {appt.meet_time_start ? 'Rejoin Video Call' : 'Join Video Call'}
                             </button>
                           )}
                           {(appt.status === 'confirmed' || appt.status === 'completed') && appt.payment_status === 'paid' && (appt.consult_mode === 'offline' || appt.consult_mode !== 'online') && (

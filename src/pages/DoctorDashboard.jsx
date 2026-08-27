@@ -2,8 +2,8 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Activity, CalendarCheck, User, LogOut, ArrowRight, Clock, ShieldCheck, ArrowUpRight, CheckCircle2,
-  AlertCircle, XCircle, Loader2, Users, Stethoscope, Check, Bell, Video, Edit2, Edit3, Lock, Save, X,
-  ChevronLeft, ChevronRight, Camera, Calendar, Plus, Eye, EyeOff, Building2, Award, Phone, FileCheck, MapPin,
+  AlertCircle, AlertTriangle, XCircle, Loader2, Users, Stethoscope, Check, Bell, Video, Edit2, Edit3, Lock, Save, X, UserX,
+  ChevronLeft, ChevronRight, Camera, Calendar, Plus, Eye, EyeOff, Building2, Award, Phone, PhoneOff, FileCheck, MapPin,
   Search, Filter, CalendarDays, RotateCcw, RefreshCw, Mail, IndianRupee, FileText, Download, CreditCard, Pill, Tag
 } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -131,8 +131,9 @@ const DoctorDashboard = () => {
     return nowTime < scheduled;
   }, [getScheduledDateTime, nowTime]);
 
-  // Check if start meet button is enabled: enabled at scheduled time and up to 30 mins after scheduled time
+  // Check if start meet button is enabled: enabled at scheduled time and up to 30 mins after scheduled time AND payment is paid
   const isStartMeetEnabled = useCallback((appt) => {
+    if (appt?.payment_status !== 'paid') return false;
     const scheduled = getScheduledDateTime(appt);
     if (!scheduled) return true;
     const windowEnd = new Date(scheduled.getTime() + 30 * 60 * 1000);
@@ -141,6 +142,9 @@ const DoctorDashboard = () => {
 
   // Tooltip/title for Start Meet button
   const getStartMeetTooltip = useCallback((appt) => {
+    if (appt?.payment_status !== 'paid') {
+      return "Payment pending by patient/pharmacist. Cannot start video meeting until fee is paid.";
+    }
     const scheduled = getScheduledDateTime(appt);
     if (!scheduled) return "Start the consultation meeting";
     const windowEnd = new Date(scheduled.getTime() + 30 * 60 * 1000);
@@ -151,6 +155,28 @@ const DoctorDashboard = () => {
       return "Meeting start window (30 mins from scheduled time) has expired";
     }
     return "Start the consultation meeting";
+  }, [getScheduledDateTime, nowTime]);
+
+  // Check if Patient Did Not Visit button is enabled: enabled ONLY at scheduled time and up to 30 mins after scheduled time
+  const isNoShowEnabled = useCallback((appt) => {
+    const scheduled = getScheduledDateTime(appt);
+    if (!scheduled) return true;
+    const windowEnd = new Date(scheduled.getTime() + 30 * 60 * 1000);
+    return nowTime >= scheduled && nowTime <= windowEnd;
+  }, [getScheduledDateTime, nowTime]);
+
+  // Tooltip/title for Patient Did Not Visit button
+  const getNoShowTooltip = useCallback((appt) => {
+    const scheduled = getScheduledDateTime(appt);
+    if (!scheduled) return "Patient did not visit clinic at scheduled time";
+    const windowEnd = new Date(scheduled.getTime() + 30 * 60 * 1000);
+    if (nowTime < scheduled) {
+      return `Patient Did Not Visit button will be enabled at scheduled time (${appt.appointment_time || ''})`;
+    }
+    if (nowTime > windowEnd) {
+      return "Patient Did Not Visit button window (30 mins from scheduled time) has expired";
+    }
+    return "Mark patient as did not visit clinic (No refund)";
   }, [getScheduledDateTime, nowTime]);
 
   // Dynamic effective status (if pending/confirmed past scheduled time or meeting limit without action, status is expired)
@@ -467,6 +493,142 @@ const DoctorDashboard = () => {
     navigate('/doctor/login');
   };
 
+  // Doctor Refund Modal states
+  const [showRefundModal, setShowRefundModal] = useState(false);
+  const [refundModalAppt, setRefundModalAppt] = useState(null);
+  const [refundSubmitting, setRefundSubmitting] = useState(false);
+  const [refundSuccess, setRefundSuccess] = useState(false);
+
+  // Doctor No-Show Modal states
+  const [showNoShowModal, setShowNoShowModal] = useState(false);
+  const [noShowModalAppt, setNoShowModalAppt] = useState(null);
+  const [noShowSubmitting, setNoShowSubmitting] = useState(false);
+
+  const handleOpenNoShowModal = (appt) => {
+    if (!isNoShowEnabled(appt)) {
+      const scheduled = getScheduledDateTime(appt);
+      if (scheduled && nowTime < scheduled) {
+        toast.error(`Cannot mark patient as no-show before scheduled time (${appt.appointment_time || ''}).`);
+        return;
+      }
+      if (scheduled && nowTime > new Date(scheduled.getTime() + 30 * 60 * 1000)) {
+        toast.error("The 30-minute window for marking patient no-show has expired.");
+        return;
+      }
+      toast.error("Patient did not visit button is enabled only for 30 minutes starting from scheduled time.");
+      return;
+    }
+    setNoShowModalAppt(appt);
+    setShowNoShowModal(true);
+  };
+
+  const handleConfirmNoShow = async () => {
+    if (!noShowModalAppt) return;
+    const apptId = noShowModalAppt._id;
+    const token = getToken();
+    setNoShowSubmitting(true);
+    try {
+      const res = await fetch(`${API}/appointment/doctor/${apptId}/no-show`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        toast.success(data.message || 'Marked as Expired (Patient did not visit clinic)');
+        setShowNoShowModal(false);
+        setNoShowModalAppt(null);
+        fetchAppointments();
+      } else {
+        toast.error(data.message || 'Failed to mark patient no-show');
+      }
+    } catch (err) {
+      toast.error('Network error marking no-show: ' + err.message);
+    } finally {
+      setNoShowSubmitting(false);
+    }
+  };
+
+  const handleOpenRefundModal = (appt) => {
+    setRefundModalAppt(appt);
+    setRefundSuccess(false);
+    setShowRefundModal(true);
+  };
+
+  const handleProcessRefundSubmit = async (e) => {
+    if (e) e.preventDefault();
+    if (!refundModalAppt) return;
+
+    setRefundSubmitting(true);
+    const apptId = refundModalAppt._id;
+    const token = getToken();
+    try {
+      const urls = [
+        `${API}/api/payment/refund-appointment/${apptId}`,
+        `${API}/appointment/doctor/${apptId}/refund`,
+        `${API}/appointment/refund-appointment/${apptId}`
+      ];
+
+      let res = null;
+      let data = null;
+
+      for (const url of urls) {
+        for (const method of ['POST', 'PUT']) {
+          try {
+            const response = await fetch(url, {
+              method,
+              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }
+            });
+            if (response.status !== 404) {
+              res = response;
+              data = await response.json();
+              break;
+            }
+          } catch (e) {
+            // continue next attempt
+          }
+        }
+        if (res && res.status !== 404) break;
+      }
+
+      if (res && res.ok && data && data.success) {
+        toast.success(data.message || '100% Refund processed successfully!');
+        setRefundSuccess(true);
+        fetchAppointments();
+      } else {
+        toast.error((data && data.message) || 'Failed to process refund. Please restart backend server.');
+      }
+    } catch (err) {
+      toast.error('Network error processing refund: ' + err.message);
+    } finally {
+      setRefundSubmitting(false);
+    }
+  };
+
+  const handleMarkPatientNoShow = async (apptId) => {
+    const confirmMessage = "Are you sure you want to mark this appointment as Expired (Patient did not visit clinic)?\n\n" +
+      "• Patient status will be set to Expired (No-Show).\n" +
+      "• No refund will be issued to the patient.\n" +
+      "• Active window: Only enabled for 30 minutes from scheduled start time.\n\n" +
+      "Do you want to confirm?";
+    if (!window.confirm(confirmMessage)) return;
+    const token = getToken();
+    try {
+      const res = await fetch(`${API}/appointment/doctor/${apptId}/no-show`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        toast.success(data.message || 'Marked as Expired (Patient did not visit clinic)');
+        fetchAppointments();
+      } else {
+        toast.error(data.message || 'Failed to mark patient no-show');
+      }
+    } catch (err) {
+      toast.error('Network error marking no-show: ' + err.message);
+    }
+  };
+
   const handleStatusUpdate = async (id, status, cancelReasonText = '') => {
     const token = getToken();
     try {
@@ -532,6 +694,27 @@ const DoctorDashboard = () => {
 
   const handleJoinVideoCall = (apptId) => {
     navigate(`/video-call/MediPulse_${apptId}`);
+  };
+
+  // Doctor ends / stops the online meeting call
+  const handleEndMeetingDoctor = async (apptId) => {
+    if (!window.confirm("Are you sure you want to stop/end this meeting? This will mark the consultation as completed and end the call for all participants.")) return;
+    const token = getToken();
+    try {
+      const res = await fetch(`${API}/appointment/doctor/${apptId}/call-complete`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast.success(data.message || 'Consultation meeting ended. Status updated to Completed.');
+        fetchAppointments();
+      } else {
+        toast.error(data.message || 'Failed to end meeting.');
+      }
+    } catch (err) {
+      toast.error('Network error ending meeting: ' + err.message);
+    }
   };
 
   const handleProfileSave = async (e) => {
@@ -1415,48 +1598,104 @@ Verification Status: Digitally Verified Medical Record
                            {statusKey === 'confirmed' && (
                              <>
                                {appt.consult_mode === 'online' ? (
-                                 !appt.meet_time_start ? (
-                                   <button
-                                     className="dd-btn-action btn-start-meeting"
-                                     onClick={() => handleStartMeeting(appt)}
-                                     disabled={!isStartMeetEnabled(appt)}
-                                     title={getStartMeetTooltip(appt)}
-                                   >
-                                     <Clock size={14} /> Start Meet
-                                   </button>
-                                 ) : (
-                                   <button
-                                     className="dd-btn-action btn-video"
-                                     onClick={() => handleJoinVideoCall(appt._id)}
-                                   >
-                                     <Video size={14} /> Join Video Call
-                                   </button>
-                                 )
+                                  !appt.meet_time_start ? (
+                                    <button
+                                      className="dd-btn-action btn-start-meeting"
+                                      onClick={() => handleStartMeeting(appt)}
+                                      disabled={!isStartMeetEnabled(appt)}
+                                      title={getStartMeetTooltip(appt)}
+                                      style={{
+                                        background: isStartMeetEnabled(appt) ? 'linear-gradient(135deg, #0d9488 0%, #0f766e 100%)' : '#f3f4f6',
+                                        color: isStartMeetEnabled(appt) ? '#ffffff' : '#9ca3af',
+                                        border: 'none', borderRadius: '8px', padding: '6px 14px',
+                                        fontWeight: 700, fontSize: '13px',
+                                        cursor: isStartMeetEnabled(appt) ? 'pointer' : 'not-allowed',
+                                        opacity: isStartMeetEnabled(appt) ? 1 : 0.6,
+                                        display: 'flex', alignItems: 'center', gap: '5px',
+                                        boxShadow: isStartMeetEnabled(appt) ? '0 4px 10px rgba(13,148,136,0.35)' : 'none'
+                                      }}
+                                    >
+                                      <Clock size={14} /> Start Meet
+                                    </button>
+                                  ) : !appt.meet_time_end && appt.status === 'confirmed' ? (
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                      <button
+                                        className="dd-btn-action btn-video"
+                                        onClick={() => handleJoinVideoCall(appt._id)}
+                                        style={{
+                                          background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
+                                          color: '#ffffff', border: 'none', borderRadius: '8px', padding: '6px 14px',
+                                          fontWeight: 700, fontSize: '13px', cursor: 'pointer',
+                                          display: 'flex', alignItems: 'center', gap: '5px',
+                                          boxShadow: '0 4px 10px rgba(37,99,235,0.35)'
+                                        }}
+                                      >
+                                        <Video size={14} /> Join Video Call
+                                      </button>
+                                      <button
+                                        className="dd-btn-action"
+                                        onClick={() => handleEndMeetingDoctor(appt._id)}
+                                        style={{
+                                          background: '#fef2f2', border: '1.5px solid #fecaca', color: '#dc2626',
+                                          borderRadius: '8px', padding: '6px 14px', fontWeight: 700, fontSize: '13px',
+                                          cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px'
+                                        }}
+                                        title="Stop meeting and mark consultation as completed"
+                                      >
+                                        <PhoneOff size={14} /> Stop Meet
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <span style={{ fontSize: '12px', fontWeight: 700, color: '#059669', background: '#ecfdf5', padding: '4px 10px', borderRadius: '6px', border: '1px solid #a7f3d0' }}>
+                                      ✓ Meeting Ended
+                                    </span>
+                                  )
                                ) : (
                                  /* Offline Consultation Mark Completed Button — enabled for 30 mins from scheduled time */
-                                 <button
-                                   className="dd-btn-action btn-confirm"
-                                   onClick={() => handleStatusUpdate(appt._id, 'completed')}
-                                   disabled={!isStartMeetEnabled(appt)}
-                                   title={
-                                     isBeforeScheduledTime(appt)
-                                       ? `Mark Completed can only be clicked at scheduled time (${appt.appointment_time || ''})`
-                                       : !isStartMeetEnabled(appt)
-                                       ? "Mark completed window (30 mins from scheduled time) has expired"
-                                       : "Mark offline consultation as completed"
-                                   }
-                                   style={{
-                                     background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                                     color: '#ffffff', border: 'none', borderRadius: '8px', padding: '6px 14px',
-                                     fontWeight: 700, fontSize: '13px',
-                                     cursor: isStartMeetEnabled(appt) ? 'pointer' : 'not-allowed',
-                                     opacity: isStartMeetEnabled(appt) ? 1 : 0.65,
-                                     display: 'flex', alignItems: 'center', gap: '5px',
-                                     boxShadow: isStartMeetEnabled(appt) ? '0 4px 10px rgba(16,185,129,0.35)' : 'none'
-                                   }}
-                                 >
-                                   <CheckCircle2 size={14} /> Mark Completed
-                                 </button>
+                                 <>
+                                   <button
+                                     className="dd-btn-action btn-confirm"
+                                     onClick={() => handleStatusUpdate(appt._id, 'completed')}
+                                     disabled={!isStartMeetEnabled(appt) || appt.payment_status !== 'paid'}
+                                     title={
+                                       appt.payment_status !== 'paid'
+                                         ? "Payment pending by patient/pharmacist. Cannot complete consultation until fee is paid."
+                                         : isBeforeScheduledTime(appt)
+                                         ? `Mark Completed can only be clicked at scheduled time (${appt.appointment_time || ''})`
+                                         : !isStartMeetEnabled(appt)
+                                         ? "Mark completed window (30 mins from scheduled time) has expired"
+                                         : "Mark offline consultation as completed"
+                                     }
+                                     style={{
+                                       background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                                       color: '#ffffff', border: 'none', borderRadius: '8px', padding: '6px 14px',
+                                       fontWeight: 700, fontSize: '13px',
+                                       opacity: isStartMeetEnabled(appt) ? 1 : 0.65,
+                                       display: 'flex', alignItems: 'center', gap: '5px',
+                                       boxShadow: isStartMeetEnabled(appt) ? '0 4px 10px rgba(16,185,129,0.35)' : 'none'
+                                     }}
+                                   >
+                                     <CheckCircle2 size={14} /> Mark Completed
+                                   </button>
+                                   <button
+                                     className="dd-btn-action"
+                                     onClick={() => handleOpenNoShowModal(appt)}
+                                     disabled={!isNoShowEnabled(appt)}
+                                     title={getNoShowTooltip(appt)}
+                                     style={{
+                                       background: isNoShowEnabled(appt) ? '#fff7ed' : '#f3f4f6',
+                                       border: isNoShowEnabled(appt) ? '1.5px solid #fed7aa' : '1.5px solid #e5e7eb',
+                                       color: isNoShowEnabled(appt) ? '#c2410c' : '#9ca3af',
+                                       borderRadius: '8px', padding: '6px 14px', fontWeight: 700, fontSize: '13px',
+                                       cursor: isNoShowEnabled(appt) ? 'pointer' : 'not-allowed',
+                                       opacity: isNoShowEnabled(appt) ? 1 : 0.6,
+                                       display: 'flex', alignItems: 'center', gap: '5px',
+                                       transition: 'all 0.2s ease'
+                                     }}
+                                   >
+                                     <UserX size={14} /> Patient Did Not Visit Clinic
+                                   </button>
+                                 </>
                                )}
                                <button
                                  className="dd-btn-action btn-cancel"
@@ -1499,6 +1738,52 @@ Verification Status: Digitally Verified Medical Record
                               </button>
                             );
                           })()}
+
+                          {/* Doctor Refund CTA for Cancelled or Expired paid appointments */}
+                          {appt.payment_status === 'paid' && ((appt.status === 'cancelled' && appt.cancelled_by === 'doctor') || statusKey === 'expired') && (
+                            appt.refund_status === 'refunded' ? (
+                              <span style={{
+                                background: '#ccfbf1', border: '1.5px solid #99f6e4', color: '#0f766e',
+                                padding: '6px 14px', borderRadius: '8px', fontWeight: 800, fontSize: '13px',
+                                display: 'inline-flex', alignItems: 'center', gap: '6px'
+                              }}>
+                                <CheckCircle2 size={15} /> 100% Refund Done (₹{appt.refund_amount || appt.consultation_fee})
+                              </span>
+                            ) : appt.refund_status === 'not_applicable' ? (
+                              <span style={{
+                                background: '#fef2f2', border: '1.5px solid #fecaca', color: '#dc2626',
+                                padding: '6px 14px', borderRadius: '8px', fontWeight: 700, fontSize: '12px',
+                                display: 'inline-flex', alignItems: 'center', gap: '5px'
+                              }}>
+                                <XCircle size={14} /> No Refund (Patient No-Show)
+                              </span>
+                            ) : (
+                              <button
+                                className="dd-btn-action"
+                                onClick={() => handleOpenRefundModal(appt)}
+                                style={{
+                                  background: 'linear-gradient(135deg, #0d9488 0%, #0f766e 100%)',
+                                  color: '#ffffff', border: 'none', borderRadius: '8px', padding: '6px 14px',
+                                  fontWeight: 700, fontSize: '13px', cursor: 'pointer',
+                                  display: 'inline-flex', alignItems: 'center', gap: '5px',
+                                  boxShadow: '0 4px 12px rgba(13, 148, 136, 0.3)'
+                                }}
+                              >
+                                <RotateCcw size={14} /> Process 100% Refund (₹{appt.consultation_fee})
+                              </button>
+                            )
+                          )}
+
+                          {/* Refund Done status display for already refunded appointments */}
+                          {appt.refund_status === 'refunded' && appt.payment_status !== 'paid' && (
+                            <span style={{
+                              background: '#ccfbf1', border: '1.5px solid #99f6e4', color: '#0f766e',
+                              padding: '6px 14px', borderRadius: '8px', fontWeight: 800, fontSize: '13px',
+                              display: 'inline-flex', alignItems: 'center', gap: '6px'
+                            }}>
+                              <CheckCircle2 size={15} /> 100% Refund Done (₹{appt.refund_amount || appt.consultation_fee})
+                            </span>
+                          )}
 
                           {/* Meeting Time Info — shown on completed appointments */}
                           {appt.status === 'completed' && (appt.meet_time_start || appt.meet_time_end) && (
@@ -2816,6 +3101,295 @@ Verification Status: Digitally Verified Medical Record
         @keyframes spin { to { transform: rotate(360deg); } }
         @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
       `}</style>
+
+      {/* ── Patient Did Not Visit Clinic Confirmation Modal ── */}
+      {showNoShowModal && noShowModalAppt && (() => {
+        const patientName = noShowModalAppt.patient_id
+          ? `${noShowModalAppt.patient_id.first_name || ''} ${noShowModalAppt.patient_id.last_name || ''}`.trim()
+          : (noShowModalAppt.user_id ? 'Patient' : 'Patient');
+
+        return (
+          <div className="dd-cancel-overlay" onClick={() => !noShowSubmitting && setShowNoShowModal(false)}>
+            <div
+              className="dd-cancel-modal"
+              style={{ maxWidth: '520px', borderRadius: '16px', overflow: 'hidden' }}
+              onClick={e => e.stopPropagation()}
+              role="dialog"
+              aria-modal="true"
+            >
+              {/* Header */}
+              <div className="dd-cancel-modal-header" style={{ background: 'linear-gradient(135deg, #ea580c 0%, #c2410c 100%)', color: '#fff', padding: '18px 24px' }}>
+                <div className="dd-cancel-modal-header-icon" style={{ background: 'rgba(255,255,255,0.2)', color: '#fff', borderRadius: '12px', padding: '8px' }}>
+                  <UserX size={24} />
+                </div>
+                <div>
+                  <h3 style={{ color: '#fff', margin: 0, fontSize: '18px', fontWeight: 800 }}>Confirm Patient Did Not Visit Clinic</h3>
+                  <p className="dd-cancel-modal-subtitle" style={{ color: '#ffedd5', margin: '2px 0 0', fontSize: '12px' }}>
+                    Mark appointment as expired due to patient absence at scheduled time
+                  </p>
+                </div>
+                <button
+                  className="dd-cancel-close-btn"
+                  onClick={() => setShowNoShowModal(false)}
+                  disabled={noShowSubmitting}
+                  style={{ color: '#fff', background: 'none', border: 'none', cursor: 'pointer', marginLeft: 'auto' }}
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              {/* Body */}
+              <div style={{ padding: '24px' }}>
+                {/* Details Summary Box */}
+                <div style={{ background: '#fff7ed', border: '1px solid #ffedd5', borderRadius: '12px', padding: '14px 18px', marginBottom: '20px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', fontSize: '13px' }}>
+                    <div>
+                      <span style={{ color: '#9a3412', fontWeight: 600, display: 'block', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Patient Name</span>
+                      <strong style={{ color: '#431407', fontSize: '14px' }}>{patientName || 'N/A'}</strong>
+                    </div>
+                    <div>
+                      <span style={{ color: '#9a3412', fontWeight: 600, display: 'block', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Scheduled Time</span>
+                      <strong style={{ color: '#431407', fontSize: '14px' }}>{noShowModalAppt.appointment_time || 'N/A'}</strong>
+                    </div>
+                    <div>
+                      <span style={{ color: '#9a3412', fontWeight: 600, display: 'block', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Appointment Date</span>
+                      <span style={{ color: '#7c2d12', fontWeight: 600 }}>{formatDate(noShowModalAppt.appointment_date)}</span>
+                    </div>
+                    <div>
+                      <span style={{ color: '#9a3412', fontWeight: 600, display: 'block', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Consultation Mode</span>
+                      <span style={{ color: '#7c2d12', fontWeight: 600, textTransform: 'capitalize' }}>{noShowModalAppt.consult_mode || 'Offline'}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Warning message card */}
+                <div style={{ background: '#fef2f2', border: '1px solid #fee2e2', borderRadius: '12px', padding: '14px 16px', marginBottom: '20px' }}>
+                  <h4 style={{ color: '#991b1b', margin: '0 0 8px 0', fontSize: '14px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <AlertTriangle size={16} /> Important Confirmation Notice
+                  </h4>
+                  <ul style={{ margin: 0, paddingLeft: '20px', color: '#7f1d1d', fontSize: '13px', lineHeight: '1.6' }}>
+                    <li><strong>Status Change:</strong> Appointment status will be marked as <strong>Expired (Patient Did Not Visit)</strong>.</li>
+                    <li><strong>No Refund Policy:</strong> No fee refund will be issued to the patient for missing their appointment slot.</li>
+                    <li><strong>Time Window:</strong> Active only for 30 minutes from scheduled start time ({noShowModalAppt.appointment_time}).</li>
+                  </ul>
+                </div>
+
+                {/* Footer Buttons */}
+                <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+                  <button
+                    type="button"
+                    onClick={() => setShowNoShowModal(false)}
+                    disabled={noShowSubmitting}
+                    style={{
+                      padding: '10px 18px', borderRadius: '8px', border: '1px solid #cbd5e1',
+                      background: '#fff', color: '#475569', fontWeight: 600, fontSize: '14px', cursor: 'pointer'
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleConfirmNoShow}
+                    disabled={noShowSubmitting}
+                    style={{
+                      padding: '10px 20px', borderRadius: '8px', border: 'none',
+                      background: 'linear-gradient(135deg, #ea580c 0%, #c2410c 100%)',
+                      color: '#fff', fontWeight: 700, fontSize: '14px', cursor: noShowSubmitting ? 'not-allowed' : 'pointer',
+                      display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 4px 12px rgba(234,88,12,0.3)'
+                    }}
+                  >
+                    {noShowSubmitting ? (
+                      <>
+                        <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> Updating...
+                      </>
+                    ) : (
+                      <>
+                        <UserX size={16} /> Confirm - Patient Did Not Visit
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ── 100% Refund Payment Process Modal ── */}
+      {showRefundModal && refundModalAppt && (() => {
+        const patientName = refundModalAppt.patient_id
+          ? `${refundModalAppt.patient_id.first_name || ''} ${refundModalAppt.patient_id.last_name || ''}`.trim()
+          : (refundModalAppt.user_id ? 'Patient / Pharmacist' : 'Patient');
+        const isExpired = refundModalAppt.status === 'expired';
+        const isCancelled = refundModalAppt.status === 'cancelled';
+        const fee = refundModalAppt.consultation_fee || 0;
+
+        return (
+          <div className="dd-cancel-overlay" onClick={() => !refundSubmitting && setShowRefundModal(false)}>
+            <div
+              className="dd-cancel-modal"
+              style={{ maxWidth: '540px', borderRadius: '16px', overflow: 'hidden' }}
+              onClick={e => e.stopPropagation()}
+              role="dialog"
+              aria-modal="true"
+            >
+              {/* Header */}
+              <div className="dd-cancel-modal-header" style={{ background: 'linear-gradient(135deg, #0d9488 0%, #0f766e 100%)', color: '#fff', padding: '18px 24px' }}>
+                <div className="dd-cancel-modal-header-icon" style={{ background: 'rgba(255,255,255,0.2)', color: '#fff', borderRadius: '12px', padding: '8px' }}>
+                  <RotateCcw size={22} />
+                </div>
+                <div>
+                  <h3 style={{ color: '#fff', margin: 0, fontSize: '18px', fontWeight: 800 }}>Process 100% Fee Refund</h3>
+                  <p className="dd-cancel-modal-subtitle" style={{ color: '#ccfbf1', margin: '2px 0 0', fontSize: '12px' }}>
+                    Review consultation payment receipt & authorize instant 100% refund
+                  </p>
+                </div>
+                <button
+                  className="dd-cancel-close-btn"
+                  onClick={() => setShowRefundModal(false)}
+                  disabled={refundSubmitting}
+                  style={{ color: '#fff', background: 'none', border: 'none', cursor: 'pointer', marginLeft: 'auto' }}
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              {!refundSuccess ? (
+                <>
+                  {/* Refund Details Summary Card */}
+                  <div style={{ padding: '20px 24px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
+                      <span style={{ fontSize: '12px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                        Appointment Details
+                      </span>
+                      <span style={{ background: '#ccfbf1', color: '#0f766e', fontSize: '11px', fontWeight: 800, padding: '2px 10px', borderRadius: '12px' }}>
+                        100% REFUND ELIGIBLE
+                      </span>
+                    </div>
+
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', color: '#334155' }}>
+                      <tbody>
+                        <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
+                          <td style={{ padding: '8px 0', color: '#64748b' }}>Appointment ID</td>
+                          <td style={{ padding: '8px 0', fontWeight: 700, textAlign: 'right', color: '#0f172a' }}>#{refundModalAppt._id}</td>
+                        </tr>
+                        <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
+                          <td style={{ padding: '8px 0', color: '#64748b' }}>Patient / Pharmacist</td>
+                          <td style={{ padding: '8px 0', fontWeight: 700, textAlign: 'right', color: '#0f172a' }}>{patientName}</td>
+                        </tr>
+                        <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
+                          <td style={{ padding: '8px 0', color: '#64748b' }}>Scheduled Date & Time</td>
+                          <td style={{ padding: '8px 0', fontWeight: 600, textAlign: 'right' }}>
+                            {formatDate(refundModalAppt.appointment_date)} at {refundModalAppt.appointment_time}
+                          </td>
+                        </tr>
+                        <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
+                          <td style={{ padding: '8px 0', color: '#64748b' }}>Consultation Mode</td>
+                          <td style={{ padding: '8px 0', fontWeight: 600, textAlign: 'right', textTransform: 'capitalize' }}>
+                            {refundModalAppt.consult_mode || 'offline'}
+                          </td>
+                        </tr>
+                        <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
+                          <td style={{ padding: '8px 0', color: '#64748b' }}>Triggering Condition</td>
+                          <td style={{ padding: '8px 0', fontWeight: 700, textAlign: 'right', color: '#c2410c' }}>
+                            {isCancelled ? 'Doctor Cancelled Appointment' : isExpired ? 'Appointment Expired (Missed Consultation)' : 'Doctor Non-attendance'}
+                          </td>
+                        </tr>
+                        {refundModalAppt.cancel_reason && (
+                          <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
+                            <td style={{ padding: '8px 0', color: '#64748b' }}>Reason / Remarks</td>
+                            <td style={{ padding: '8px 0', fontWeight: 500, textAlign: 'right', color: '#475569' }}>
+                              {refundModalAppt.cancel_reason}
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+
+                    {/* Refund Amount Box */}
+                    <div style={{ marginTop: '16px', background: '#f0fdfa', border: '1.5px solid #99f6e4', borderRadius: '12px', padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <div>
+                        <span style={{ fontSize: '12px', fontWeight: 700, color: '#0d9488', display: 'block', textTransform: 'uppercase' }}>
+                          Total Refund Amount (100%)
+                        </span>
+                        <span style={{ fontSize: '11px', color: '#0f766e' }}>
+                          Will be credited back to patient/pharmacist
+                        </span>
+                      </div>
+                      <div style={{ fontSize: '26px', fontWeight: 900, color: '#0d9488' }}>
+                        ₹{fee}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Payment Gateway Transfer Mode Notice */}
+                  <div style={{ padding: '16px 24px', background: '#fff' }}>
+                    <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '12px 16px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <ShieldCheck size={20} color="#0d9488" style={{ flexShrink: 0 }} />
+                      <div style={{ fontSize: '12px', color: '#475569' }}>
+                        <strong>Payment Processor Integration:</strong> Instant refund execution via Razorpay / Direct Gateway. Email receipt notification will be dispatched automatically.
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Actions */}
+                  <div style={{ padding: '16px 24px', background: '#f8fafc', borderTop: '1px solid #e2e8f0', display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+                    <button
+                      type="button"
+                      className="dd-cancel-btn-secondary"
+                      onClick={() => setShowRefundModal(false)}
+                      disabled={refundSubmitting}
+                      style={{ padding: '9px 18px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer', fontWeight: 600 }}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleProcessRefundSubmit}
+                      disabled={refundSubmitting}
+                      style={{
+                        background: 'linear-gradient(135deg, #0d9488 0%, #0f766e 100%)',
+                        color: '#ffffff', border: 'none', borderRadius: '10px', padding: '10px 20px',
+                        fontWeight: 800, fontSize: '14px', cursor: refundSubmitting ? 'not-allowed' : 'pointer',
+                        display: 'flex', alignItems: 'center', gap: '8px',
+                        boxShadow: '0 4px 14px rgba(13, 148, 136, 0.35)'
+                      }}
+                    >
+                      {refundSubmitting ? (
+                        <>
+                          <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> Processing Refund...
+                        </>
+                      ) : (
+                        <>
+                          <RotateCcw size={16} /> Authorize & Refund ₹{fee}
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </>
+              ) : (
+                /* Success View */
+                <div style={{ padding: '36px 24px', textAlign: 'center', background: '#fff', borderRadius: '0 0 16px 16px' }}>
+                  <div style={{ width: '64px', height: '64px', background: '#f0fdfa', border: '2px solid #99f6e4', color: '#0d9488', borderRadius: '50%', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', marginBottom: '16px' }}>
+                    <CheckCircle2 size={36} />
+                  </div>
+                  <h3 style={{ margin: '0 0 8px', fontSize: '20px', color: '#0f172a', fontWeight: 800 }}>100% Refund Successful!</h3>
+                  <p style={{ margin: '0 0 20px', fontSize: '14px', color: '#475569', lineHeight: 1.6 }}>
+                    The refund of <strong>₹{fee}</strong> has been successfully processed for appointment <strong>#{refundModalAppt._id}</strong>. A formal refund receipt has been emailed to <strong>{patientName}</strong>.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setShowRefundModal(false)}
+                    style={{ background: '#0d9488', color: '#fff', border: 'none', borderRadius: '10px', padding: '10px 28px', fontWeight: 800, fontSize: '14px', cursor: 'pointer' }}
+                  >
+                    Done & Return to Portal
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ── Cancellation / Rejection Modal ── */}
       {showCancelModal && cancelModalAppt && (() => {
