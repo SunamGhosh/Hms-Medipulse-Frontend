@@ -382,4 +382,473 @@
   line-height: 1.4;
 }
 
+/* ─── Premium E-commerce (Myntra) Styles ─── */
+.mo-layout-wrapper {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  gap: 30px;
+  padding: 32px 24px;
+}
+
+.mo-left-sidebar {
+  width: 220px;
+  flex-shrink: 0;
+  background: white;
+  border-radius: 12px;
+  padding: 24px 20px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.03);
+  height: fit-content;
+  border: 1px solid #f1f5f9;
+}
+
+.mo-sidebar-title {
+  font-size: 11px;
+  font-weight: 800;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 20px;
+  border-bottom: 1px solid #f1f5f9;
+  padding-bottom: 8px;
+}
+
+.mo-sidebar-menu {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.mo-sidebar-link {
+  font-size: 14px;
+  font-weight: 600;
+  color: #475569;
+  text-decoration: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mo-sidebar-link:hover, .mo-sidebar-link.active {
+  color: #0d9488;
+  transform: translateX(3px);
+}
+
+.mo-right-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.mo-single-col-body {
+  max-width: 800px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  width: 100%;
+}
+
+.mo-item-card {
+  background: white;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  padding: 20px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.02);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.mo-item-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(0,0,0,0.04);
+}
+
+.mo-card-status-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.mo-status-icon-box {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 16px;
+}
+
+.mo-status-icon-box.green {
+  background: #e6f7ed;
+  color: #16a34a;
+}
+
+.mo-status-icon-box.red {
+  background: #fdf2f2;
+  color: #dc2626;
+}
+
+.mo-status-icon-box.blue {
+  background: #eff6ff;
+  color: #2563eb;
+}
+
+.mo-status-text-details {
+  display: flex;
+  flex-direction: column;
+}
+
+.mo-status-title-text {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.mo-status-title-text.green { color: #16a34a; }
+.mo-status-title-text.red { color: #dc2626; }
+.mo-status-title-text.blue { color: #2563eb; }
+
+.mo-status-sub-text {
+  font-size: 12px;
+  color: #64748b;
+  margin-top: 2px;
+}
+
+.mo-nested-item-box {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  border: 1px solid #f1f5f9;
+  border-radius: 8px;
+  padding: 14px 16px;
+  background: #f8fafc;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-decoration: none;
+  color: inherit;
+}
+
+.mo-nested-item-box:hover {
+  border-color: #cbd5e1;
+  background: #f1f5f9;
+}
+
+.mo-nested-img-wrapper {
+  width: 60px;
+  height: 60px;
+  border-radius: 8px;
+  background: white;
+  border: 1px solid #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  flex-shrink: 0;
+}
+
+.mo-nested-img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.mo-nested-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.mo-nested-brand {
+  font-size: 14px;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.mo-nested-desc {
+  font-size: 12px;
+  color: #64748b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mo-nested-price-qty {
+  font-size: 12px;
+  color: #475569;
+  font-weight: 500;
+}
+
+.mo-nested-chevron {
+  color: #94a3b8;
+  flex-shrink: 0;
+  margin-left: 8px;
+  transition: transform 0.2s ease;
+}
+
+.mo-nested-item-box:hover .mo-nested-chevron {
+  transform: translateX(3px);
+  color: #475569;
+}
+
+.mo-actions-button-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.mo-action-btn-flat {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: white;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  padding: 10px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #374151;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  outline: none;
+}
+
+.mo-action-btn-flat:hover {
+  background: #f9fafb;
+  border-color: #9ca3af;
+  color: #111827;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+
+.mo-action-btn-flat svg {
+  color: #6b7280;
+  transition: color 0.2s ease;
+}
+
+.mo-action-btn-flat:hover svg {
+  color: #374151;
+}
+
+@media (max-width: 768px) {
+  .mo-layout-wrapper {
+    flex-direction: column;
+    padding: 16px;
+  }
+  
+  .mo-left-sidebar {
+    width: 100%;
+  }
+  
+  .mo-actions-button-row {
+    flex-direction: column;
+    gap: 8px;
+  }
+  
+  .mo-action-btn-flat {
+    width: 100%;
+  }
+}
+
+/* ─── Vertical Tracking Modal Styles ─── */
+.mo-track-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 16px;
+  animation: fadeIn 0.2s ease-out;
+}
+
+.mo-track-modal {
+  background: white;
+  border-radius: 16px;
+  width: 100%;
+  max-width: 480px;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  animation: scaleIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  overflow: hidden;
+  border: 1px solid #e2e8f0;
+}
+
+.mo-track-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 24px;
+  border-bottom: 1px solid #f1f5f9;
+  background: #f8fafc;
+}
+
+.mo-track-modal-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0;
+}
+
+.mo-track-modal-close {
+  background: none;
+  border: none;
+  color: #64748b;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.mo-track-modal-close:hover {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+.mo-track-modal-body {
+  padding: 24px;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+/* Vertical Timeline */
+.mo-vertical-timeline {
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  margin-bottom: 24px;
+}
+
+.mo-vertical-step {
+  display: flex;
+  gap: 16px;
+  position: relative;
+}
+
+.mo-vertical-line-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex-shrink: 0;
+  width: 24px;
+}
+
+.mo-vertical-dot {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: white;
+  border: 2px solid #cbd5e1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+  transition: all 0.2s;
+  color: white;
+}
+
+.mo-vertical-step.completed .mo-vertical-dot {
+  border-color: #16a34a;
+  background: #16a34a;
+  color: white;
+}
+
+.mo-vertical-step.current .mo-vertical-dot {
+  border-color: #ec4899;
+  background: #fdf2f8;
+  color: #ec4899;
+  box-shadow: 0 0 0 4px #fbcfe8;
+}
+
+.mo-vertical-dot-inner {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #cbd5e1;
+}
+
+.mo-vertical-step.current .mo-vertical-dot-inner {
+  background: #ec4899;
+}
+
+.mo-vertical-line {
+  width: 2px;
+  flex: 1;
+  background: #e2e8f0;
+  margin: 4px 0;
+  min-height: 48px;
+}
+
+.mo-vertical-line.filled {
+  background: #16a34a;
+}
+
+.mo-vertical-step:last-child .mo-vertical-line {
+  display: none;
+}
+
+.mo-vertical-text-wrapper {
+  padding-bottom: 24px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.mo-vertical-step:last-child .mo-vertical-text-wrapper {
+  padding-bottom: 0;
+}
+
+.mo-vertical-label {
+  font-size: 14px;
+  font-weight: 700;
+  color: #64748b;
+  transition: color 0.2s;
+}
+
+.mo-vertical-step.completed .mo-vertical-label {
+  color: #1e293b;
+}
+
+.mo-vertical-step.current .mo-vertical-label {
+  color: #ec4899;
+}
+
+.mo-vertical-desc {
+  font-size: 12px;
+  color: #94a3b8;
+  margin-top: 4px;
+}
+
+.mo-vertical-step.completed .mo-vertical-desc {
+  color: #64748b;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes scaleIn {
+  from { transform: scale(0.95); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+
+
 

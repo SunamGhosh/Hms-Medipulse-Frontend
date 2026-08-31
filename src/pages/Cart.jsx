@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, ChevronRight, ShoppingBasket, Info, MapPin, Navigation, Loader2, Map, CreditCard, Banknote } from 'lucide-react';
+import { ArrowLeft, ChevronRight, ShoppingBasket, Info, MapPin, Navigation, Loader2, Map, CreditCard, Banknote, CheckCircle2, Volume2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import ProfileDropdown from '../components/ProfileDropdown';
 import MapPickerModal from '../components/MapPickerModal';
@@ -58,7 +58,140 @@ const Cart = () => {
     if (!token) { navigate('/login'); return; }
     fetchCart();
     fetchUserProfileAddress();
+    fetchAddresses();
   }, [navigate, token]);
+
+  const fetchAddresses = async () => {
+    try {
+      const res = await fetch('http://localhost:5000/user/addresses', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (data.success) {
+        setAddresses(data.addresses || []);
+        const def = (data.addresses || []).find(a => a.is_default);
+        if (def) {
+          setSelectedAddressId(def._id);
+          setAddress({
+            street: def.street,
+            city: def.city,
+            state: def.state,
+            zip_code: def.zip_code
+          });
+        } else if (data.addresses && data.addresses.length > 0) {
+          setSelectedAddressId(data.addresses[0]._id);
+          setAddress({
+            street: data.addresses[0].street,
+            city: data.addresses[0].city,
+            state: data.addresses[0].state,
+            zip_code: data.addresses[0].zip_code
+          });
+        }
+      }
+    } catch (err) {
+      console.error('Error fetching addresses:', err);
+    }
+  };
+
+  const handleOpenAddModal = () => {
+    setEditingAddress(null);
+    setModalStreet('');
+    setModalCity('');
+    setModalState('');
+    setModalZipCode('');
+    setModalIsDefault(addresses.length === 0);
+    setShowAddressModal(true);
+  };
+
+  const handleOpenEditModal = (addr, e) => {
+    if (e) e.stopPropagation();
+    setEditingAddress(addr);
+    setModalStreet(addr.street || '');
+    setModalCity(addr.city || '');
+    setModalState(addr.state || '');
+    setModalZipCode(addr.zip_code || addr.pincode || '');
+    setModalIsDefault(addr.is_default || false);
+    setShowAddressModal(true);
+  };
+
+  const handleSelectAddress = (addr) => {
+    setSelectedAddressId(addr._id);
+    setAddress({
+      street: addr.street,
+      city: addr.city,
+      state: addr.state,
+      zip_code: addr.zip_code
+    });
+  };
+
+  const handleDeleteAddress = async (addressId, e) => {
+    if (e) e.stopPropagation();
+    if (!confirm('Are you sure you want to delete this address?')) return;
+    try {
+      const res = await fetch(`http://localhost:5000/user/addresses/${addressId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast.success('Address deleted successfully.');
+        fetchAddresses();
+        if (selectedAddressId === addressId) {
+          setSelectedAddressId(null);
+          setAddress({ street: '', city: '', state: '', zip_code: '' });
+        }
+      } else {
+        toast.error(data.message || 'Failed to delete address.');
+      }
+    } catch (err) {
+      console.error('Delete address error:', err);
+      toast.error('Error deleting address.');
+    }
+  };
+
+  const handleSaveAddress = async (e) => {
+    e.preventDefault();
+    if (!modalStreet || !modalCity || !modalState || !modalZipCode) {
+      toast.error('All fields are required.');
+      return;
+    }
+
+    const body = {
+      street: modalStreet,
+      city: modalCity,
+      state: modalState,
+      zip_code: modalZipCode,
+      is_default: modalIsDefault
+    };
+
+    try {
+      const url = editingAddress
+        ? `http://localhost:5000/user/addresses/${editingAddress._id}`
+        : 'http://localhost:5000/user/addresses';
+      const method = editingAddress ? 'PUT' : 'POST';
+
+      const res = await fetch(url, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(body)
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        toast.success(editingAddress ? 'Address updated successfully!' : 'Address added successfully!');
+        setShowAddressModal(false);
+        fetchAddresses();
+      } else {
+        toast.error(data.message || 'Failed to save address.');
+      }
+    } catch (err) {
+      console.error('Save address error:', err);
+      toast.error('Error saving address.');
+    }
+  };
 
   const fillAddressFromObjOrString = (rawAddr, city, state, zip) => {
     if (!rawAddr && !city && !state && !zip) return;
@@ -128,12 +261,19 @@ const Cart = () => {
             const state = addr.state || '';
             const zip = addr.postcode || '';
 
-            setAddress({
-              street: streetName || data.display_name || '',
-              city: city,
-              state: state,
-              zip_code: zip
-            });
+            if (showAddressModal) {
+              setModalStreet(streetName || data.display_name || '');
+              setModalCity(city);
+              setModalState(state);
+              setModalZipCode(zip);
+            } else {
+              setAddress({
+                street: streetName || data.display_name || '',
+                city: city,
+                state: state,
+                zip_code: zip
+              });
+            }
             toast.success('📍 Location auto-filled!', { id: 'geoToast' });
           } else {
             toast.error('Could not determine exact address details.', { id: 'geoToast' });
@@ -199,6 +339,42 @@ const Cart = () => {
   };
 
   const [paymentMode, setPaymentMode] = useState('UPI'); // 'UPI' or 'COD'
+  const [showCodSuccessModal, setShowCodSuccessModal] = useState(false);
+
+  const playBuzzerSound = () => {
+    try {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return;
+      const audioCtx = new AudioCtx();
+
+      const osc1 = audioCtx.createOscillator();
+      const osc2 = audioCtx.createOscillator();
+      const gainNode = audioCtx.createGain();
+
+      osc1.type = 'sawtooth';
+      osc1.frequency.setValueAtTime(150, audioCtx.currentTime); // Low buzz
+
+      osc2.type = 'square';
+      osc2.frequency.setValueAtTime(151.5, audioCtx.currentTime); // Slightly detuned square
+
+      gainNode.gain.setValueAtTime(0, audioCtx.currentTime);
+      gainNode.gain.linearRampToValueAtTime(0.25, audioCtx.currentTime + 0.05); // Attack
+      gainNode.gain.setValueAtTime(0.25, audioCtx.currentTime + 0.95);
+      gainNode.gain.linearRampToValueAtTime(0.001, audioCtx.currentTime + 1.05); // 1.0 second duration
+
+      osc1.connect(gainNode);
+      osc2.connect(gainNode);
+      gainNode.connect(audioCtx.destination);
+
+      osc1.start();
+      osc2.start();
+
+      osc1.stop(audioCtx.currentTime + 1.05);
+      osc2.stop(audioCtx.currentTime + 1.05);
+    } catch (e) {
+      console.warn("Failed to play buzzer sound", e);
+    }
+  };
 
   const handleCheckout = async () => {
     if (!cartItems.length) { toast.error('Your cart is empty.'); return; }
@@ -218,9 +394,13 @@ const Cart = () => {
         });
         const data = await res.json();
         if (res.ok && data.success) {
-          toast.success('🎉 Order placed successfully with Cash on Delivery!');
+          playBuzzerSound();
           setCartItems([]);
-          setTimeout(() => navigate('/my-orders'), 1200);
+          setOrderConfirmedInfo({
+            name: `${userInfo.first_name} ${userInfo.last_name}`,
+            phone: userInfo.phone,
+            address: `${address.street}, ${address.city}, ${address.state} - ${address.zip_code}`
+          });
         } else {
           toast.error(data.message || 'Failed to place COD order.');
         }
@@ -276,7 +456,11 @@ const Cart = () => {
           if (verData.success) {
             toast.success('🎉 Payment successful! Your order has been placed.');
             setCartItems([]);
-            setTimeout(() => navigate('/my-orders'), 1200);
+            setOrderConfirmedInfo({
+              name: `${userInfo.first_name} ${userInfo.last_name}`,
+              phone: userInfo.phone,
+              address: `${address.street}, ${address.city}, ${address.state} - ${address.zip_code}`
+            });
           } else {
             toast.error('Payment verification failed. Please contact support.');
           }
@@ -300,11 +484,95 @@ const Cart = () => {
 
   if (loading) return <div className="cart-loading">Loading your cart...</div>;
 
-  // ── Live derived totals ────────────────────────────────
   const itemsTotal = cartItems.reduce((s, i) => s + i.price * i.quantity, 0);
-  const grandTotal = itemsTotal;
+  const handlingFee = 9;
+  const grandTotal = itemsTotal + handlingFee;
   const totalQty   = cartItems.reduce((s, i) => s + i.quantity, 0);
   const hasItems   = cartItems.length > 0;
+
+  if (orderConfirmedInfo) {
+    return (
+      <div className="cart-page">
+        {/* Navbar */}
+        <nav className="cart-navbar">
+          <button className="cart-nav-back" onClick={() => navigate('/pharmacy')}>
+            <ArrowLeft size={18} /> My Cart
+          </button>
+          <span className="cart-nav-title">Order Confirmed</span>
+          <ProfileDropdown />
+        </nav>
+
+        {/* Step progress bar */}
+        <div className="checkout-pipeline-header">
+          <div className="steps-pipeline">
+            <span className="step-name completed" onClick={() => navigate('/pharmacy')}>ADDRESS</span>
+            <span className="step-dots">--------------------</span>
+            <span className="step-name completed">PAYMENT</span>
+          </div>
+          <div className="secure-badge">
+            <svg className="shield-icon" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2.5" width="16" height="16">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+            </svg>
+            <span>100% SECURE</span>
+          </div>
+        </div>
+
+        <div className="order-confirmed-body">
+          <div className="order-confirmed-card">
+            <div className="success-checkmark-circle">
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+            </div>
+            
+            <h2 className="confirmed-title">Order confirmed</h2>
+            <p className="confirmed-desc">
+              Your order is confirmed. You will receive an order confirmation email/SMS shortly with the expected delivery date for your items.
+            </p>
+
+            <div className="delivery-info-box">
+              <div className="delivery-left">
+                <span className="delivering-to-label">Delivering to:</span>
+                <p className="delivery-recipient">
+                  <strong>{orderConfirmedInfo.name}</strong>
+                  <span className="recipient-divider">|</span>
+                  <span className="recipient-phone">{orderConfirmedInfo.phone}</span>
+                </p>
+                <p className="delivery-full-address">{orderConfirmedInfo.address}</p>
+                
+                <button className="myntra-order-details-btn" onClick={() => navigate('/my-orders')}>
+                  ORDER DETAILS &gt;
+                </button>
+              </div>
+
+              <div className="delivery-right-illustrations">
+                <svg width="90" height="70" viewBox="0 0 100 80" fill="none" xmlns="http://www.w3.org/2000/svg" className="scooter-svg-illustration">
+                  <line x1="5" y1="62" x2="95" y2="62" stroke="#cbd5e1" strokeWidth="3" strokeLinecap="round"/>
+                  <path d="M15 50h32l4-15h14l4 15h15" stroke="#ff3f6c" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/>
+                  <rect x="18" y="30" width="16" height="20" rx="3" fill="#ff3f6c"/>
+                  <rect x="22" y="34" width="8" height="12" fill="white" opacity="0.3"/>
+                  <path d="M69 35l-2-12h5" stroke="#334155" strokeWidth="3" strokeLinecap="round"/>
+                  <circle cx="28" cy="58" r="8" fill="#e2e8f0" stroke="#334155" strokeWidth="4"/>
+                  <circle cx="72" cy="58" r="8" fill="#e2e8f0" stroke="#334155" strokeWidth="4"/>
+                  <line x1="2" y1="33" x2="10" y2="33" stroke="#ff3f6c" strokeWidth="2" strokeLinecap="round"/>
+                  <line x1="6" y1="40" x2="12" y2="40" stroke="#ff3f6c" strokeWidth="2" strokeLinecap="round"/>
+                </svg>
+              </div>
+            </div>
+
+            <div className="track-hint-text">
+              <span className="sparkle-icon">✨</span>
+              You can Track/View/Modify order from orders page.
+            </div>
+            
+            <button className="myntra-go-orders-btn" onClick={() => navigate('/my-orders')}>
+              Go to My Orders
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="cart-page">
@@ -316,6 +584,37 @@ const Cart = () => {
         <span className="cart-nav-title">{hasItems ? `${totalQty} item${totalQty > 1 ? 's' : ''}` : ''}</span>
         <ProfileDropdown />
       </nav>
+
+      {/* Checkout step progress pipeline */}
+      {hasItems && (
+        <div className="checkout-pipeline-header">
+          <div className="steps-pipeline">
+            <span 
+              className={`step-name ${checkoutStep === 'address' ? 'active' : ''} ${(checkoutStep === 'payment') ? 'completed' : ''}`}
+              onClick={() => setCheckoutStep('address')}
+            >
+              ADDRESS
+            </span>
+            <span className="step-dots">--------------------</span>
+            <span 
+              className={`step-name ${checkoutStep === 'payment' ? 'active' : ''}`}
+              onClick={() => {
+                if (cartItems.length > 0 && address.street && address.city) {
+                  setCheckoutStep('payment');
+                }
+              }}
+            >
+              PAYMENT
+            </span>
+          </div>
+          <div className="secure-badge">
+            <svg className="shield-icon" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2.5" width="16" height="16">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+            </svg>
+            <span>100% SECURE</span>
+          </div>
+        </div>
+      )}
 
       <div className="cart-body">
         {!hasItems ? (
@@ -329,172 +628,192 @@ const Cart = () => {
           <div className="cart-grid">
             {/* ── Left Column: Items, Address, Payment ── */}
             <div className="cart-left-col">
-              {/* ── Items Card ── */}
-              <div className="cart-items-card">
-                <div className="cart-items-header">Your Items</div>
-                {cartItems.map(item => (
-                  <div className="cart-item-row" key={item.medicine_id}>
-                    <img
-                      src={item.medicine_image || '/img/medicine_bottle.png'}
-                      alt={item.medicine_name}
-                      className="cart-item-img"
-                      onError={e => { e.target.src = '/img/medicine_bottle.png'; }}
-                    />
-                    <div className="cart-item-info">
-                      <h4>{item.medicine_name}</h4>
-                      <p className="cart-item-meta">{item.unit || 'Strip'} &middot; ₹{item.price} each</p>
-                      <p className="cart-item-price">₹{(item.price * item.quantity).toFixed(2)}</p>
+              {/* ── Step 1: ADDRESS (with compact items preview) ── */}
+              {checkoutStep === 'address' && (
+                <>
+                  <div className="cart-items-card compact" style={{ background: 'white', borderRadius: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.06)', overflow: 'hidden', marginBottom: 20 }}>
+                    <div className="cart-items-header" style={{ padding: '14px 20px 10px', borderBottom: '1px solid #f1f5f9', fontSize: '0.8rem', fontWeight: 600, color: '#cbd5e1', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span>Items in Order ({totalQty})</span>
                     </div>
-                    <div className="blinkit-qty">
-                      <button onClick={() => handleQuantity(item.medicine_id, 'decrease')}>−</button>
-                      <span>{item.quantity}</span>
-                      <button onClick={() => handleQuantity(item.medicine_id, 'increase')}>+</button>
-                    </div>
+                    {cartItems.map(item => (
+                      <div className="cart-item-row compact" key={item.medicine_id} style={{ display: 'flex', alignItems: 'center', padding: '10px 20px', borderBottom: '1px solid #f8fafc', gap: 14 }}>
+                        <img
+                          src={item.medicine_image || '/img/medicine_bottle.png'}
+                          alt={item.medicine_name}
+                          className="cart-item-img compact"
+                          style={{ width: 44, height: 44, objectFit: 'contain', borderRadius: 8, background: '#f8fafc', padding: 4, flexShrink: 0, border: '1px solid #e2e8f0' }}
+                          onError={e => { e.target.src = '/img/medicine_bottle.png'; }}
+                        />
+                        <div className="cart-item-info compact" style={{ flex: 1, minWidth: 0 }}>
+                          <h4 style={{ fontSize: '0.88rem', fontWeight: 700, color: '#1e293b', margin: '0 0 2px 0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.medicine_name}</h4>
+                          <p className="cart-item-meta" style={{ fontSize: '0.75rem', color: '#94a3b8', margin: 0 }}>Qty: {item.quantity} &middot; ₹{item.price} each</p>
+                        </div>
+                        <div className="blinkit-qty compact" style={{ display: 'flex', alignItems: 'center', background: '#16a34a', borderRadius: 6, overflow: 'hidden', flexShrink: 0 }}>
+                          <button onClick={() => handleQuantity(item.medicine_id, 'decrease')} style={{ background: 'transparent', border: 'none', color: 'white', fontSize: '0.95rem', fontWeight: 700, width: 26, height: 26, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>−</button>
+                          <span style={{ color: 'white', fontWeight: 700, fontSize: '0.82rem', minWidth: 18, textAlign: 'center' }}>{item.quantity}</span>
+                          <button onClick={() => handleQuantity(item.medicine_id, 'increase')} style={{ background: 'transparent', border: 'none', color: 'white', fontSize: '0.95rem', fontWeight: 700, width: 26, height: 26, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
 
-              {/* ── Delivery Details ── */}
-              <div className="cart-address-card" style={{ background: 'white', borderRadius: 12, padding: 20, boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 8 }}>
-                  <h3 style={{ fontSize: 16, fontWeight: 700, margin: 0, color: '#0f172a' }}>Delivery Address</h3>
-                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                    <button
-                      type="button"
-                      onClick={handleDetectLocation}
-                      disabled={detectingLocation}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 6,
-                        padding: '7px 12px',
-                        borderRadius: 20,
-                        border: '1px solid #e2e8f0',
-                        backgroundColor: '#f8fafc',
-                        color: '#475569',
-                        fontSize: 12,
-                        fontWeight: 600,
-                        cursor: detectingLocation ? 'not-allowed' : 'pointer',
-                        transition: 'all 0.2s ease-in-out'
-                      }}
-                    >
-                      {detectingLocation ? <Loader2 size={14} className="animate-spin" /> : <Navigation size={14} />}
-                      {detectingLocation ? 'Locating...' : 'GPS Detect'}
-                    </button>
+                  <div className="checkout-address-section">
+                    <div className="address-section-header">
+                      <h3>Select Delivery Address</h3>
+                      <button className="add-address-top-btn" onClick={handleOpenAddModal}>ADD NEW ADDRESS</button>
+                    </div>
 
-                    <button
-                      type="button"
-                      onClick={() => setIsMapOpen(true)}
+                    {addresses.length === 0 ? (
+                      <div className="no-addresses-card" onClick={handleOpenAddModal}>
+                        <MapPin size={32} className="no-addr-icon" />
+                        <p>No saved addresses found. Click to add your delivery address.</p>
+                        <button className="add-addr-btn">+ Add Address</button>
+                      </div>
+                    ) : (
+                      <div className="address-cards-list">
+                        {addresses.map(addr => {
+                          const isSelected = addr._id === selectedAddressId;
+                          return (
+                            <div 
+                              className={`address-card ${isSelected ? 'selected' : ''}`} 
+                              key={addr._id} 
+                              onClick={() => handleSelectAddress(addr)}
+                            >
+                              <div className="address-card-header">
+                                <label className="custom-radio">
+                                  <input 
+                                    type="radio" 
+                                    name="selected_address" 
+                                    checked={isSelected} 
+                                    onChange={() => handleSelectAddress(addr)} 
+                                  />
+                                  <span className="radio-checkmark"></span>
+                                </label>
+                                <span className="address-name">{userInfo.first_name} {userInfo.last_name}</span>
+                                <span className="address-badge">{addr.is_default ? 'HOME' : 'OTHER'}</span>
+                              </div>
+                              <div className="address-card-details">
+                                <p>{addr.street}</p>
+                                <p>{addr.city}, {addr.state} - <strong>{addr.zip_code}</strong></p>
+                                <p className="address-phone">Mobile: {userInfo.phone}</p>
+                              </div>
+                              <div className="address-card-actions">
+                                <button className="addr-action-btn remove" onClick={(e) => handleDeleteAddress(addr._id, e)}>REMOVE</button>
+                                <button className="addr-action-btn edit" onClick={(e) => handleOpenEditModal(addr, e)}>EDIT</button>
+                              </div>
+                            </div>
+                          );
+                        })}
+
+                        {/* Add New Address dashed card */}
+                        <div className="add-new-address-dashed" onClick={handleOpenAddModal}>
+                          <span className="dashed-text">+ Add New Address</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+
+              {/* ── Step 2: PAYMENT ── */}
+              {checkoutStep === 'payment' && (
+                <div className="cart-payment-card" style={{ background: 'white', borderRadius: 12, padding: 20, boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+                  <h3 style={{ fontSize: 16, fontWeight: 700, margin: '0 0 14px 0', color: '#0f172a' }}>Payment Options</h3>
+                  
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
+                    {/* UPI / Online Option */}
+                    <div
+                      onClick={() => setPaymentMode('UPI')}
                       style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 6,
-                        padding: '7px 12px',
-                        borderRadius: 20,
-                        border: '1px solid #0d9488',
-                        backgroundColor: '#f0fdfa',
-                        color: '#0d9488',
-                        fontSize: 12,
-                        fontWeight: 600,
+                        padding: 14,
+                        borderRadius: 10,
+                        border: `2px solid ${paymentMode === 'UPI' ? '#0d9488' : '#e2e8f0'}`,
+                        background: paymentMode === 'UPI' ? '#f0fdfa' : '#f8fafc',
                         cursor: 'pointer',
-                        transition: 'all 0.2s ease-in-out'
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 10,
+                        transition: 'all 0.2s'
                       }}
                     >
-                      <Map size={14} />
-                      Pinpoint on Map
-                    </button>
-                  </div>
-                </div>
-                <div className="address-form" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                  <input type="text" placeholder="Street Address" value={address.street} onChange={e => setAddress({...address, street: e.target.value})} style={{ padding: '10px 14px', border: '1px solid #cbd5e1', borderRadius: 8, outline: 'none' }} />
-                  <input type="text" placeholder="City" value={address.city} onChange={e => setAddress({...address, city: e.target.value})} style={{ padding: '10px 14px', border: '1px solid #cbd5e1', borderRadius: 8, outline: 'none' }} />
-                  <div className="address-row" style={{ display: 'flex', gap: 12 }}>
-                    <input type="text" placeholder="State" value={address.state} onChange={e => setAddress({...address, state: e.target.value})} style={{ flex: 1, padding: '10px 14px', border: '1px solid #cbd5e1', borderRadius: 8, outline: 'none' }} />
-                    <input type="text" placeholder="ZIP Code" value={address.zip_code} onChange={e => setAddress({...address, zip_code: e.target.value})} style={{ flex: 1, padding: '10px 14px', border: '1px solid #cbd5e1', borderRadius: 8, outline: 'none' }} />
-                  </div>
-                </div>
-              </div>
+                      <CreditCard size={20} color={paymentMode === 'UPI' ? '#0d9488' : '#64748b'} />
+                      <div>
+                        <div style={{ fontWeight: 600, fontSize: 14, color: '#0f172a' }}>UPI / Online</div>
+                        <div style={{ fontSize: 12, color: '#64748b' }}>Instant Online Pay</div>
+                      </div>
+                    </div>
 
-              {/* ── Payment Options & Description Below Address ── */}
-              <div className="cart-payment-card" style={{ background: 'white', borderRadius: 12, padding: 20, boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
-                <h3 style={{ fontSize: 16, fontWeight: 700, margin: '0 0 14px 0', color: '#0f172a' }}>Payment Options</h3>
-                
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
-                  {/* UPI / Online Option */}
-                  <div
-                    onClick={() => setPaymentMode('UPI')}
-                    style={{
-                      padding: 14,
-                      borderRadius: 10,
-                      border: `2px solid ${paymentMode === 'UPI' ? '#0d9488' : '#e2e8f0'}`,
-                      background: paymentMode === 'UPI' ? '#f0fdfa' : '#f8fafc',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 10,
-                      transition: 'all 0.2s'
-                    }}
-                  >
-                    <CreditCard size={20} color={paymentMode === 'UPI' ? '#0d9488' : '#64748b'} />
-                    <div>
-                      <div style={{ fontWeight: 600, fontSize: 14, color: '#0f172a' }}>UPI / Online</div>
-                      <div style={{ fontSize: 12, color: '#64748b' }}>Instant Online Pay</div>
+                    {/* COD Option */}
+                    <div
+                      onClick={() => setPaymentMode('COD')}
+                      style={{
+                        padding: 14,
+                        borderRadius: 10,
+                        border: `2px solid ${paymentMode === 'COD' ? '#0d9488' : '#e2e8f0'}`,
+                        background: paymentMode === 'COD' ? '#f0fdfa' : '#f8fafc',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 10,
+                        transition: 'all 0.2s'
+                      }}
+                    >
+                      <Banknote size={20} color={paymentMode === 'COD' ? '#0d9488' : '#64748b'} />
+                      <div>
+                        <div style={{ fontWeight: 600, fontSize: 14, color: '#0f172a' }}>Cash on Delivery</div>
+                        <div style={{ fontSize: 12, color: '#64748b' }}>Pay cash at doorstep</div>
+                      </div>
                     </div>
                   </div>
 
-                  {/* COD Option */}
-                  <div
-                    onClick={() => setPaymentMode('COD')}
-                    style={{
-                      padding: 14,
-                      borderRadius: 10,
-                      border: `2px solid ${paymentMode === 'COD' ? '#0d9488' : '#e2e8f0'}`,
-                      background: paymentMode === 'COD' ? '#f0fdfa' : '#f8fafc',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 10,
-                      transition: 'all 0.2s'
-                    }}
-                  >
-                    <Banknote size={20} color={paymentMode === 'COD' ? '#0d9488' : '#64748b'} />
-                    <div>
-                      <div style={{ fontWeight: 600, fontSize: 14, color: '#0f172a' }}>Cash on Delivery</div>
-                      <div style={{ fontSize: 12, color: '#64748b' }}>Pay cash at doorstep</div>
+                  {/* Payment Details below address */}
+                  <div style={{
+                    background: paymentMode === 'COD' ? '#fff7ed' : '#f0fdf4',
+                    border: `1px solid ${paymentMode === 'COD' ? '#fed7aa' : '#bbf7d0'}`,
+                    borderRadius: 8,
+                    padding: '12px 16px',
+                    fontSize: 13,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 8
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+                      <div>
+                        <span style={{ color: '#475569', fontWeight: 500 }}>Payment Mode: </span>
+                        <strong style={{ color: '#0f172a' }}>{paymentMode === 'COD' ? 'COD (Cash on Delivery)' : 'UPI / Online'}</strong>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span style={{ color: '#475569', fontWeight: 500 }}>Status: </span>
+                        <span style={{
+                          padding: '3px 10px',
+                          borderRadius: 12,
+                          fontSize: 12,
+                          fontWeight: 700,
+                          background: paymentMode === 'COD' ? '#f97316' : '#16a34a',
+                          color: '#ffffff'
+                        }}>
+                          {paymentMode === 'COD' ? 'Pending' : 'Done'}
+                        </span>
+                      </div>
                     </div>
+                    {paymentMode === 'COD' && (
+                      <div style={{ 
+                        fontSize: 12, 
+                        color: '#c2410c', 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        gap: 6, 
+                        borderTop: '1px dashed #fed7aa', 
+                        paddingTop: 8,
+                        marginTop: 2
+                      }}>
+                        <Volume2 size={14} style={{ flexShrink: 0 }} />
+                        <span><strong>Side Note:</strong> A 1-second buzzer alarm will play upon successful booking.</span>
+                      </div>
+                    )}
                   </div>
                 </div>
-
-                {/* Payment Details below address */}
-                <div style={{
-                  background: paymentMode === 'COD' ? '#fff7ed' : '#f0fdf4',
-                  border: `1px solid ${paymentMode === 'COD' ? '#fed7aa' : '#bbf7d0'}`,
-                  borderRadius: 8,
-                  padding: '12px 16px',
-                  fontSize: 13,
-                  display: 'flex',
-                  justify: 'space-between',
-                  alignItems: 'center'
-                }}>
-                  <div>
-                    <span style={{ color: '#475569', fontWeight: 500 }}>Payment Mode: </span>
-                    <strong style={{ color: '#0f172a' }}>{paymentMode === 'COD' ? 'COD (Cash on Delivery)' : 'UPI / Online'}</strong>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span style={{ color: '#475569', fontWeight: 500 }}>Status: </span>
-                    <span style={{
-                      padding: '3px 10px',
-                      borderRadius: 12,
-                      fontSize: 12,
-                      fontWeight: 700,
-                      background: paymentMode === 'COD' ? '#f97316' : '#16a34a',
-                      color: '#ffffff'
-                    }}>
-                      {paymentMode === 'COD' ? 'Pending' : 'Done'}
-                    </span>
-                  </div>
-                </div>
-              </div>
+              )}
             </div>
 
             {/* ── Right Column: Summary, Pay & Policy ── */}
@@ -513,6 +832,11 @@ const Cart = () => {
                   <span className="amount">{totalQty} item{totalQty > 1 ? 's' : ''}</span>
                 </div>
 
+                <div className="bill-row">
+                  <span className="label">Handling Fee</span>
+                  <span className="amount">₹{handlingFee.toFixed(2)}</span>
+                </div>
+
                 <hr className="bill-divider" />
 
                 <div className="bill-row grand-total">
@@ -522,21 +846,45 @@ const Cart = () => {
 
                 <hr className="bill-divider" />
 
-                {/* ── Inline Pay Button ── */}
-                <button
-                  className="bill-pay-btn"
-                  onClick={handleCheckout}
-                  disabled={checkoutLoading}
-                >
-                  <div className="bill-pay-left">
-                    <span className="bill-pay-amount">₹{grandTotal.toFixed(2)}</span>
-                    <span className="bill-pay-label">Total payable</span>
-                  </div>
-                  <div className="bill-pay-right">
-                    {checkoutLoading ? 'Processing...' : 'Proceed to Pay'}
-                    <ChevronRight size={18} />
-                  </div>
-                </button>
+                {/* ── Dynamic Action Button ── */}
+                {checkoutStep === 'address' && (
+                  <button
+                    className="bill-pay-btn"
+                    onClick={() => {
+                      if (!address.street || !address.city || !address.state || !address.zip_code) {
+                        toast.error('Please select or add an address to continue.');
+                        return;
+                      }
+                      setCheckoutStep('payment');
+                    }}
+                  >
+                    <div className="bill-pay-left">
+                      <span className="bill-pay-amount">₹{grandTotal.toFixed(2)}</span>
+                      <span className="bill-pay-label">Total payable</span>
+                    </div>
+                    <div className="bill-pay-right">
+                      Continue
+                      <ChevronRight size={18} />
+                    </div>
+                  </button>
+                )}
+
+                {checkoutStep === 'payment' && (
+                  <button
+                    className="bill-pay-btn"
+                    onClick={handleCheckout}
+                    disabled={checkoutLoading}
+                  >
+                    <div className="bill-pay-left">
+                      <span className="bill-pay-amount">₹{grandTotal.toFixed(2)}</span>
+                      <span className="bill-pay-label">Total payable</span>
+                    </div>
+                    <div className="bill-pay-right">
+                      {checkoutLoading ? 'Processing...' : 'Proceed to Pay'}
+                      <ChevronRight size={18} />
+                    </div>
+                  </button>
+                )}
               </div>
 
               {/* ── Cancellation Policy ── */}
@@ -552,20 +900,117 @@ const Cart = () => {
         )}
       </div>
 
+      {/* ── Add / Edit Address Modal ── */}
+      {showAddressModal && (
+        <div className="address-modal-overlay">
+          <div className="address-modal-container">
+            <div className="address-modal-header">
+              <h3>{editingAddress ? 'Edit Address' : 'Add New Address'}</h3>
+              <button className="close-modal-btn" onClick={() => setShowAddressModal(false)}>×</button>
+            </div>
+            <form onSubmit={handleSaveAddress} className="address-modal-form">
+              <div className="form-group">
+                <input 
+                  type="text" 
+                  placeholder="Street Address (Flat, House No, Building)" 
+                  value={modalStreet} 
+                  onChange={e => setModalStreet(e.target.value)} 
+                  required 
+                />
+              </div>
+              <div className="form-group">
+                <input 
+                  type="text" 
+                  placeholder="City" 
+                  value={modalCity} 
+                  onChange={e => setModalCity(e.target.value)} 
+                  required 
+                />
+              </div>
+              <div className="form-row">
+                <div className="form-group">
+                  <input 
+                    type="text" 
+                    placeholder="State" 
+                    value={modalState} 
+                    onChange={e => setModalState(e.target.value)} 
+                    required 
+                  />
+                </div>
+                <div className="form-group">
+                  <input 
+                    type="text" 
+                    placeholder="Pincode" 
+                    value={modalZipCode} 
+                    onChange={e => setModalZipCode(e.target.value)} 
+                    required 
+                  />
+                </div>
+              </div>
+
+              {/* GPS & Map Picker Row inside modal */}
+              <div className="modal-location-tools">
+                <button
+                  type="button"
+                  onClick={handleDetectLocation}
+                  disabled={detectingLocation}
+                  className="modal-tool-btn gps"
+                >
+                  {detectingLocation ? <Loader2 size={14} className="animate-spin" /> : <Navigation size={14} />}
+                  {detectingLocation ? 'Locating...' : 'GPS Detect'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsMapOpen(true)}
+                  className="modal-tool-btn map"
+                >
+                  <Map size={14} />
+                  Pinpoint on Map
+                </button>
+              </div>
+
+              <div className="form-group checkbox-group">
+                <label className="checkbox-label">
+                  <input 
+                    type="checkbox" 
+                    checked={modalIsDefault} 
+                    onChange={e => setModalIsDefault(e.target.checked)} 
+                    disabled={!editingAddress && addresses.length === 0}
+                  />
+                  <span>Make this my default address</span>
+                </label>
+              </div>
+
+              <div className="address-modal-actions">
+                <button type="button" className="modal-btn cancel" onClick={() => setShowAddressModal(false)}>Cancel</button>
+                <button type="submit" className="modal-btn save">{editingAddress ? 'Save Changes' : 'Add Address'}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* ── Interactive Map Picker Modal ── */}
       <MapPickerModal
         isOpen={isMapOpen}
         onClose={() => setIsMapOpen(false)}
         onConfirmAddress={(newAddr) => {
-          setAddress(prev => ({
-            ...prev,
-            street: newAddr.street || prev.street,
-            city: newAddr.city || prev.city,
-            state: newAddr.state || prev.state,
-            zip_code: newAddr.zip_code || prev.zip_code
-          }));
+          if (showAddressModal) {
+            setModalStreet(newAddr.street || '');
+            setModalCity(newAddr.city || '');
+            setModalState(newAddr.state || '');
+            setModalZipCode(newAddr.zip_code || '');
+          } else {
+            setAddress(prev => ({
+              ...prev,
+              street: newAddr.street || prev.street,
+              city: newAddr.city || prev.city,
+              state: newAddr.state || prev.state,
+              zip_code: newAddr.zip_code || prev.zip_code
+            }));
+          }
         }}
-        initialAddress={address}
+        initialAddress={showAddressModal ? { street: modalStreet, city: modalCity, state: modalState, zip_code: modalZipCode } : address}
       />
     </div>
   );
