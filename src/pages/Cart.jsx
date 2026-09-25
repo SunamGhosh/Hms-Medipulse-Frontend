@@ -13,6 +13,21 @@ const Cart = () => {
   const [address, setAddress] = useState({ street: '', city: '', state: '', zip_code: '' });
   const [detectingLocation, setDetectingLocation] = useState(false);
   const [isMapOpen, setIsMapOpen] = useState(false);
+
+  // Address and Checkout state variables
+  const [addresses, setAddresses] = useState([]);
+  const [selectedAddressId, setSelectedAddressId] = useState(null);
+  const [editingAddress, setEditingAddress] = useState(null);
+  const [modalStreet, setModalStreet] = useState('');
+  const [modalCity, setModalCity] = useState('');
+  const [modalState, setModalState] = useState('');
+  const [modalZipCode, setModalZipCode] = useState('');
+  const [modalIsDefault, setModalIsDefault] = useState(false);
+  const [showAddressModal, setShowAddressModal] = useState(false);
+  const [checkoutStep, setCheckoutStep] = useState('address'); // 'address' | 'payment'
+  const [orderConfirmedInfo, setOrderConfirmedInfo] = useState(null);
+  const [userInfo, setUserInfo] = useState(null);
+
   const navigate = useNavigate();
   const token = localStorage.getItem('userToken');
 
@@ -37,6 +52,7 @@ const Cart = () => {
       const storedUser = localStorage.getItem('user') || localStorage.getItem('userInfo');
       if (storedUser) {
         const parsed = JSON.parse(storedUser);
+        setUserInfo(parsed);
         fillAddressFromObjOrString(parsed.address, parsed.city, parsed.state, parsed.zip_code || parsed.pincode);
       }
     } catch (e) { /* ignore parse error */ }
@@ -49,6 +65,7 @@ const Cart = () => {
       });
       const data = await res.json();
       if (res.ok && data.user) {
+        setUserInfo(data.user);
         fillAddressFromObjOrString(data.user.address, data.user.city, data.user.state, data.user.zip_code || data.user.pincode);
       }
     } catch { /* silently fallback to default/local storage */ }
@@ -397,8 +414,8 @@ const Cart = () => {
           playBuzzerSound();
           setCartItems([]);
           setOrderConfirmedInfo({
-            name: `${userInfo.first_name} ${userInfo.last_name}`,
-            phone: userInfo.phone,
+            name: `${userInfo?.first_name || ''} ${userInfo?.last_name || ''}`.trim() || 'Valued Customer',
+            phone: userInfo?.phone || '',
             address: `${address.street}, ${address.city}, ${address.state} - ${address.zip_code}`
           });
         } else {
@@ -457,8 +474,8 @@ const Cart = () => {
             toast.success('🎉 Payment successful! Your order has been placed.');
             setCartItems([]);
             setOrderConfirmedInfo({
-              name: `${userInfo.first_name} ${userInfo.last_name}`,
-              phone: userInfo.phone,
+              name: `${userInfo?.first_name || ''} ${userInfo?.last_name || ''}`.trim() || 'Valued Customer',
+              phone: userInfo?.phone || '',
               address: `${address.street}, ${address.city}, ${address.state} - ${address.zip_code}`
             });
           } else {
@@ -689,13 +706,13 @@ const Cart = () => {
                                   />
                                   <span className="radio-checkmark"></span>
                                 </label>
-                                <span className="address-name">{userInfo.first_name} {userInfo.last_name}</span>
+                                <span className="address-name">{userInfo?.first_name || ''} {userInfo?.last_name || ''}</span>
                                 <span className="address-badge">{addr.is_default ? 'HOME' : 'OTHER'}</span>
                               </div>
                               <div className="address-card-details">
                                 <p>{addr.street}</p>
                                 <p>{addr.city}, {addr.state} - <strong>{addr.zip_code}</strong></p>
-                                <p className="address-phone">Mobile: {userInfo.phone}</p>
+                                <p className="address-phone">Mobile: {userInfo?.phone || ''}</p>
                               </div>
                               <div className="address-card-actions">
                                 <button className="addr-action-btn remove" onClick={(e) => handleDeleteAddress(addr._id, e)}>REMOVE</button>

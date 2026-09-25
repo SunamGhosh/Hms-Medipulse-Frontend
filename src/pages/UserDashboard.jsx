@@ -4,7 +4,7 @@ import {
   Activity, CalendarCheck, Stethoscope, Pill, Bell, User, LogOut,
   ArrowRight, Clock, Heart, ShieldCheck, ArrowUpRight, Users,
   X, CheckCircle2, AlertCircle, XCircle, Loader2, Plus, Video, Package, Truck, Trash2, CreditCard,
-  ChevronLeft, ChevronRight, FileText, Download, Banknote, Check, MapPin
+  ChevronLeft, ChevronRight, FileText, Download, Banknote, Check, MapPin, Headphones, RotateCcw
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import './UserDashboard.css';
@@ -1625,6 +1625,15 @@ Verification Status: Digitally Verified Medical Record
         appointment={selectedApptForMap}
       />
 
+      {/* Tracking Modal */}
+      <TrackingModal
+        isOpen={isTrackingModalOpen}
+        onClose={() => setIsTrackingModalOpen(false)}
+        flatItem={trackingModalItem}
+        STATUS_CONFIG={ORDER_STATUS_CONFIG}
+        TRACKING_STEPS={TRACKING_STEPS}
+      />
+
       <style>{`
         @keyframes spin { to { transform: rotate(360deg); } }
       `}</style>
@@ -1638,6 +1647,10 @@ const TrackingModal = ({ isOpen, onClose, flatItem, STATUS_CONFIG, TRACKING_STEP
 
   const { orderId, status: orderStatus, placed_at } = flatItem;
   const statusCfg = STATUS_CONFIG[orderStatus] || STATUS_CONFIG.pending;
+
+  const stepVal = statusCfg?.step || 0;
+  const isCancelled = orderStatus === 'cancelled';
+  const progressPercent = stepVal <= 1 ? 0 : (stepVal - 1) * 25;
 
   const getStepTime = (stepKey) => {
     if (stepKey === 'paid') return placed_at;
@@ -1666,6 +1679,79 @@ const TrackingModal = ({ isOpen, onClose, flatItem, STATUS_CONFIG, TRACKING_STEP
               Placed on {new Date(placed_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
             </div>
           </div>
+
+          {/* Animated Horizontal Truck Track */}
+          {!isCancelled && (
+            <div className="mo-horizontal-track-container">
+              <div className="mo-horizontal-track-road">
+                <div className="mo-horizontal-track-progress" style={{ width: `${progressPercent}%` }}></div>
+                <div className="mo-horizontal-track-dashed"></div>
+                
+                {/* Animated Truck */}
+                {stepVal > 0 && (
+                  <div 
+                    className={`mo-horizontal-truck-wrapper ${orderStatus === 'delivered' ? 'delivered' : 'driving'}`} 
+                    style={{ left: `calc(${progressPercent}% - 28px)` }}
+                  >
+                    {/* SVG Delivery Truck representing the orange truck */}
+                    <svg width="55" height="36" viewBox="0 0 90 60" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      {/* Undercarriage / Chassis */}
+                      <rect x="10" y="38" width="70" height="4" rx="2" fill="#E45B24" />
+                      <rect x="25" y="42" width="12" height="6" fill="#334155" />
+                      
+                      {/* Yellow/Golden Cargo Box */}
+                      <rect x="5" y="10" width="45" height="28" rx="2" fill="#FCD34D" stroke="#FBBF24" stroke-width="1.5" />
+                      {/* Cargo Text: DELIVERY */}
+                      <text x="27" y="28" font-family="system-ui, -apple-system, sans-serif" font-weight="900" font-size="8.5" fill="#FFFFFF" text-anchor="middle" letter-spacing="0.5">DELIVERY</text>
+
+                      {/* Orange Cab with window */}
+                      <path d="M50 10H66C68 10 72 17 74 25H79C80 25 80 38 78 38H50V10Z" fill="#F97316" />
+                      <path d="M53 13H57L68 27H53Z" fill="#334155" />
+                      <path d="M60 13H63L69 25H66Z" fill="#ffffff" opacity="0.3" />
+                      
+                      {/* Bumper and light */}
+                      <rect x="78" y="34" width="2" height="4" rx="0.5" fill="#1E293B" />
+                      <rect x="76" y="35" width="2" height="2" fill="#FDE047" />
+
+                      {/* Wheels */}
+                      <circle cx="20" cy="42" r="8" fill="#1E293B" />
+                      <circle cx="20" cy="42" r="5" fill="#475569" />
+                      <circle cx="20" cy="42" r="2.5" fill="#FFFFFF" />
+
+                      <circle cx="62" cy="42" r="8" fill="#1E293B" />
+                      <circle cx="62" cy="42" r="5" fill="#475569" />
+                      <circle cx="62" cy="42" r="2.5" fill="#FFFFFF" />
+                    </svg>
+                    <div className="mo-truck-exhaust-smoke"></div>
+                  </div>
+                )}
+
+                {/* Milestones */}
+                {[1, 2, 3, 4, 5].map((sIndex) => {
+                  const isPassed = stepVal >= sIndex;
+                  const isCurrent = stepVal === sIndex;
+                  return (
+                    <div 
+                      key={sIndex} 
+                      className={`mo-horizontal-milestone ${isPassed ? 'passed' : ''} ${isCurrent ? 'current' : ''}`}
+                      style={{ left: `${(sIndex - 1) * 25}%` }}
+                    >
+                      <div className="mo-milestone-dot"></div>
+                    </div>
+                  );
+                })}
+              </div>
+              
+              {/* Step Labels under milestones */}
+              <div className="mo-horizontal-track-labels">
+                <span>Placed</span>
+                <span>Packed</span>
+                <span>Shipped</span>
+                <span>On Way</span>
+                <span>Delivered</span>
+              </div>
+            </div>
+          )}
 
           {/* Vertical Stepper */}
           <div className="mo-vertical-timeline">
