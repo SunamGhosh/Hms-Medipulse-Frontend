@@ -7,7 +7,9 @@ import {
 import toast from 'react-hot-toast';
 import './PharmacistsList.css';
 
-const API = import.meta.env.VITE_URL || 'http://localhost:4000/api';
+import API_BASE_URL from '../config/api';
+
+const API = API_BASE_URL;
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 const STATUSES = ['active', 'inactive', 'on-leave', 'blocked'];

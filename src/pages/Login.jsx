@@ -6,6 +6,8 @@ import './Login.css';
 
 import Header from '../components/Header';
 
+import API_BASE_URL from '../config/api';
+
 const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -102,11 +104,6 @@ const Login = () => {
     }
   };
 
-  const handleFillDemo = (demoEmail, demoPass) => {
-    setEmail(demoEmail);
-    setPassword(demoPass);
-    setErrorMsg('');
-  };
 
   return (
     <div className="login-container">
@@ -197,20 +194,7 @@ const Login = () => {
               </button>
             </form>
 
-            <div className="demo-credentials-card" style={{ marginTop: '24px', padding: '12px 16px', background: 'rgba(241, 245, 249, 0.8)', borderRadius: '12px', textAlign: 'left', border: '1px solid #e2e8f0' }}>
-              <div style={{ fontSize: '12px', fontWeight: '700', color: '#475569', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                🔑 Admin Credentials:
-              </div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                <button 
-                  type="button"
-                  onClick={() => handleFillDemo('mandeep@gmail.com', 'admin123')}
-                  style={{ padding: '6px 14px', background: '#0d9488', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: '600', cursor: 'pointer' }}
-                >
-                  Mandeep Kaur (mandeep@gmail.com)
-                </button>
-              </div>
-            </div>
+
           </>
         ) : (
           /* ── FORGOT PASSWORD FORM ── */

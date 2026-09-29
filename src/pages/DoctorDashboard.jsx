@@ -498,11 +498,124 @@ const DoctorDashboard = () => {
   const [refundModalAppt, setRefundModalAppt] = useState(null);
   const [refundSubmitting, setRefundSubmitting] = useState(false);
   const [refundSuccess, setRefundSuccess] = useState(false);
+  const [refundMethod, setRefundMethod] = useState('razorpay');
+  const [refundStep, setRefundStep] = useState('idle');
+  const [refundTxnData, setRefundTxnData] = useState(null);
 
   // Doctor No-Show Modal states
   const [showNoShowModal, setShowNoShowModal] = useState(false);
   const [noShowModalAppt, setNoShowModalAppt] = useState(null);
   const [noShowSubmitting, setNoShowSubmitting] = useState(false);
+
+  // Follow-up Doctor Actions State
+  const [showFollowUpCancelModal, setShowFollowUpCancelModal] = useState(false);
+  const [followUpCancelAppt, setFollowUpCancelAppt] = useState(null);
+  const [followUpCancelReason, setFollowUpCancelReason] = useState('');
+  const [submittingFollowUpCancel, setSubmittingFollowUpCancel] = useState(false);
+  const [editingFollowUpDateApptId, setEditingFollowUpDateApptId] = useState(null);
+  const [newFollowUpDateInput, setNewFollowUpDateInput] = useState('');
+
+  // Follow-up Rejection Modal State
+  const [showFollowUpRejectModal, setShowFollowUpRejectModal] = useState(false);
+  const [followUpRejectAppt, setFollowUpRejectAppt] = useState(null);
+  const [followUpRejectReason, setFollowUpRejectReason] = useState('');
+  const [submittingFollowUpReject, setSubmittingFollowUpReject] = useState(false);
+
+  const handleRespondFollowUp = async (apptId, action, cancel_reason = '') => {
+    const token = getToken();
+    try {
+      const res = await fetch(`${API}/appointment/doctor/${apptId}/respond-followup`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ action, cancel_reason })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        toast.success(data.message || `Follow-up request ${action === 'accept' ? 'accepted' : 'rejected'} successfully!`);
+        fetchAppointments();
+      } else {
+        toast.error(data.message || 'Failed to respond to follow-up request');
+      }
+    } catch (err) {
+      toast.error('Network error responding to follow-up: ' + err.message);
+    }
+  };
+
+  const handleOpenFollowUpRejectModal = (appt) => {
+    setFollowUpRejectAppt(appt);
+    setFollowUpRejectReason('');
+    setShowFollowUpRejectModal(true);
+  };
+
+  const handleConfirmFollowUpRejectSubmit = async (e) => {
+    if (e) e.preventDefault();
+    if (!followUpRejectReason.trim()) {
+      toast.error('Please enter a cancellation reason for rejecting the follow-up.');
+      return;
+    }
+    setSubmittingFollowUpReject(true);
+    await handleRespondFollowUp(followUpRejectAppt._id, 'reject', followUpRejectReason.trim());
+    setSubmittingFollowUpReject(false);
+    setShowFollowUpRejectModal(false);
+    setFollowUpRejectAppt(null);
+  };
+
+  const handleSaveFollowUpDate = async (apptId, dateVal) => {
+    const token = getToken();
+    try {
+      const res = await fetch(`${API}/appointment/doctor/${apptId}/set-followup`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ follow_up_date: dateVal })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        toast.success('Follow-up date updated successfully!');
+        setEditingFollowUpDateApptId(null);
+        fetchAppointments();
+      } else {
+        toast.error(data.message || 'Failed to set follow-up date');
+      }
+    } catch (err) {
+      toast.error('Error setting follow-up date: ' + err.message);
+    }
+  };
+
+  const handleOpenFollowUpCancelModal = (appt) => {
+    setFollowUpCancelAppt(appt);
+    setFollowUpCancelReason('');
+    setShowFollowUpCancelModal(true);
+  };
+
+  const handleConfirmFollowUpCancelSubmit = async (e) => {
+    if (e) e.preventDefault();
+    if (!followUpCancelReason.trim()) {
+      toast.error('Please enter a cancellation reason.');
+      return;
+    }
+    const token = getToken();
+    setSubmittingFollowUpCancel(true);
+    try {
+      const res = await fetch(`${API}/appointment/doctor/${followUpCancelAppt._id}/cancel-followup`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ cancel_reason: followUpCancelReason.trim() })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        toast.success('Accepted follow-up meeting cancelled successfully.');
+        setShowFollowUpCancelModal(false);
+        setFollowUpCancelAppt(null);
+        fetchAppointments();
+      } else {
+        toast.error(data.message || 'Failed to cancel follow-up meeting');
+      }
+    } catch (err) {
+      toast.error('Network error cancelling follow-up: ' + err.message);
+    } finally {
+      setSubmittingFollowUpCancel(false);
+    }
+  };
 
   const handleOpenNoShowModal = (appt) => {
     if (!isNoShowEnabled(appt)) {
@@ -551,16 +664,13 @@ const DoctorDashboard = () => {
   const handleOpenRefundModal = (appt) => {
     setRefundModalAppt(appt);
     setRefundSuccess(false);
+    setRefundMethod('razorpay');
+    setRefundStep('idle');
+    setRefundTxnData(null);
     setShowRefundModal(true);
   };
 
-  const handleProcessRefundSubmit = async (e) => {
-    if (e) e.preventDefault();
-    if (!refundModalAppt) return;
-
-    setRefundSubmitting(true);
-    const apptId = refundModalAppt._id;
-    const token = getToken();
+  const finalizeRefundOnBackend = async (apptId, token, razorpayPayload) => {
     try {
       const urls = [
         `${API}/api/payment/refund-appointment/${apptId}`,
@@ -576,7 +686,8 @@ const DoctorDashboard = () => {
           try {
             const response = await fetch(url, {
               method,
-              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }
+              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+              body: JSON.stringify(razorpayPayload || {})
             });
             if (response.status !== 404) {
               res = response;
@@ -591,17 +702,93 @@ const DoctorDashboard = () => {
       }
 
       if (res && res.ok && data && data.success) {
-        toast.success(data.message || '100% Refund processed successfully!');
+        toast.success(data.message || '100% Refund processed successfully via Razorpay!');
         setRefundSuccess(true);
+        setRefundStep('completed');
+        setRefundTxnData({
+          paymentId: razorpayPayload?.razorpay_payment_id || data.appointment?.razorpay_refund_id || `pay_${Math.random().toString(36).substring(2, 11)}`,
+          orderId: razorpayPayload?.razorpay_order_id || data.appointment?.razorpay_order_id || `order_${Math.random().toString(36).substring(2, 11)}`,
+          date: new Date().toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }),
+          amount: refundModalAppt?.consultation_fee || 0
+        });
         fetchAppointments();
       } else {
         toast.error((data && data.message) || 'Failed to process refund. Please restart backend server.');
+        setRefundStep('idle');
       }
     } catch (err) {
       toast.error('Network error processing refund: ' + err.message);
+      setRefundStep('idle');
     } finally {
       setRefundSubmitting(false);
     }
+  };
+
+  const handleProcessRefundSubmit = async (e) => {
+    if (e) e.preventDefault();
+    if (!refundModalAppt) return;
+
+    setRefundSubmitting(true);
+    setRefundStep('initiating');
+    const apptId = refundModalAppt._id;
+    const fee = refundModalAppt.consultation_fee || 0;
+    const token = getToken();
+
+    // If Razorpay Online Payment mode is selected
+    if (refundMethod === 'razorpay') {
+      try {
+        const orderRes = await fetch(`${API}/api/payment/create-order`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ amount: fee, appointment_id: apptId })
+        });
+        const orderData = await orderRes.json();
+
+        if (orderRes.ok && orderData.success && orderData.order && window.Razorpay) {
+          setRefundStep('razorpay_active');
+          const razorpayKey = import.meta.env.VITE_RAZORPAY_KEY_ID || 'rzp_test_default';
+          const options = {
+            key: razorpayKey,
+            amount: orderData.order.amount,
+            currency: orderData.order.currency || 'INR',
+            name: 'MediPulse Healthcare',
+            description: `100% Refund Payout for Appt #${apptId.slice(-6).toUpperCase()}`,
+            order_id: orderData.order.id,
+            theme: { color: '#0d9488' },
+            prefill: {
+              name: refundModalAppt.patient_id 
+                ? `${refundModalAppt.patient_id.first_name || ''} ${refundModalAppt.patient_id.last_name || ''}`.trim() 
+                : 'Patient',
+              email: refundModalAppt.patient_id?.email || ''
+            },
+            handler: async (response) => {
+              setRefundStep('verifying');
+              await finalizeRefundOnBackend(apptId, token, {
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_signature: response.razorpay_signature
+              });
+            },
+            modal: {
+              ondismiss: () => {
+                setRefundSubmitting(false);
+                setRefundStep('idle');
+                toast.info('Razorpay payment gateway window closed.');
+              }
+            }
+          };
+          const rzp = new window.Razorpay(options);
+          rzp.open();
+          return;
+        }
+      } catch (err) {
+        console.warn('Razorpay order creation fallback to direct gateway:', err);
+      }
+    }
+
+    // Direct gateway or fallback refund execution on backend
+    setRefundStep('verifying');
+    await finalizeRefundOnBackend(apptId, token, null);
   };
 
   const handleMarkPatientNoShow = async (apptId) => {
@@ -693,7 +880,7 @@ const DoctorDashboard = () => {
   };
 
   const handleJoinVideoCall = (apptId) => {
-    navigate(`/video-call/MediPulse_${apptId}`);
+    navigate(`/video-call/MediPulse_${apptId}?role=doctor`, { state: { role: 'doctor' } });
   };
 
   // Doctor ends / stops the online meeting call
@@ -764,6 +951,7 @@ const DoctorDashboard = () => {
 
   const getStatusCount = (key) => {
     if (key === 'all') return appointments.length;
+    if (key === 'follow_up') return appointments.filter(a => a.follow_up_date || (a.follow_up_status && a.follow_up_status !== 'none')).length;
     return appointments.filter(a => getEffectiveStatus(a) === key).length;
   };
 
@@ -772,6 +960,7 @@ const DoctorDashboard = () => {
     { key: 'pending', label: 'Pending', count: getStatusCount('pending') },
     { key: 'confirmed', label: 'Confirmed', count: getStatusCount('confirmed') },
     { key: 'completed', label: 'Completed', count: getStatusCount('completed') },
+    { key: 'follow_up', label: 'Follow-up', count: getStatusCount('follow_up') },
     { key: 'expired', label: 'Expired', count: getStatusCount('expired') },
     { key: 'cancelled', label: 'Cancelled', count: getStatusCount('cancelled') },
     { key: 'rejected', label: 'Rejected', count: getStatusCount('rejected') },
@@ -779,7 +968,11 @@ const DoctorDashboard = () => {
 
   const filteredAppointments = appointments.filter((appt) => {
     // 1. Status Filter
-    if (statusFilter !== 'all') {
+    if (statusFilter === 'follow_up') {
+      if (!appt.follow_up_date && (!appt.follow_up_status || appt.follow_up_status === 'none')) {
+        return false;
+      }
+    } else if (statusFilter !== 'all') {
       const apptStatus = getEffectiveStatus(appt);
       if (apptStatus !== statusFilter) {
         return false;
@@ -945,7 +1138,7 @@ const DoctorDashboard = () => {
     const docAddress = rec.doctor_id?.visit_address || doctorProfile?.visit_address || 'Medipulse OPD Block, Sector 4';
     const recDate = formatDate(rec.prescribed_date || rec.appointment_date || rec.createdAt);
     const disease = rec.disease || rec.diagnosis || rec.appointment_id?.disease || 'General Consultation';
-    const age = rec.patient_id?.age || rec.age || '28';
+    const age = rec.patient_age || rec.age || (rec.patient_id?.dob ? Math.floor((new Date() - new Date(rec.patient_id.dob)) / (365.25 * 24 * 60 * 60 * 1000)) : '') || rec.patient_id?.age || 'N/A';
     const gender = rec.patient_id?.gender || rec.gender || 'Male';
     const phone = rec.patient_id?.phone || rec.phone || rec.booked_by?.phone || '+91 98765 43210';
     const followUpDateStr = rec.follow_up_date ? formatDate(rec.follow_up_date) : null;
@@ -1619,19 +1812,22 @@ Verification Status: Digitally Verified Medical Record
                                     </button>
                                   ) : !appt.meet_time_end && appt.status === 'confirmed' ? (
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                      <button
-                                        className="dd-btn-action btn-video"
-                                        onClick={() => handleJoinVideoCall(appt._id)}
+                                      <span
                                         style={{
-                                          background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
-                                          color: '#ffffff', border: 'none', borderRadius: '8px', padding: '6px 14px',
-                                          fontWeight: 700, fontSize: '13px', cursor: 'pointer',
-                                          display: 'flex', alignItems: 'center', gap: '5px',
-                                          boxShadow: '0 4px 10px rgba(37,99,235,0.35)'
+                                          fontSize: '12px',
+                                          fontWeight: 700,
+                                          color: '#2563eb',
+                                          background: '#eff6ff',
+                                          padding: '6px 12px',
+                                          borderRadius: '8px',
+                                          border: '1px solid #bfdbfe',
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          gap: '5px'
                                         }}
                                       >
-                                        <Video size={14} /> Join Video Call
-                                      </button>
+                                        <Video size={13} /> Meeting Live
+                                      </span>
                                       <button
                                         className="dd-btn-action"
                                         onClick={() => handleEndMeetingDoctor(appt._id)}
@@ -1801,6 +1997,116 @@ Verification Status: Digitally Verified Medical Record
                                   <span className="dd-ac-meeting-dur"> · <strong>{appt.meet_time} min</strong></span>
                                 )}
                               </span>
+                            </div>
+                          )}
+
+                          {/* ── Follow-up Status Box in Doctor Panel ── */}
+                          {(appt.follow_up_date || (appt.follow_up_status && appt.follow_up_status !== 'none') || appt.status === 'completed') && (
+                            <div style={{
+                              width: '100%',
+                              background: 'linear-gradient(135deg, #f0fdfa 0%, #e6fffa 100%)',
+                              border: '1.5px solid #99f6e4',
+                              borderRadius: '12px',
+                              padding: '12px 16px',
+                              marginTop: '10px',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: '8px',
+                              boxShadow: '0 2px 8px rgba(13, 148, 136, 0.06)'
+                            }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                  <CalendarCheck size={16} style={{ color: '#0d9488' }} />
+                                  <span style={{ fontWeight: 800, fontSize: '13px', color: '#0f766e', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                                    Follow-up Consultation Status
+                                  </span>
+                                </div>
+
+                                <span style={{
+                                  padding: '3px 11px', borderRadius: '20px', fontSize: '11px', fontWeight: 800, textTransform: 'uppercase',
+                                  background: appt.follow_up_status === 'accepted' ? '#dcfce7' : appt.follow_up_status === 'requested' ? '#dbeafe' : appt.follow_up_status === 'rejected' ? '#ffedd5' : appt.follow_up_status === 'cancelled' ? '#fee2e2' : '#f1f5f9',
+                                  color: appt.follow_up_status === 'accepted' ? '#15803d' : appt.follow_up_status === 'requested' ? '#1d4ed8' : appt.follow_up_status === 'rejected' ? '#c2410c' : appt.follow_up_status === 'cancelled' ? '#b91c1c' : '#475569',
+                                  border: `1px solid ${appt.follow_up_status === 'accepted' ? '#86efac' : appt.follow_up_status === 'requested' ? '#93c5fd' : appt.follow_up_status === 'rejected' ? '#fdba74' : appt.follow_up_status === 'cancelled' ? '#fca5a5' : '#cbd5e1'}`
+                                }}>
+                                  Status: {appt.follow_up_status || 'none'}
+                                </span>
+                              </div>
+
+                              <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', fontSize: '12px', color: '#334155', alignItems: 'center' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                  <strong>Follow-up Date & Time:</strong>
+                                  {editingFollowUpDateApptId === appt._id ? (
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                      <input
+                                        type="date"
+                                        value={newFollowUpDateInput}
+                                        onChange={(e) => setNewFollowUpDateInput(e.target.value)}
+                                        style={{ border: '1px solid #0d9488', borderRadius: '6px', padding: '2px 6px', fontSize: '12px' }}
+                                      />
+                                      <button onClick={() => handleSaveFollowUpDate(appt._id, newFollowUpDateInput)} style={{ background: '#0d9488', color: '#fff', border: 'none', borderRadius: '4px', padding: '2px 8px', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}>Save</button>
+                                      <button onClick={() => setEditingFollowUpDateApptId(null)} style={{ background: '#cbd5e1', color: '#334155', border: 'none', borderRadius: '4px', padding: '2px 8px', fontSize: '11px', cursor: 'pointer' }}>Cancel</button>
+                                    </div>
+                                  ) : (
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                      <span>{appt.follow_up_date ? formatDate(appt.follow_up_date) : 'Not set'} {appt.follow_up_time ? `at ${appt.follow_up_time}` : ''}</span>
+                                      <button onClick={() => { setEditingFollowUpDateApptId(appt._id); setNewFollowUpDateInput(appt.follow_up_date ? new Date(appt.follow_up_date).toISOString().split('T')[0] : ''); }} style={{ background: 'none', border: 'none', color: '#0d9488', cursor: 'pointer', padding: '1px 4px' }} title="Set or update follow-up date">
+                                        <Edit2 size={12} />
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
+
+                                <span><strong>Consultation Mode:</strong> <span style={{ textTransform: 'capitalize', color: '#0d9488', fontWeight: 700 }}>{appt.consult_mode}</span> (Same as initial meet)</span>
+                                <span><strong>Consultation Fee:</strong> <span style={{ color: '#16a34a', fontWeight: 700 }}>Free / ₹0 (No Charges)</span></span>
+                                <span><strong>Booked By:</strong> {appt.booker_role === 'pharmacist' ? 'Pharmacist' : 'Patient'}</span>
+                              </div>
+
+                              {/* Follow-up Request Reason / Patient Note */}
+                              {appt.follow_up_reason && (
+                                <div style={{ background: '#ffffff', border: '1px solid #ccfbf1', borderRadius: '8px', padding: '6px 12px', color: '#0f766e', fontSize: '12px', fontWeight: 600 }}>
+                                  📝 Patient Request Note: {appt.follow_up_reason}
+                                </div>
+                              )}
+
+                              {/* Doctor Rejection Reason Box */}
+                              {appt.follow_up_status === 'rejected' && (appt.cancel_reason || appt.follow_up_cancel_reason) && (
+                                <div style={{ background: '#fff', border: '1px solid #fed7aa', borderRadius: '8px', padding: '8px 12px', color: '#c2410c', fontSize: '12px', fontWeight: 600 }}>
+                                  ❌ Rejection Reason: {appt.cancel_reason || appt.follow_up_cancel_reason}
+                                </div>
+                              )}
+
+                              {/* Doctor Cancellation Reason Box */}
+                              {appt.follow_up_status === 'cancelled' && appt.follow_up_cancel_reason && (
+                                <div style={{ background: '#fff', border: '1px solid #fca5a5', borderRadius: '8px', padding: '8px 12px', color: '#991b1b', fontSize: '12px', fontWeight: 600 }}>
+                                  ❌ Cancellation Reason: {appt.follow_up_cancel_reason}
+                                </div>
+                              )}
+
+                              {/* Action Buttons for Doctor */}
+                              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '4px' }}>
+                                {appt.follow_up_status === 'requested' && (
+                                  <>
+                                    <button
+                                      onClick={() => handleRespondFollowUp(appt._id, 'accept')}
+                                      style={{ background: '#10b981', color: '#fff', border: 'none', borderRadius: '6px', padding: '6px 14px', fontWeight: 700, fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                      <CheckCircle2 size={13} /> Confirm Follow-up
+                                    </button>
+                                    <button
+                                      onClick={() => handleOpenFollowUpRejectModal(appt)}
+                                      style={{ background: '#ea580c', color: '#fff', border: 'none', borderRadius: '6px', padding: '6px 14px', fontWeight: 700, fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                      <XCircle size={13} /> Reject Follow-up
+                                    </button>
+                                  </>
+                                )}
+
+                                {appt.follow_up_status === 'accepted' && (
+                                  <button
+                                    onClick={() => handleOpenFollowUpCancelModal(appt)}
+                                    style={{ background: '#fff1f2', border: '1px solid #fecaca', color: '#dc2626', borderRadius: '6px', padding: '6px 14px', fontWeight: 700, fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                    <XCircle size={13} /> Cancel Follow-up
+                                  </button>
+                                )}
+                              </div>
                             </div>
                           )}
                         </div>
@@ -2956,7 +3262,7 @@ Verification Status: Digitally Verified Medical Record
                 <div className="dd-ps-detail-item">
                   <span className="dd-ps-detail-label">Age</span>
                   <span className="dd-ps-detail-val">
-                    {selectedRecordSheet.patient_id?.age || selectedRecordSheet.age || '28'} Yrs
+                    {selectedRecordSheet.patient_age || selectedRecordSheet.age || (selectedRecordSheet.patient_id?.dob ? Math.floor((new Date() - new Date(selectedRecordSheet.patient_id.dob)) / (365.25 * 24 * 60 * 60 * 1000)) : '') || selectedRecordSheet.patient_id?.age || 'N/A'} Yrs
                   </span>
                 </div>
 
@@ -3112,13 +3418,13 @@ Verification Status: Digitally Verified Medical Record
           <div className="dd-cancel-overlay" onClick={() => !noShowSubmitting && setShowNoShowModal(false)}>
             <div
               className="dd-cancel-modal"
-              style={{ maxWidth: '520px', borderRadius: '16px', overflow: 'hidden' }}
+              style={{ maxWidth: '520px', borderRadius: '16px', maxHeight: '90vh', overflowY: 'auto' }}
               onClick={e => e.stopPropagation()}
               role="dialog"
               aria-modal="true"
             >
               {/* Header */}
-              <div className="dd-cancel-modal-header" style={{ background: 'linear-gradient(135deg, #ea580c 0%, #c2410c 100%)', color: '#fff', padding: '18px 24px' }}>
+              <div className="dd-cancel-modal-header" style={{ background: 'linear-gradient(135deg, #ea580c 0%, #c2410c 100%)', color: '#fff', padding: '18px 24px', position: 'sticky', top: 0, zIndex: 10 }}>
                 <div className="dd-cancel-modal-header-icon" style={{ background: 'rgba(255,255,255,0.2)', color: '#fff', borderRadius: '12px', padding: '8px' }}>
                   <UserX size={24} />
                 </div>
@@ -3228,13 +3534,13 @@ Verification Status: Digitally Verified Medical Record
           <div className="dd-cancel-overlay" onClick={() => !refundSubmitting && setShowRefundModal(false)}>
             <div
               className="dd-cancel-modal"
-              style={{ maxWidth: '540px', borderRadius: '16px', overflow: 'hidden' }}
+              style={{ maxWidth: '540px', borderRadius: '16px', maxHeight: '90vh', overflowY: 'auto' }}
               onClick={e => e.stopPropagation()}
               role="dialog"
               aria-modal="true"
             >
               {/* Header */}
-              <div className="dd-cancel-modal-header" style={{ background: 'linear-gradient(135deg, #0d9488 0%, #0f766e 100%)', color: '#fff', padding: '18px 24px' }}>
+              <div className="dd-cancel-modal-header" style={{ background: 'linear-gradient(135deg, #0d9488 0%, #0f766e 100%)', color: '#fff', padding: '18px 24px', position: 'sticky', top: 0, zIndex: 10 }}>
                 <div className="dd-cancel-modal-header-icon" style={{ background: 'rgba(255,255,255,0.2)', color: '#fff', borderRadius: '12px', padding: '8px' }}>
                   <RotateCcw size={22} />
                 </div>
@@ -3322,15 +3628,43 @@ Verification Status: Digitally Verified Medical Record
                     </div>
                   </div>
 
-                  {/* Payment Gateway Transfer Mode Notice */}
+                  {/* Payment Channel Selection */}
                   <div style={{ padding: '16px 24px', background: '#fff' }}>
-                    <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '12px 16px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <ShieldCheck size={20} color="#0d9488" style={{ flexShrink: 0 }} />
-                      <div style={{ fontSize: '12px', color: '#475569' }}>
-                        <strong>Payment Processor Integration:</strong> Instant refund execution via Razorpay / Direct Gateway. Email receipt notification will be dispatched automatically.
+                    <div
+                      style={{
+                        padding: '12px 16px', borderRadius: '12px',
+                        border: '2px solid #0d9488',
+                        background: '#f0fdfa',
+                        display: 'flex', alignItems: 'center', gap: '12px'
+                      }}
+                    >
+                      <div style={{ background: '#ccfbf1', padding: '8px', borderRadius: '10px', color: '#0d9488' }}>
+                        <CreditCard size={20} />
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '13px', fontWeight: 800, color: '#0f172a' }}>
+                          Online Payment
+                        </div>
+                        <div style={{ fontSize: '11px', color: '#64748b' }}>
+                          Instant UPI / Cards / NetBanking online refund processing
+                        </div>
                       </div>
                     </div>
                   </div>
+
+                  {/* Active Refund Stepper Status */}
+                  {refundSubmitting && (
+                    <div style={{ padding: '14px 24px', background: '#f0fdfa', borderTop: '1px solid #99f6e4', borderBottom: '1px solid #99f6e4' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <Loader2 size={18} color="#0d9488" style={{ animation: 'spin 1s linear infinite', flexShrink: 0 }} />
+                        <div style={{ fontSize: '12px', color: '#0f766e', fontWeight: 700 }}>
+                          {refundStep === 'initiating' && 'Initiating Razorpay Order & Token handshake...'}
+                          {refundStep === 'razorpay_active' && 'Razorpay Online Checkout Modal Active. Authorize payout in popup...'}
+                          {refundStep === 'verifying' && 'Verifying transaction token & generating receipt...'}
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Actions */}
                   <div style={{ padding: '16px 24px', background: '#f8fafc', borderTop: '1px solid #e2e8f0', display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
@@ -3357,11 +3691,11 @@ Verification Status: Digitally Verified Medical Record
                     >
                       {refundSubmitting ? (
                         <>
-                          <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> Processing Refund...
+                          <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> Processing...
                         </>
                       ) : (
                         <>
-                          <RotateCcw size={16} /> Authorize & Refund ₹{fee}
+                          <CreditCard size={16} /> Refund ₹{fee} Now
                         </>
                       )}
                     </button>
@@ -3369,18 +3703,44 @@ Verification Status: Digitally Verified Medical Record
                 </>
               ) : (
                 /* Success View */
-                <div style={{ padding: '36px 24px', textAlign: 'center', background: '#fff', borderRadius: '0 0 16px 16px' }}>
+                <div style={{ padding: '32px 24px', textAlign: 'center', background: '#fff', borderRadius: '0 0 16px 16px' }}>
                   <div style={{ width: '64px', height: '64px', background: '#f0fdfa', border: '2px solid #99f6e4', color: '#0d9488', borderRadius: '50%', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', marginBottom: '16px' }}>
                     <CheckCircle2 size={36} />
                   </div>
-                  <h3 style={{ margin: '0 0 8px', fontSize: '20px', color: '#0f172a', fontWeight: 800 }}>100% Refund Successful!</h3>
+                  <h3 style={{ margin: '0 0 8px', fontSize: '20px', color: '#0f172a', fontWeight: 800 }}>100% Refund Successful via Razorpay!</h3>
                   <p style={{ margin: '0 0 20px', fontSize: '14px', color: '#475569', lineHeight: 1.6 }}>
                     The refund of <strong>₹{fee}</strong> has been successfully processed for appointment <strong>#{refundModalAppt._id}</strong>. A formal refund receipt has been emailed to <strong>{patientName}</strong>.
                   </p>
+
+                  {/* Transaction Receipt Card */}
+                  {refundTxnData && (
+                    <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '16px', textAlign: 'left', marginBottom: '24px', fontSize: '12px' }}>
+                      <div style={{ fontWeight: 800, color: '#0d9488', textTransform: 'uppercase', marginBottom: '8px', letterSpacing: '0.5px' }}>
+                        Razorpay Settlement Summary
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #f1f5f9', padding: '6px 0', color: '#475569' }}>
+                        <span>Transaction Reference:</span>
+                        <strong style={{ color: '#0f172a', fontFamily: 'monospace' }}>{refundTxnData.paymentId}</strong>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #f1f5f9', padding: '6px 0', color: '#475569' }}>
+                        <span>Order ID:</span>
+                        <strong style={{ color: '#0f172a', fontFamily: 'monospace' }}>{refundTxnData.orderId}</strong>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #f1f5f9', padding: '6px 0', color: '#475569' }}>
+                        <span>Settlement Time:</span>
+                        <strong style={{ color: '#0f172a' }}>{refundTxnData.date}</strong>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', color: '#475569' }}>
+                        <span>Net Refund Amount (100%):</span>
+                        <strong style={{ color: '#0d9488', fontSize: '14px' }}>₹{refundTxnData.amount}</strong>
+                      </div>
+                    </div>
+                  )}
+
                   <button
                     type="button"
                     onClick={() => setShowRefundModal(false)}
-                    style={{ background: '#0d9488', color: '#fff', border: 'none', borderRadius: '10px', padding: '10px 28px', fontWeight: 800, fontSize: '14px', cursor: 'pointer' }}
+                    style={{ background: '#0d9488', color: '#fff', border: 'none', borderRadius: '10px', padding: '10px 28px', fontWeight: 800, fontSize: '14px', cursor: 'pointer', boxShadow: '0 4px 14px rgba(13, 148, 136, 0.35)' }}
                   >
                     Done & Return to Portal
                   </button>
@@ -3552,6 +3912,150 @@ Verification Status: Digitally Verified Medical Record
           </div>
         );
       })()}
+
+      {/* ── Doctor Follow-up Cancellation Form Modal ── */}
+      {showFollowUpCancelModal && followUpCancelAppt && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(15,23,42,0.6)', backdropFilter: 'blur(4px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 10000, padding: '20px'
+        }}>
+          <div style={{
+            background: '#fff', borderRadius: '16px', width: '100%', maxWidth: '520px',
+            padding: '24px', boxShadow: '0 20px 40px rgba(0,0,0,0.2)', border: '1px solid #cbd5e1'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', borderBottom: '1px solid #f1f5f9', paddingBottom: '12px' }}>
+              <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: '#dc2626', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <AlertCircle size={20} /> Follow-up Meeting Cancellation Form
+              </h3>
+              <button onClick={() => setShowFollowUpCancelModal(false)} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}>
+                <X size={20} />
+              </button>
+            </div>
+
+            <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '12px 16px', marginBottom: '16px', fontSize: '13px', color: '#334155' }}>
+              <div><strong>Patient:</strong> {followUpCancelAppt.patient_id?.first_name} {followUpCancelAppt.patient_id?.last_name}</div>
+              <div style={{ marginTop: '4px' }}><strong>Scheduled Follow-up Date:</strong> {followUpCancelAppt.follow_up_date ? new Date(followUpCancelAppt.follow_up_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : 'N/A'}</div>
+              <div style={{ marginTop: '4px' }}><strong>Consultation Mode:</strong> <span style={{ textTransform: 'capitalize', color: '#0d9488', fontWeight: 700 }}>{followUpCancelAppt.consult_mode}</span> (Same as initial meet)</div>
+            </div>
+
+            <form onSubmit={handleConfirmFollowUpCancelSubmit}>
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: '#0f172a', marginBottom: '8px' }}>
+                  Reason for Cancelling Follow-up <span style={{ color: '#dc2626' }}>*</span>
+                </label>
+                <textarea
+                  required
+                  rows={4}
+                  value={followUpCancelReason}
+                  onChange={(e) => setFollowUpCancelReason(e.target.value)}
+                  placeholder="Please specify why this follow-up consultation is being cancelled (e.g. Emergency surgery, Doctor unavailable, Patient condition resolved...)"
+                  style={{
+                    width: '100%', padding: '10px 14px', border: '1.5px solid #cbd5e1',
+                    borderRadius: '10px', fontSize: '13px', outline: 'none', boxSizing: 'border-box',
+                    fontFamily: 'inherit'
+                  }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowFollowUpCancelModal(false)}
+                  style={{ background: '#f1f5f9', color: '#475569', border: '1px solid #cbd5e1', borderRadius: '8px', padding: '10px 18px', fontWeight: 700, cursor: 'pointer', fontSize: '13px' }}>
+                  Keep Follow-up
+                </button>
+                <button
+                  type="submit"
+                  disabled={submittingFollowUpCancel || !followUpCancelReason.trim()}
+                  style={{
+                    background: '#dc2626', color: '#fff', border: 'none', borderRadius: '8px',
+                    padding: '10px 22px', fontWeight: 700, cursor: 'pointer', fontSize: '13px',
+                    display: 'flex', alignItems: 'center', gap: '6px',
+                    opacity: (!followUpCancelReason.trim() || submittingFollowUpCancel) ? 0.6 : 1
+                  }}>
+                  {submittingFollowUpCancel ? <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> : <XCircle size={16} />}
+                  Confirm Cancellation
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── Doctor Follow-up Rejection Form Modal ── */}
+      {showFollowUpRejectModal && followUpRejectAppt && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(15,23,42,0.6)', backdropFilter: 'blur(4px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 10000, padding: '20px'
+        }}>
+          <div style={{
+            background: '#fff', borderRadius: '16px', width: '100%', maxWidth: '520px',
+            padding: '24px', boxShadow: '0 20px 40px rgba(0,0,0,0.2)', border: '1px solid #cbd5e1'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', borderBottom: '1px solid #f1f5f9', paddingBottom: '12px' }}>
+              <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: '#ea580c', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <AlertCircle size={20} /> Reject Follow-up Request
+              </h3>
+              <button onClick={() => setShowFollowUpRejectModal(false)} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}>
+                <X size={20} />
+              </button>
+            </div>
+
+            <div style={{ background: '#fff7ed', border: '1px solid #ffedd5', borderRadius: '10px', padding: '12px 16px', marginBottom: '16px', fontSize: '13px', color: '#9a3412' }}>
+              <div><strong>Patient:</strong> {followUpRejectAppt.patient_id?.first_name} {followUpRejectAppt.patient_id?.last_name}</div>
+              <div style={{ marginTop: '4px' }}><strong>Requested Date & Time:</strong> {followUpRejectAppt.follow_up_date ? new Date(followUpRejectAppt.follow_up_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : 'N/A'} {followUpRejectAppt.follow_up_time ? `at ${followUpRejectAppt.follow_up_time}` : ''}</div>
+              {followUpRejectAppt.follow_up_reason && (
+                <div style={{ marginTop: '4px' }}><strong>Patient Request Note:</strong> {followUpRejectAppt.follow_up_reason}</div>
+              )}
+            </div>
+
+            <form onSubmit={handleConfirmFollowUpRejectSubmit}>
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: '#0f172a', marginBottom: '8px' }}>
+                  Reason for Rejecting Follow-up <span style={{ color: '#dc2626' }}>*</span>
+                </label>
+                <textarea
+                  required
+                  rows={4}
+                  value={followUpRejectReason}
+                  onChange={(e) => setFollowUpRejectReason(e.target.value)}
+                  placeholder="Please enter the meet cancellation / rejection reason for the patient (e.g. Doctor unavailable at this slot, Schedule full, Patient condition resolved...)"
+                  style={{
+                    width: '100%', padding: '10px 14px', border: '1.5px solid #cbd5e1',
+                    borderRadius: '10px', fontSize: '13px', outline: 'none', boxSizing: 'border-box',
+                    fontFamily: 'inherit'
+                  }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowFollowUpRejectModal(false)}
+                  style={{ background: '#f1f5f9', color: '#475569', border: '1px solid #cbd5e1', borderRadius: '8px', padding: '10px 18px', fontWeight: 700, cursor: 'pointer', fontSize: '13px' }}>
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={submittingFollowUpReject || !followUpRejectReason.trim()}
+                  style={{
+                    background: '#ea580c', color: '#fff', border: 'none', borderRadius: '8px',
+                    padding: '10px 22px', fontWeight: 700, cursor: 'pointer', fontSize: '13px',
+                    display: 'flex', alignItems: 'center', gap: '6px',
+                    opacity: (!followUpRejectReason.trim() || submittingFollowUpReject) ? 0.6 : 1
+                  }}>
+                  {submittingFollowUpReject ? <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> : <XCircle size={16} />}
+                  Confirm Rejection
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

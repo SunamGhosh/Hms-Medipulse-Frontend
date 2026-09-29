@@ -88,7 +88,8 @@ const WritePrescriptionModal = ({ isOpen, onClose, appointment, onSuccess }) => 
     if (isOpen) {
       fetchMedicines();
       const pat = appointment?.patient_id;
-      const initialAge = pat?.age || pat?.patient_age || (pat?.dob ? Math.floor((new Date() - new Date(pat.dob)) / (365.25 * 24 * 60 * 60 * 1000)) : '');
+      const calculatedDobAge = pat?.dob ? Math.floor((new Date() - new Date(pat.dob)) / (365.25 * 24 * 60 * 60 * 1000)) : '';
+      const initialAge = pat?.patient_age || pat?.age || calculatedDobAge || appointment?.patient_age || appointment?.age || '';
       const initialGender = pat?.gender ? (pat.gender.charAt(0).toUpperCase() + pat.gender.slice(1).toLowerCase()) : '';
       setPatientAge(initialAge ? String(initialAge) : '');
       setPatientGender(initialGender);

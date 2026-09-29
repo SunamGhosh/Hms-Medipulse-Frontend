@@ -3,7 +3,9 @@ import { Package, Truck, Clock, CheckCircle2, Search, X, User, Phone, MapPin, Ke
 import toast from 'react-hot-toast';
 import './OrdersList.css';
 
-const API = import.meta.env.VITE_URL || 'http://localhost:5000';
+import API_BASE_URL from '../config/api';
+
+const API = API_BASE_URL;
 
 const getToken = () => {
   let t = localStorage.getItem('token') || localStorage.getItem('adminToken') || '';

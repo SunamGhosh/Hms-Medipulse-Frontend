@@ -13,7 +13,9 @@ import './PharmacyPage.css';
 import BookAppointmentModal from '../components/BookAppointmentModal';
 import DoctorLocationMapModal from '../components/DoctorLocationMapModal';
 
-const API = import.meta.env.VITE_URL;
+import API_BASE_URL from '../config/api';
+
+const API = API_BASE_URL;
 const getToken = () => localStorage.getItem('userToken');
 
 /* ── status colour map ── */
@@ -68,6 +70,13 @@ const UserDashboard = () => {
     setIsTrackingModalOpen(true);
   };
 
+  /* ── Live Ticker for Scheduled Meet Time ── */
+  const [nowTime, setNowTime] = useState(new Date());
+  useEffect(() => {
+    const timer = setInterval(() => setNowTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
   /* ── API data ── */
   const [appointments, setAppointments] = useState([]);
   const [patients, setPatients] = useState([]);
@@ -88,9 +97,163 @@ const UserDashboard = () => {
   const [paymentAppt, setPaymentAppt] = useState(null);
   const [processingPayment, setProcessingPayment] = useState(false);
 
+  /* ── Follow-up Request Modal State ── */
+  const [userApptFilter, setUserApptFilter] = useState('all');
+  const [showFollowUpModal, setShowFollowUpModal] = useState(false);
+  const [followUpAppt, setFollowUpAppt] = useState(null);
+  const [followUpForm, setFollowUpForm] = useState({
+    follow_up_date: '',
+    follow_up_time: '10:00',
+    follow_up_reason: ''
+  });
+  const [submittingFollowUp, setSubmittingFollowUp] = useState(false);
+  const [followUpBookedSlots, setFollowUpBookedSlots] = useState([]);
+  const [loadingFollowUpSlots, setLoadingFollowUpSlots] = useState(false);
+
+  const SLOT_TIMES = [
+    '09:00', '09:30', '10:00', '10:30', '11:00', '11:30',
+    '12:00', '12:30', '13:00', '13:30', '14:00', '14:30',
+    '15:00', '15:30', '16:00', '16:30', '17:00'
+  ];
+
+  const isSlotPassed = (dateStr, timeStr) => {
+    if (!dateStr || !timeStr) return false;
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const todayStr = `${year}-${month}-${day}`;
+
+    if (dateStr < todayStr) return true;
+    if (dateStr > todayStr) return false;
+
+    const [slotH, slotM] = timeStr.split(':').map(Number);
+    const currentH = now.getHours();
+    const currentM = now.getMinutes();
+
+    if (slotH < currentH) return true;
+    if (slotH === currentH && slotM <= currentM) return true;
+    return false;
+  };
+
+  const openFollowUpModal = (appt) => {
+    setFollowUpAppt(appt);
+    const todayStr = new Date().toISOString().split('T')[0];
+    const presDateStr = appt.appointment_date ? new Date(appt.appointment_date).toISOString().split('T')[0] : '';
+    const minDateStr = (presDateStr && presDateStr > todayStr) ? presDateStr : todayStr;
+    const docFollowUpDateStr = appt.follow_up_date ? new Date(appt.follow_up_date).toISOString().split('T')[0] : '';
+    const defaultDate = (docFollowUpDateStr && docFollowUpDateStr >= minDateStr) ? docFollowUpDateStr : minDateStr;
+
+    setFollowUpForm({
+      follow_up_date: defaultDate,
+      follow_up_time: appt.follow_up_time || appt.appointment_time || '10:00',
+      follow_up_reason: ''
+    });
+    setShowFollowUpModal(true);
+  };
+
+  useEffect(() => {
+    if (!followUpAppt || !followUpForm.follow_up_date) {
+      setFollowUpBookedSlots([]);
+      return;
+    }
+    const docId = typeof followUpAppt.doctor_id === 'object' ? followUpAppt.doctor_id?._id : followUpAppt.doctor_id;
+    if (!docId) return;
+
+    const fetchSlots = async () => {
+      setLoadingFollowUpSlots(true);
+      try {
+        const res = await fetch(`${API}/appointment/slots/${docId}/${followUpForm.follow_up_date}`);
+        const data = await res.json();
+        if (res.ok) {
+          setFollowUpBookedSlots(data.bookedTimes || data.booked_slots || []);
+        } else {
+          setFollowUpBookedSlots([]);
+        }
+      } catch {
+        setFollowUpBookedSlots([]);
+      } finally {
+        setLoadingFollowUpSlots(false);
+      }
+    };
+    fetchSlots();
+  }, [followUpAppt, followUpForm.follow_up_date]);
+
+  const handleConfirmFollowUpRequest = async (e) => {
+    e.preventDefault();
+    if (!followUpAppt || !followUpForm.follow_up_date) {
+      toast.error('Please select a valid follow-up date');
+      return;
+    }
+    if (!followUpForm.follow_up_reason || !followUpForm.follow_up_reason.trim()) {
+      toast.error('Please enter a reason for the follow-up request.');
+      return;
+    }
+    if (isSlotPassed(followUpForm.follow_up_date, followUpForm.follow_up_time)) {
+      toast.error('Selected time slot has already passed. Please choose an upcoming time slot.');
+      return;
+    }
+    const token = getToken();
+    if (!token) return;
+    setSubmittingFollowUp(true);
+    try {
+      const res = await fetch(`${API}/appointment/${followUpAppt._id}/request-followup`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify(followUpForm)
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        toast.success(data.message || 'Free follow-up request submitted to doctor!');
+        setShowFollowUpModal(false);
+        setFollowUpAppt(null);
+        fetchAppointments();
+      } else {
+        toast.error(data.message || 'Failed to submit follow-up request');
+      }
+    } catch (err) {
+      toast.error(err.message || 'Server error submitting follow-up request');
+    } finally {
+      setSubmittingFollowUp(false);
+    }
+  };
+
   /* ── Doctor Clinic Location Map Modal State ── */
   const [showDoctorMapModal, setShowDoctorMapModal] = useState(false);
   const [selectedApptForMap, setSelectedApptForMap] = useState(null);
+
+  /* ── Parse appointment scheduled Date object ── */
+  const getScheduledDateTime = useCallback((appt) => {
+    if (!appt?.appointment_date || !appt?.appointment_time) return null;
+    const d = new Date(appt.appointment_date);
+    const timeStr = String(appt.appointment_time).trim();
+    let hours = 0;
+    let minutes = 0;
+    if (timeStr.toLowerCase().includes('am') || timeStr.toLowerCase().includes('pm')) {
+      const isPm = timeStr.toLowerCase().includes('pm');
+      const cleanTime = timeStr.replace(/(am|pm)/gi, '').trim();
+      const parts = cleanTime.split(':').map(Number);
+      hours = parts[0] || 0;
+      minutes = parts[1] || 0;
+      if (isPm && hours < 12) hours += 12;
+      if (!isPm && hours === 12) hours = 0;
+    } else {
+      const parts = timeStr.split(':').map(Number);
+      hours = parts[0] || 0;
+      minutes = parts[1] || 0;
+    }
+    d.setHours(hours, minutes, 0, 0);
+    return d;
+  }, []);
+
+  const isBeforeScheduledTime = useCallback((appt) => {
+    const scheduled = getScheduledDateTime(appt);
+    if (!scheduled) return false;
+    return nowTime < scheduled;
+  }, [getScheduledDateTime, nowTime]);
 
   const openDoctorMapModal = (appt) => {
     setSelectedApptForMap(appt);
@@ -332,8 +495,26 @@ const UserDashboard = () => {
   };
 
   /* ── join video call & send reminder email ── */
-  const handleJoinVideoCall = async (apptId) => {
+  const handleJoinVideoCall = async (apptOrId) => {
+    const apptId = typeof apptOrId === 'object' ? apptOrId._id : apptOrId;
     const token = getToken();
+
+    try {
+      const res = await fetch(`${API}/appointment/${apptId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      const currentAppt = data?.appointment || data;
+
+      if (currentAppt && (currentAppt.status === 'completed' || currentAppt.meet_time_end)) {
+        toast.error("Consultation has ended now and status is marked as Completed.");
+        fetchAppointments();
+        return;
+      }
+    } catch (e) {
+      console.warn('Error checking appointment status before join:', e);
+    }
+
     fetch(`${API}/appointment/${apptId}/video-call-reminder`, {
       method: 'POST',
       headers: {
@@ -342,7 +523,8 @@ const UserDashboard = () => {
       }
     }).catch(err => console.error('Video call reminder failed:', err));
 
-    navigate(`/video-call/MediPulse_${apptId}`);
+    toast.success("Meeting is live! Rejoining video call room...");
+    navigate(`/video-call/MediPulse_${apptId}?role=patient`, { state: { role: 'patient' } });
   };
 
   /* ── pay for confirmed appointment modal handler ── */
@@ -478,7 +660,7 @@ const UserDashboard = () => {
     const docAddress = rec.doctor_id?.visit_address || 'Medipulse OPD Block, Sector 4';
     const recDate = formatDate(rec.prescribed_date || rec.createdAt);
     const disease = rec.disease || rec.diagnosis || rec.appointment_id?.disease || 'General Consultation';
-    const age = rec.patient_id?.age || userProfile?.age || '28';
+    const age = rec.patient_age || rec.age || (rec.patient_id?.dob ? Math.floor((new Date() - new Date(rec.patient_id.dob)) / (365.25 * 24 * 60 * 60 * 1000)) : '') || rec.patient_id?.age || userProfile?.age || 'N/A';
     const gender = rec.patient_id?.gender || userProfile?.gender || 'Male';
     const phone = rec.patient_id?.phone || userProfile?.phone || '+91 98765 43210';
     const followUpDateStr = rec.follow_up_date ? formatDate(rec.follow_up_date) : null;
@@ -917,13 +1099,58 @@ Verification Status: Digitally Verified Medical Record
         {/* ════════════ APPOINTMENTS VIEW ════════════ */}
         {view === VIEWS.APPOINTMENTS && (
           <section className="ud-section">
-            <div className="ud-section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div className="ud-section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
               <h2 className="ud-section-title">My Appointments</h2>
               <button className="ud-book-appt-btn" onClick={() => setIsBookModalOpen(true)}
                 style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'linear-gradient(135deg,#0d9488,#14b8a6)', color: '#fff', border: 'none', borderRadius: '10px', padding: '10px 18px', fontWeight: 700, fontSize: '14px', cursor: 'pointer', boxShadow: '0 4px 12px rgba(13,148,136,0.3)' }}>
                 <Plus size={16} /> Book New Appointment
               </button>
             </div>
+
+            {/* Status Filter Tabs */}
+            <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '8px', marginBottom: '16px' }}>
+              {[
+                { key: 'all', label: 'All', count: appointments.length },
+                { key: 'pending', label: 'Pending', count: appointments.filter(a => a.status === 'pending').length },
+                { key: 'confirmed', label: 'Confirmed', count: appointments.filter(a => a.status === 'confirmed').length },
+                { key: 'completed', label: 'Completed', count: appointments.filter(a => a.status === 'completed').length },
+                { key: 'follow_up', label: 'Follow-up', count: appointments.filter(a => a.follow_up_date || (a.follow_up_status && a.follow_up_status !== 'none')).length },
+                { key: 'cancelled', label: 'Cancelled', count: appointments.filter(a => a.status === 'cancelled' || a.status === 'rejected' || a.status === 'expired').length },
+              ].map(tab => (
+                <button
+                  key={tab.key}
+                  onClick={() => setUserApptFilter(tab.key)}
+                  style={{
+                    background: userApptFilter === tab.key ? '#0d9488' : '#fff',
+                    color: userApptFilter === tab.key ? '#fff' : '#475569',
+                    border: `1.5px solid ${userApptFilter === tab.key ? '#0d9488' : '#cbd5e1'}`,
+                    borderRadius: '20px',
+                    padding: '6px 14px',
+                    fontSize: '13px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    whiteSpace: 'nowrap',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  <span>{tab.label}</span>
+                  <span style={{
+                    background: userApptFilter === tab.key ? 'rgba(255,255,255,0.25)' : '#f1f5f9',
+                    color: userApptFilter === tab.key ? '#fff' : '#64748b',
+                    borderRadius: '10px',
+                    padding: '1px 7px',
+                    fontSize: '11px',
+                    fontWeight: 800
+                  }}>
+                    {tab.count}
+                  </span>
+                </button>
+              ))}
+            </div>
+
             <div className="ud-section-body">
               {apptLoading ? (
                 <div style={{ textAlign: 'center', color: '#94a3b8', padding: '3rem' }}>
@@ -942,9 +1169,24 @@ Verification Status: Digitally Verified Medical Record
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                  {appointments.map((appt) => {
+                  {appointments
+                    .filter(appt => {
+                      if (userApptFilter === 'follow_up') {
+                        return appt.follow_up_date || (appt.follow_up_status && appt.follow_up_status !== 'none');
+                      }
+                      if (userApptFilter === 'cancelled') {
+                        return ['cancelled', 'rejected', 'expired'].includes(appt.status);
+                      }
+                      if (userApptFilter !== 'all') {
+                        return appt.status === userApptFilter;
+                      }
+                      return true;
+                    })
+                    .map((appt) => {
                     const cfg = STATUS_CONFIG[appt.status] || STATUS_CONFIG.pending;
                     const canCancel = (appt.status === 'pending' || appt.status === 'confirmed') && appt.payment_status !== 'paid';
+                    const hasFollowUp = appt.follow_up_date || (appt.follow_up_status && appt.follow_up_status !== 'none');
+
                     return (
                       <div key={appt._id} style={{
                         background: '#fff',
@@ -952,144 +1194,266 @@ Verification Status: Digitally Verified Medical Record
                         borderRadius: '14px',
                         padding: '1.25rem 1.5rem',
                         display: 'flex',
-                        alignItems: 'center',
-                        gap: '1.25rem',
+                        flexDirection: 'column',
+                        gap: '1rem',
                         transition: 'all 0.2s',
                       }}>
-                        {/* Status dot */}
-                        <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: cfg.dot, flexShrink: 0, boxShadow: `0 0 0 4px ${cfg.dot}22` }} />
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', width: '100%' }}>
+                          {/* Status dot */}
+                          <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: cfg.dot, flexShrink: 0, boxShadow: `0 0 0 4px ${cfg.dot}22` }} />
 
-                        {/* Info */}
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '0.4rem' }}>
-                            <span style={{ fontWeight: 700, fontSize: '15px', color: '#0f172a' }}>
-                              Dr. {appt.doctor_id?.first_name} {appt.doctor_id?.last_name}
-                            </span>
-                            <span style={{ fontSize: '12px', color: '#64748b', background: '#f1f5f9', padding: '2px 10px', borderRadius: '12px', fontWeight: 600 }}>
-                              {appt.doctor_id?.specialization || 'General'}
-                            </span>
-                          </div>
-                          <div style={{ display: 'flex', gap: '1.25rem', flexWrap: 'wrap', fontSize: '13px', color: '#64748b' }}>
-                            {appt.patient_id && (
-                              <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                <User size={12} /> {appt.patient_id?.first_name} {appt.patient_id?.last_name}
+                          {/* Info */}
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '0.4rem' }}>
+                              <span style={{ fontWeight: 700, fontSize: '15px', color: '#0f172a' }}>
+                                Dr. {appt.doctor_id?.first_name} {appt.doctor_id?.last_name}
                               </span>
-                            )}
-                            <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                              <Clock size={12} /> {formatDate(appt.appointment_date)} at {appt.appointment_time}
-                            </span>
-                            {appt.disease && (
-                              <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                <Stethoscope size={12} /> {appt.disease}
-                              </span>
-                            )}
-                            {appt.consult_mode && (
-                              <span style={{ textTransform: 'capitalize', background: '#f0fdfa', color: '#0d9488', padding: '1px 8px', borderRadius: '8px', fontWeight: 600 }}>
-                                {appt.consult_mode}
-                              </span>
-                            )}
-                          </div>
-                          {/* Meeting Time Info — visible on completed appointments */}
-                          {appt.status === 'completed' && (appt.meet_time_start || appt.meet_time_end) && (
-                            <div style={{
-                              display: 'inline-flex', alignItems: 'center', gap: '6px', marginTop: '6px',
-                              fontSize: '12px', color: '#475569', background: '#f0fdfa',
-                              padding: '4px 12px', borderRadius: '20px', border: '1px solid #99f6e4'
-                            }}>
-                              <Clock size={12} style={{ color: '#0d9488', flexShrink: 0 }} />
-                              <span style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '4px' }}>
-                                {appt.meet_time_start && (
-                                  <span>Started: <strong style={{ color: '#0f172a' }}>{new Date(appt.meet_time_start).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })}</strong></span>
-                                )}
-                                {appt.meet_time_start && appt.meet_time_end && <span style={{ color: '#cbd5e1' }}> · </span>}
-                                {appt.meet_time_end && (
-                                  <span>Ended: <strong style={{ color: '#0f172a' }}>{new Date(appt.meet_time_end).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })}</strong></span>
-                                )}
-                                {appt.meet_time != null && (
-                                  <span style={{ color: '#0d9488', fontWeight: 700 }}> · {appt.meet_time} min</span>
-                                )}
+                              <span style={{ fontSize: '12px', color: '#64748b', background: '#f1f5f9', padding: '2px 10px', borderRadius: '12px', fontWeight: 600 }}>
+                                {appt.doctor_id?.specialization || 'General'}
                               </span>
                             </div>
+                            <div style={{ display: 'flex', gap: '1.25rem', flexWrap: 'wrap', fontSize: '13px', color: '#64748b' }}>
+                              {appt.patient_id && (
+                                <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                  <User size={12} /> {appt.patient_id?.first_name} {appt.patient_id?.last_name}
+                                </span>
+                              )}
+                              <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                <Clock size={12} /> {formatDate(appt.appointment_date)} at {appt.appointment_time}
+                              </span>
+                              {appt.disease && (
+                                <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                  <Stethoscope size={12} /> {appt.disease}
+                                </span>
+                              )}
+                              {appt.consult_mode && (
+                                <span style={{ textTransform: 'capitalize', background: '#f0fdfa', color: '#0d9488', padding: '1px 8px', borderRadius: '8px', fontWeight: 600 }}>
+                                  {appt.consult_mode}
+                                </span>
+                              )}
+                            </div>
+                            {/* Meeting Time Info — visible on completed appointments */}
+                            {appt.status === 'completed' && (appt.meet_time_start || appt.meet_time_end) && (
+                              <div style={{
+                                display: 'inline-flex', alignItems: 'center', gap: '6px', marginTop: '6px',
+                                fontSize: '12px', color: '#475569', background: '#f0fdfa',
+                                padding: '4px 12px', borderRadius: '20px', border: '1px solid #99f6e4'
+                              }}>
+                                <Clock size={12} style={{ color: '#0d9488', flexShrink: 0 }} />
+                                <span style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '4px' }}>
+                                  {appt.meet_time_start && (
+                                    <span>Started: <strong style={{ color: '#0f172a' }}>{new Date(appt.meet_time_start).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })}</strong></span>
+                                  )}
+                                  {appt.meet_time_start && appt.meet_time_end && <span style={{ color: '#cbd5e1' }}> · </span>}
+                                  {appt.meet_time_end && (
+                                    <span>Ended: <strong style={{ color: '#0f172a' }}>{new Date(appt.meet_time_end).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })}</strong></span>
+                                  )}
+                                  {appt.meet_time != null && (
+                                    <span style={{ color: '#0d9488', fontWeight: 700 }}> · {appt.meet_time} min</span>
+                                  )}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Fee */}
+                          {appt.consultation_fee && (
+                            <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                              <div style={{ fontWeight: 700, fontSize: '15px', color: '#0d9488' }}>₹{appt.consultation_fee}</div>
+                              <div style={{ fontSize: '11px', color: '#94a3b8' }}>fee</div>
+                            </div>
                           )}
+
+                          {/* Status badge */}
+                          <span style={{
+                            padding: '6px 14px', borderRadius: '20px', fontSize: '12px', fontWeight: 700,
+                            background: cfg.dot + '18', color: cfg.dot, flexShrink: 0,
+                          }}>
+                            {cfg.label}
+                          </span>
+
+                          <div style={{ display: 'flex', gap: '8px', flexShrink: 0, flexWrap: 'wrap', alignItems: 'center' }}>
+                            {/* Refund & Expiry Status badges */}
+                            {appt.refund_status === 'refunded' ? (
+                              <span style={{ background: '#ccfbf1', border: '1.5px solid #99f6e4', color: '#0f766e', borderRadius: '20px', padding: '5px 13px', fontSize: '12px', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                <CheckCircle2 size={12} /> 100% Refund Received (₹{appt.refund_amount || appt.consultation_fee})
+                              </span>
+                            ) : appt.payment_status === 'paid' && appt.refund_status === 'pending' ? (
+                              <span style={{ background: '#fff7ed', border: '1.5px solid #fed7aa', color: '#c2410c', borderRadius: '20px', padding: '5px 13px', fontSize: '12px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                <Clock size={12} /> 100% Refund Pending by Doctor
+                              </span>
+                            ) : appt.status === 'expired' && appt.refund_status === 'not_applicable' ? (
+                              <span style={{ background: '#fef2f2', border: '1.5px solid #fecaca', color: '#dc2626', borderRadius: '20px', padding: '5px 13px', fontSize: '12px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                <XCircle size={12} /> Expired (No Refund - Patient No-Show)
+                              </span>
+                            ) : appt.payment_status === 'paid' ? (
+                              <span style={{ background: '#f0fdf4', border: '1.5px solid #86efac', color: '#16a34a', borderRadius: '20px', padding: '5px 13px', fontSize: '12px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                <CheckCircle2 size={12} /> Payment Done
+                              </span>
+                            ) : null}
+                            {/* Pay Now button — only for confirmed + unpaid */}
+                            {appt.status === 'confirmed' && appt.payment_status !== 'paid' && appt.consultation_fee && (
+                              <button onClick={() => openPaymentModal(appt)}
+                                style={{ background: 'linear-gradient(135deg,#0d9488,#14b8a6)', border: 'none', color: '#fff', borderRadius: '8px', padding: '6px 14px', fontWeight: 700, fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', boxShadow: '0 4px 10px rgba(13,148,136,0.35)' }}>
+                                <CreditCard size={13} /> Pay Now
+                              </button>
+                            )}
+                            {appt.status === 'confirmed' && appt.payment_status === 'paid' && appt.consult_mode === 'online' && !appt.meet_time_end && (
+                              isBeforeScheduledTime(appt) ? (
+                                <button
+                                  disabled={true}
+                                  title={`Join Video Call button will enable at scheduled time (${appt.appointment_time || ''})`}
+                                  style={{
+                                    background: '#f3f4f6',
+                                    border: '1px solid #e5e7eb',
+                                    color: '#9ca3af',
+                                    borderRadius: '8px',
+                                    padding: '6px 14px',
+                                    fontWeight: 700,
+                                    fontSize: '13px',
+                                    cursor: 'not-allowed',
+                                    opacity: 0.75,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '5px'
+                                  }}
+                                >
+                                  <Clock size={13} /> Join Meet (Available at {appt.appointment_time || ''})
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={() => handleJoinVideoCall(appt._id)}
+                                  style={{
+                                    background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
+                                    border: 'none',
+                                    color: '#ffffff',
+                                    borderRadius: '8px',
+                                    padding: '6px 14px',
+                                    fontWeight: 700,
+                                    fontSize: '13px',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '5px',
+                                    boxShadow: '0 4px 10px rgba(37,99,235,0.35)'
+                                  }}
+                                >
+                                  <Video size={13} /> {appt.meet_time_start ? 'Rejoin Video Call' : 'Join Video Call'}
+                                </button>
+                              )
+                            )}
+                            {(appt.status === 'confirmed' || appt.status === 'completed') && appt.payment_status === 'paid' && (appt.consult_mode === 'offline' || appt.consult_mode !== 'online') && (
+                              <button onClick={() => openDoctorMapModal(appt)}
+                                style={{ background: '#f0fdfa', border: '1.5px solid #99f6e4', color: '#0d9488', borderRadius: '8px', padding: '6px 14px', fontWeight: 700, fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px', boxShadow: '0 2px 6px rgba(13,148,136,0.15)' }}>
+                                <MapPin size={13} /> View Clinic Map
+                              </button>
+                            )}
+                            {/* Completed Consultation Prescription Actions */}
+                            {appt.status === 'completed' && (
+                              (patientPrescriptions.some(p => (p.appointment_id?._id || p.appointment_id) === appt._id) || appt.prescription_added) ? (
+                                <button onClick={() => handleViewPrescription(appt._id)}
+                                  style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', color: '#0d9488', borderRadius: '8px', padding: '6px 14px', fontWeight: 700, fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                  <FileText size={13} /> View Prescription
+                                </button>
+                              ) : (
+                                <button disabled={true}
+                                  style={{ background: '#f1f5f9', border: '1px solid #cbd5e1', color: '#94a3b8', borderRadius: '8px', padding: '6px 14px', fontWeight: 700, fontSize: '13px', cursor: 'not-allowed', opacity: 0.7 }}
+                                  title="Doctor has not added prescription for this consultation yet">
+                                  <FileText size={13} /> Prescription Pending
+                                </button>
+                              )
+                            )}
+                            {/* Cancel button */}
+                            {canCancel && (
+                              <button onClick={() => handleCancel(appt._id)}
+                                style={{ background: '#fff5f5', border: '1px solid #fecaca', color: '#ef4444', borderRadius: '8px', padding: '6px 14px', fontWeight: 700, fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', transition: 'all 0.2s' }}>
+                                <XCircle size={13} /> Cancel
+                              </button>
+                            )}
+                          </div>
                         </div>
 
-                        {/* Fee */}
-                        {appt.consultation_fee && (
-                          <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                            <div style={{ fontWeight: 700, fontSize: '15px', color: '#0d9488' }}>₹{appt.consultation_fee}</div>
-                            <div style={{ fontSize: '11px', color: '#94a3b8' }}>fee</div>
+                        {/* ── Follow-up Status Box in User Panel ── */}
+                        {hasFollowUp && (
+                          <div style={{
+                            width: '100%',
+                            background: 'linear-gradient(135deg, #f0fdfa 0%, #e6fffa 100%)',
+                            border: '1.5px solid #99f6e4',
+                            borderRadius: '12px',
+                            padding: '14px 18px',
+                            marginTop: '4px',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '10px',
+                            boxShadow: '0 2px 10px rgba(13,148,136,0.08)'
+                          }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <CalendarCheck size={16} style={{ color: '#0d9488' }} />
+                                <span style={{ fontWeight: 800, fontSize: '13px', color: '#0f766e', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                                  Follow-up Consultation
+                                </span>
+                              </div>
+
+                              {/* Follow-up Status Badges */}
+                              {appt.follow_up_status === 'requested' && (
+                                <span style={{ background: '#eff6ff', border: '1.5px solid #93c5fd', color: '#1d4ed8', padding: '4px 12px', borderRadius: '20px', fontSize: '11px', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                  <Clock size={11} /> Follow-up Requested (Awaiting Doctor Response)
+                                </span>
+                              )}
+                              {appt.follow_up_status === 'accepted' && (
+                                <span style={{ background: '#ecfdf5', border: '1.5px solid #86efac', color: '#15803d', padding: '4px 12px', borderRadius: '20px', fontSize: '11px', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                  <CheckCircle2 size={11} /> Follow-up Accepted by Doctor
+                                </span>
+                              )}
+                              {appt.follow_up_status === 'rejected' && (
+                                <span style={{ background: '#fff7ed', border: '1.5px solid #fed7aa', color: '#c2410c', padding: '4px 12px', borderRadius: '20px', fontSize: '11px', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                  <XCircle size={11} /> Follow-up Request Rejected by Doctor
+                                </span>
+                              )}
+                              {appt.follow_up_status === 'cancelled' && (
+                                <span style={{ background: '#fef2f2', border: '1.5px solid #fca5a5', color: '#b91c1c', padding: '4px 12px', borderRadius: '20px', fontSize: '11px', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                  <AlertCircle size={11} /> Follow-up Cancelled by Doctor
+                                </span>
+                              )}
+                              {(!appt.follow_up_status || appt.follow_up_status === 'none') && (
+                                <span style={{ background: '#f1f5f9', border: '1px solid #cbd5e1', color: '#475569', padding: '4px 12px', borderRadius: '20px', fontSize: '11px', fontWeight: 700 }}>
+                                  Follow-up Eligible
+                                </span>
+                              )}
+                            </div>
+
+                            {/* Follow-up Details Grid */}
+                            <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', fontSize: '12px', color: '#334155', background: 'rgba(255,255,255,0.7)', padding: '10px 14px', borderRadius: '8px', border: '1px solid #ccfbf1' }}>
+                              <span><strong>Follow-up Date:</strong> {appt.follow_up_date ? formatDate(appt.follow_up_date) : 'Not scheduled'}</span>
+                              <span><strong>Consultation Mode:</strong> <span style={{ textTransform: 'capitalize', color: '#0d9488', fontWeight: 700 }}>{appt.consult_mode}</span> (Same as initial meet)</span>
+                              <span><strong>Consultation Fee:</strong> <span style={{ color: '#16a34a', fontWeight: 700 }}>Free / ₹0 (No Payment Required)</span></span>
+                            </div>
+
+                            {/* Doctor Rejection/Cancellation Reason Box */}
+                            {(appt.follow_up_status === 'rejected' || appt.follow_up_status === 'cancelled') && appt.follow_up_cancel_reason && (
+                              <div style={{ background: '#fef2f2', border: '1.5px solid #fca5a5', borderRadius: '8px', padding: '10px 14px', color: '#991b1b', fontSize: '12px', fontWeight: 600 }}>
+                                ❌ Doctor's Rejection/Cancellation Reason: "{appt.follow_up_cancel_reason}"
+                              </div>
+                            )}
+
+                            {/* Request Follow-up Button Logic */}
+                            {(!appt.follow_up_status || appt.follow_up_status === 'none' || appt.follow_up_status === 'rejected') && (
+                              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '4px' }}>
+                                <button
+                                  onClick={() => openFollowUpModal(appt)}
+                                  style={{
+                                    background: 'linear-gradient(135deg,#0d9488,#14b8a6)', color: '#fff',
+                                    border: 'none', borderRadius: '8px', padding: '8px 18px', fontWeight: 700,
+                                    fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px',
+                                    boxShadow: '0 4px 12px rgba(13,148,136,0.3)'
+                                  }}>
+                                  <CalendarCheck size={14} /> Request Free Follow-Up Meet
+                                </button>
+                              </div>
+                            )}
                           </div>
                         )}
-
-                        {/* Status badge */}
-                        <span style={{
-                          padding: '6px 14px', borderRadius: '20px', fontSize: '12px', fontWeight: 700,
-                          background: cfg.dot + '18', color: cfg.dot, flexShrink: 0,
-                        }}>
-                          {cfg.label}
-                        </span>
-
-                        <div style={{ display: 'flex', gap: '8px', flexShrink: 0, flexWrap: 'wrap', alignItems: 'center' }}>
-                          {/* Refund & Expiry Status badges */}
-                          {appt.refund_status === 'refunded' ? (
-                            <span style={{ background: '#ccfbf1', border: '1.5px solid #99f6e4', color: '#0f766e', borderRadius: '20px', padding: '5px 13px', fontSize: '12px', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                              <CheckCircle2 size={12} /> 100% Refund Received (₹{appt.refund_amount || appt.consultation_fee})
-                            </span>
-                          ) : appt.payment_status === 'paid' && appt.refund_status === 'pending' ? (
-                            <span style={{ background: '#fff7ed', border: '1.5px solid #fed7aa', color: '#c2410c', borderRadius: '20px', padding: '5px 13px', fontSize: '12px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                              <Clock size={12} /> 100% Refund Pending by Doctor
-                            </span>
-                          ) : appt.status === 'expired' && appt.refund_status === 'not_applicable' ? (
-                            <span style={{ background: '#fef2f2', border: '1.5px solid #fecaca', color: '#dc2626', borderRadius: '20px', padding: '5px 13px', fontSize: '12px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                              <XCircle size={12} /> Expired (No Refund - Patient No-Show)
-                            </span>
-                          ) : appt.payment_status === 'paid' ? (
-                            <span style={{ background: '#f0fdf4', border: '1.5px solid #86efac', color: '#16a34a', borderRadius: '20px', padding: '5px 13px', fontSize: '12px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                              <CheckCircle2 size={12} /> Payment Done
-                            </span>
-                          ) : null}
-                          {/* Pay Now button — only for confirmed + unpaid */}
-                          {appt.status === 'confirmed' && appt.payment_status !== 'paid' && appt.consultation_fee && (
-                            <button onClick={() => openPaymentModal(appt)}
-                              style={{ background: 'linear-gradient(135deg,#0d9488,#14b8a6)', border: 'none', color: '#fff', borderRadius: '8px', padding: '6px 14px', fontWeight: 700, fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', boxShadow: '0 4px 10px rgba(13,148,136,0.35)' }}>
-                              <CreditCard size={13} /> Pay Now
-                            </button>
-                          )}
-                          {appt.status === 'confirmed' && appt.payment_status === 'paid' && appt.consult_mode === 'online' && !appt.meet_time_end && (
-                            <button onClick={() => handleJoinVideoCall(appt._id)}
-                              style={{ background: '#eff6ff', border: '1px solid #bfdbfe', color: '#2563eb', borderRadius: '8px', padding: '6px 14px', fontWeight: 700, fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                              <Video size={13} /> {appt.meet_time_start ? 'Rejoin Video Call' : 'Join Video Call'}
-                            </button>
-                          )}
-                          {(appt.status === 'confirmed' || appt.status === 'completed') && appt.payment_status === 'paid' && (appt.consult_mode === 'offline' || appt.consult_mode !== 'online') && (
-                            <button onClick={() => openDoctorMapModal(appt)}
-                              style={{ background: '#f0fdfa', border: '1.5px solid #99f6e4', color: '#0d9488', borderRadius: '8px', padding: '6px 14px', fontWeight: 700, fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px', boxShadow: '0 2px 6px rgba(13,148,136,0.15)' }}>
-                              <MapPin size={13} /> View Clinic Map
-                            </button>
-                          )}
-                          {/* Completed Consultation Prescription Actions */}
-                          {appt.status === 'completed' && (
-                            (patientPrescriptions.some(p => (p.appointment_id?._id || p.appointment_id) === appt._id) || appt.prescription_added) ? (
-                              <button onClick={() => handleViewPrescription(appt._id)}
-                                style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', color: '#0d9488', borderRadius: '8px', padding: '6px 14px', fontWeight: 700, fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                <FileText size={13} /> View Prescription
-                              </button>
-                            ) : (
-                              <button disabled={true}
-                                style={{ background: '#f1f5f9', border: '1px solid #cbd5e1', color: '#94a3b8', borderRadius: '8px', padding: '6px 14px', fontWeight: 700, fontSize: '13px', cursor: 'not-allowed', opacity: 0.7 }}
-                                title="Doctor has not added prescription for this consultation yet">
-                                <FileText size={13} /> Prescription Pending
-                              </button>
-                            )
-                          )}
-                          {/* Cancel button */}
-                          {canCancel && (
-                            <button onClick={() => handleCancel(appt._id)}
-                              style={{ background: '#fff5f5', border: '1px solid #fecaca', color: '#ef4444', borderRadius: '8px', padding: '6px 14px', fontWeight: 700, fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', transition: 'all 0.2s' }}>
-                              <XCircle size={13} /> Cancel
-                            </button>
-                          )}
-                        </div>
                       </div>
                     );
                   })}
@@ -1364,7 +1728,10 @@ Verification Status: Digitally Verified Medical Record
                       </p>
                       <p style={{ margin: '2px 0 0', fontSize: '12px', color: '#64748b', textTransform: 'capitalize' }}>
                         {selectedPrescription.patient_gender || selectedPrescription.gender || selectedPrescription.patient_id?.gender || 'Patient'}
-                        {(selectedPrescription.patient_age || selectedPrescription.age || selectedPrescription.patient_id?.age) ? ` (${selectedPrescription.patient_age || selectedPrescription.age || selectedPrescription.patient_id?.age} yrs)` : ''}
+                        {(() => {
+                          const displayAge = selectedPrescription.patient_age || selectedPrescription.age || (selectedPrescription.patient_id?.dob ? Math.floor((new Date() - new Date(selectedPrescription.patient_id.dob)) / (365.25 * 24 * 60 * 60 * 1000)) : '') || selectedPrescription.patient_id?.age;
+                          return displayAge ? ` (${displayAge} yrs)` : '';
+                        })()}
                       </p>
                     </div>
                     <div>
@@ -1616,6 +1983,175 @@ Verification Status: Digitally Verified Medical Record
           </div>
         </div>
       )}
+
+      {/* ==================== FREE FOLLOW-UP REQUEST MODAL ==================== */}
+      {showFollowUpModal && followUpAppt && (() => {
+        const docObj = (typeof followUpAppt.doctor_id === 'object' && followUpAppt.doctor_id) 
+          ? followUpAppt.doctor_id 
+          : {};
+        const docName = docObj.first_name ? `Dr. ${docObj.first_name} ${docObj.last_name || ''}` : 'Doctor Specialist';
+        const docSpec = docObj.specialization || followUpAppt.specialization || 'General Specialist';
+
+        return (
+          <div style={{
+            position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(4px)',
+            zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px'
+          }} onClick={() => setShowFollowUpModal(false)}>
+            <div style={{
+              background: '#ffffff', borderRadius: '20px', width: '100%', maxWidth: '520px',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)', overflow: 'hidden', border: '1px solid #e2e8f0'
+            }} onClick={e => e.stopPropagation()}>
+              <div style={{
+                background: 'linear-gradient(135deg, #0d9488 0%, #0f766e 100%)',
+                color: '#ffffff', padding: '20px 24px', position: 'relative'
+              }}>
+                <button
+                  onClick={() => setShowFollowUpModal(false)}
+                  style={{
+                    position: 'absolute', right: '16px', top: '16px', background: 'rgba(255,255,255,0.15)',
+                    border: 'none', color: '#ffffff', borderRadius: '50%', width: '32px', height: '32px',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer'
+                  }}
+                >
+                  <X size={18} />
+                </button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <div style={{ background: 'rgba(255,255,255,0.2)', padding: '8px', borderRadius: '12px' }}>
+                    <CalendarCheck size={22} color="#ffffff" />
+                  </div>
+                  <div>
+                    <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800 }}>Request Follow-Up Consultation</h3>
+                    <p style={{ margin: '2px 0 0', fontSize: '12px', color: '#ccfbf1' }}>
+                      Free Follow-Up consultation booking (No Payment Required)
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <form onSubmit={handleConfirmFollowUpRequest}>
+                <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  
+                  {/* Doctor & Fee Summary Card */}
+                  <div style={{ background: '#f0fdfa', border: '1.5px solid #99f6e4', borderRadius: '14px', padding: '16px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                      <div>
+                        <h4 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: '#0f172a' }}>{docName}</h4>
+                        <span style={{ fontSize: '12px', color: '#0d9488', fontWeight: 700 }}>{docSpec}</span>
+                      </div>
+                      <span style={{ background: '#ecfdf5', color: '#047857', border: '1px solid #a7f3d0', padding: '4px 10px', borderRadius: '12px', fontSize: '11px', fontWeight: 800 }}>
+                        FREE (₹0 Fee)
+                      </span>
+                    </div>
+                    <div style={{ fontSize: '12px', color: '#475569', marginTop: 8 }}>
+                      Primary Reason: <strong>{followUpAppt.disease || 'General Consultation'}</strong>
+                      {followUpAppt.consult_mode && <span> · Mode: <strong style={{ textTransform: 'capitalize' }}>{followUpAppt.consult_mode}</strong></span>}
+                    </div>
+                  </div>
+
+                  {/* Date Selector */}
+                  {(() => {
+                    const todayStr = new Date().toISOString().split('T')[0];
+                    const presDateStr = followUpAppt.appointment_date ? new Date(followUpAppt.appointment_date).toISOString().split('T')[0] : (followUpAppt.prescribed_date ? new Date(followUpAppt.prescribed_date).toISOString().split('T')[0] : '');
+                    const minDateStr = (presDateStr && presDateStr > todayStr) ? presDateStr : todayStr;
+                    const maxDateStr = followUpAppt.follow_up_date ? new Date(followUpAppt.follow_up_date).toISOString().split('T')[0] : '';
+                    return (
+                      <div>
+                        <label style={{ fontSize: '13px', fontWeight: 800, color: '#334155', display: 'block', marginBottom: '6px' }}>
+                          Select Follow-Up Date *
+                        </label>
+                        <input
+                          type="date"
+                          required
+                          min={minDateStr}
+                          max={maxDateStr || undefined}
+                          value={followUpForm.follow_up_date}
+                          onChange={e => setFollowUpForm({ ...followUpForm, follow_up_date: e.target.value })}
+                          style={{ width: '100%', padding: '10px 14px', borderRadius: '10px', border: '1.5px solid #cbd5e1', fontSize: '14px', outline: 'none', boxSizing: 'border-box' }}
+                        />
+                        {maxDateStr && (
+                          <span style={{ fontSize: '11px', color: '#0d9488', marginTop: '4px', display: 'block', fontWeight: 600 }}>
+                            Allowed dates: between prescription date and doctor's scheduled follow-up date ({formatDate(maxDateStr)}).
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })()}
+
+                  {/* Time Slot Picker */}
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                      <label style={{ fontSize: '13px', fontWeight: 800, color: '#334155', margin: 0 }}>
+                        Select Time Slot (30 Mins) *
+                      </label>
+                      {loadingFollowUpSlots && (
+                        <span style={{ fontSize: 11, color: '#0d9488', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <Loader2 size={12} style={{ animation: 'spin 1s linear infinite' }} /> Checking slots...
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(85px, 1fr))', gap: '8px', maxHeight: '140px', overflowY: 'auto', paddingRight: '2px' }}>
+                      {SLOT_TIMES.map(t24 => {
+                        const isBooked = followUpBookedSlots.includes(t24);
+                        const isPassed = isSlotPassed(followUpForm.follow_up_date, t24);
+                        const isDisabled = isBooked || isPassed;
+                        const isSelected = followUpForm.follow_up_time === t24;
+                        return (
+                          <button
+                            key={t24}
+                            type="button"
+                            disabled={isDisabled}
+                            onClick={() => !isDisabled && setFollowUpForm({ ...followUpForm, follow_up_time: t24 })}
+                            style={{
+                              padding: '8px 4px', borderRadius: '8px',
+                              border: `1.5px solid ${isSelected ? '#0d9488' : isDisabled ? '#e2e8f0' : '#cbd5e1'}`,
+                              fontSize: '12px', fontWeight: 700,
+                              cursor: isDisabled ? 'not-allowed' : 'pointer',
+                              background: isSelected ? '#0d9488' : isBooked ? '#fff7ed' : isPassed ? '#f1f5f9' : '#ffffff',
+                              color: isSelected ? '#ffffff' : isBooked ? '#c2410c' : isPassed ? '#94a3b8' : '#334155',
+                              opacity: isDisabled ? 0.6 : 1, transition: 'all 0.15s'
+                            }}
+                          >
+                            {t24}
+                            {isBooked && <span style={{ display: 'block', fontSize: '9px', color: '#c2410c' }}>Booked</span>}
+                            {!isBooked && isPassed && <span style={{ display: 'block', fontSize: '9px', color: '#94a3b8' }}>Passed</span>}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Notes / Reason */}
+                  <div>
+                    <label style={{ fontSize: '13px', fontWeight: 800, color: '#334155', display: 'block', marginBottom: '6px' }}>
+                      Follow-Up Reason / Query Details <span style={{ color: '#ef4444' }}>*</span>
+                    </label>
+                    <textarea
+                      rows={2}
+                      required
+                      placeholder="e.g. Post-medication review, progress updates..."
+                      value={followUpForm.follow_up_reason}
+                      onChange={e => setFollowUpForm({ ...followUpForm, follow_up_reason: e.target.value })}
+                      style={{ width: '100%', padding: '10px 14px', borderRadius: '10px', border: '1.5px solid #cbd5e1', fontSize: '13px', outline: 'none', boxSizing: 'border-box' }}
+                    />
+                  </div>
+
+                </div>
+
+                <div style={{ padding: '16px 24px', background: '#f8fafc', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+                  <button type="button" onClick={() => setShowFollowUpModal(false)}
+                    style={{ padding: '10px 20px', borderRadius: '10px', border: '1px solid #cbd5e1', background: '#ffffff', color: '#475569', fontWeight: 700, fontSize: '14px', cursor: 'pointer' }}>
+                    Cancel
+                  </button>
+                  <button type="submit" disabled={submittingFollowUp}
+                    style={{ padding: '10px 24px', borderRadius: '10px', border: 'none', background: 'linear-gradient(135deg, #0d9488 0%, #0f766e 100%)', color: '#ffffff', fontWeight: 800, fontSize: '14px', cursor: 'pointer', boxShadow: '0 4px 12px rgba(13,148,136,0.3)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    {submittingFollowUp ? <><Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> Submitting...</> : <><CalendarCheck size={16} /> Submit Free Follow-Up Request</>}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Doctor Location Map Modal */}
       <DoctorLocationMapModal

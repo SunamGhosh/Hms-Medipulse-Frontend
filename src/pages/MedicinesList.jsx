@@ -5,7 +5,9 @@ import {
 } from 'lucide-react';
 import './MedicinesList.css';
 
-const API = import.meta.env.VITE_URL || 'http://localhost:5000';
+import API_BASE_URL from '../config/api';
+
+const API = API_BASE_URL;
 
 const CATEGORIES = [
   { key: 'all', label: 'All Medicines', icon: Pill, color: '#3b82f6', bg: '#eff6ff' },

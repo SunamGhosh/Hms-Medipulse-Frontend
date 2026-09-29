@@ -6,7 +6,7 @@ import {
 import './AddMedicine.css';
 
 const CATEGORIES = ["Tablet", "Capsule", "Syrup", "Injection", "Cream", "Drops", "Powder", "Other"];
-const UNITS = ["Strip", "Bottle", "Box", "Tube", "Piece", "Packet"];
+const UNITS = ["Strip", "Bottle", "Ampoule", "Vial", "Tin", "Box", "Tube", "Piece", "Packet"];
 
 const AddMedicine = () => {
   const [form, setForm] = useState({

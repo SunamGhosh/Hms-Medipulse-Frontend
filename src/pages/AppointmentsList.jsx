@@ -64,6 +64,7 @@ const AppointmentsList = () => {
   // Count helper
   const getCount = (key) => {
     if (key === 'all') return appointments.length;
+    if (key === 'follow_up') return appointments.filter(a => a.follow_up_date || (a.follow_up_status && a.follow_up_status !== 'none')).length;
     return appointments.filter(a => (a.status || '').toLowerCase() === key).length;
   };
 
@@ -72,6 +73,7 @@ const AppointmentsList = () => {
     { key: 'pending', label: 'Pending', count: getCount('pending') },
     { key: 'confirmed', label: 'Confirmed', count: getCount('confirmed') },
     { key: 'completed', label: 'Completed', count: getCount('completed') },
+    { key: 'follow_up', label: 'Follow-up', count: getCount('follow_up') },
     { key: 'expired', label: 'Expired', count: getCount('expired') },
     { key: 'cancelled', label: 'Cancelled', count: getCount('cancelled') },
     { key: 'rejected', label: 'Rejected', count: getCount('rejected') },
@@ -80,7 +82,9 @@ const AppointmentsList = () => {
   // Filtering Logic
   const filteredAppointments = appointments.filter(app => {
     // 1. Status Filter
-    if (statusFilter !== 'all') {
+    if (statusFilter === 'follow_up') {
+      if (!app.follow_up_date && (!app.follow_up_status || app.follow_up_status === 'none')) return false;
+    } else if (statusFilter !== 'all') {
       if ((app.status || '').toLowerCase() !== statusFilter) return false;
     }
 
@@ -193,8 +197,9 @@ const AppointmentsList = () => {
         <div className="al-cards">
           {filteredAppointments.map(appointment => {
             const statusKey = (appointment.status || 'pending').toLowerCase();
+            const hasFollowUp = appointment.follow_up_date || (appointment.follow_up_status && appointment.follow_up_status !== 'none');
             return (
-              <div key={appointment._id} className="al-card">
+              <div key={appointment._id} className="al-card" style={{ flexWrap: 'wrap' }}>
                 <div className="al-cell al-cell-doctor" title={doctorName(appointment)}>
                   {doctorName(appointment)}
                 </div>
@@ -240,6 +245,58 @@ const AppointmentsList = () => {
                     {statusKey === 'cancelled' ? 'Cancelled' : 'Cancel'}
                   </button>
                 </div>
+
+                {/* Follow-up Status Box in Admin Panel */}
+                {hasFollowUp && (
+                  <div style={{
+                    width: '100%',
+                    background: 'linear-gradient(135deg, #f0fdfa 0%, #e6fffa 100%)',
+                    border: '1.5px solid #99f6e4',
+                    borderRadius: '12px',
+                    padding: '12px 16px',
+                    marginTop: '8px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '8px',
+                    fontSize: '12px',
+                    boxShadow: '0 2px 8px rgba(13, 148, 136, 0.06)'
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontWeight: 800, color: '#0f766e', display: 'flex', alignItems: 'center', gap: '6px', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                        📅 Follow-up Consultation Details
+                      </span>
+                      <span style={{
+                        padding: '4px 12px', borderRadius: '20px', fontSize: '11px', fontWeight: 800, textTransform: 'uppercase',
+                        background: appointment.follow_up_status === 'accepted' ? '#dcfce7' : appointment.follow_up_status === 'requested' ? '#dbeafe' : appointment.follow_up_status === 'rejected' ? '#ffedd5' : appointment.follow_up_status === 'cancelled' ? '#fee2e2' : '#f1f5f9',
+                        color: appointment.follow_up_status === 'accepted' ? '#15803d' : appointment.follow_up_status === 'requested' ? '#1d4ed8' : appointment.follow_up_status === 'rejected' ? '#c2410c' : appointment.follow_up_status === 'cancelled' ? '#b91c1c' : '#475569',
+                        border: `1px solid ${appointment.follow_up_status === 'accepted' ? '#86efac' : appointment.follow_up_status === 'requested' ? '#93c5fd' : appointment.follow_up_status === 'rejected' ? '#fdba74' : appointment.follow_up_status === 'cancelled' ? '#fca5a5' : '#cbd5e1'}`
+                      }}>
+                        Status: {appointment.follow_up_status || 'none'}
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', color: '#334155' }}>
+                      <span><strong>Follow-up Date & Time:</strong> {appointment.follow_up_date ? new Date(appointment.follow_up_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Not set'} {appointment.follow_up_time ? `at ${appointment.follow_up_time}` : ''}</span>
+                      <span><strong>Consultation Mode:</strong> <span style={{ textTransform: 'capitalize', color: '#0d9488', fontWeight: 700 }}>{appointment.consult_mode}</span> (Same as initial meet)</span>
+                      <span><strong>Consultation Fee:</strong> <span style={{ color: '#16a34a', fontWeight: 700 }}>Free / ₹0 (No Charges)</span></span>
+                      <span><strong>Booked By Role:</strong> <span style={{ textTransform: 'capitalize', fontWeight: 600 }}>{appointment.booker_role === 'pharmacist' ? 'Pharmacist' : 'Patient'}</span></span>
+                    </div>
+                    {appointment.follow_up_reason && (
+                      <div style={{ background: '#fff', border: '1px solid #99f6e4', borderRadius: '8px', padding: '6px 12px', color: '#0f766e', fontWeight: 600 }}>
+                        📝 Patient Request Note: {appointment.follow_up_reason}
+                      </div>
+                    )}
+                    {appointment.follow_up_status === 'rejected' && (appointment.cancel_reason || appointment.follow_up_cancel_reason) && (
+                      <div style={{ background: '#fff', border: '1px solid #fed7aa', borderRadius: '8px', padding: '8px 12px', color: '#c2410c', fontWeight: 600 }}>
+                        ❌ Rejection Reason: {appointment.cancel_reason || appointment.follow_up_cancel_reason}
+                      </div>
+                    )}
+                    {appointment.follow_up_status === 'cancelled' && appointment.follow_up_cancel_reason && (
+                      <div style={{ background: '#fff', border: '1px solid #fca5a5', borderRadius: '8px', padding: '8px 12px', color: '#991b1b', marginTop: '2px', fontWeight: 600 }}>
+                        ❌ Cancellation Reason: {appointment.follow_up_cancel_reason}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             );
           })}

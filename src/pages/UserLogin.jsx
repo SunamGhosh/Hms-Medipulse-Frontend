@@ -16,6 +16,8 @@ import './UserLogin.css';
 
 import Header from '../components/Header';
 
+import API_BASE_URL from '../config/api';
+
 const UserLogin = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -47,7 +49,7 @@ const UserLogin = () => {
     setFpSuccessMsg('');
 
     try {
-      const response = await fetch(`${import.meta.env.VITE_URL}/user/login`, {
+      const response = await fetch(`${API_BASE_URL}/user/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
@@ -81,7 +83,7 @@ const UserLogin = () => {
     setFpSuccessMsg('');
 
     try {
-      const response = await fetch(`${import.meta.env.VITE_URL}/user/send-otp`, {
+      const response = await fetch(`${API_BASE_URL}/user/send-otp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: fpEmail }),
@@ -111,7 +113,7 @@ const UserLogin = () => {
     setFpSuccessMsg('');
 
     try {
-      const response = await fetch(`${import.meta.env.VITE_URL}/user/reset-password`, {
+      const response = await fetch(`${API_BASE_URL}/user/reset-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: fpEmail, otp: fpOtp, newPassword: fpNewPassword }),

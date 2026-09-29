@@ -7,7 +7,9 @@ import {
 import toast from 'react-hot-toast';
 import './DoctorsList.css';
 
-const API = import.meta.env.VITE_URL || 'http://localhost:4000/api';
+import API_BASE_URL from '../config/api';
+
+const API = API_BASE_URL;
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 const DEPARTMENTS = ['Cardiology', 'Dermatology', 'Orthopedics', 'Neurology', 'Pediatrics', 'General Medicine', 'ENT', 'Gynecology', 'Psychiatry', 'Ophthalmology', 'Radiology', 'Oncology'];

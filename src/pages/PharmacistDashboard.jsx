@@ -4,7 +4,8 @@ import {
   Activity, CalendarCheck, User, LogOut, ArrowRight, Clock, ShieldCheck, ArrowUpRight, CheckCircle2, XCircle,
   AlertCircle, Loader2, Users, Check, Pill, Edit3, Lock, Plus, Search, Package,
   ShoppingCart, X, Building2, Phone, Award, FileCheck, MapPin, Calendar,
-  AlertTriangle, Eye, EyeOff, RefreshCw, FileText, Stethoscope, Tag, Percent, ChevronLeft, ChevronRight, Download, CreditCard, Banknote, Video
+  AlertTriangle, Eye, EyeOff, RefreshCw, FileText, Stethoscope, Tag, Percent, ChevronLeft, ChevronRight, Download, CreditCard, Banknote, Video,
+  Edit, Upload, Image as ImageIcon
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import './PharmacistDashboard.css';
@@ -99,28 +100,12 @@ const PharmacistDashboard = () => {
   const [paymentAppt, setPaymentAppt] = useState(null);
   const [processingPayment, setProcessingPayment] = useState(false);
 
-  /* ── Doctor Clinic Location Map Modal State ── */
-  const [showDoctorMapModal, setShowDoctorMapModal] = useState(false);
-  const [selectedApptForMap, setSelectedApptForMap] = useState(null);
-
-  const openDoctorMapModal = (appt) => {
-    setSelectedApptForMap(appt);
-    setShowDoctorMapModal(true);
-  };
-
-  // Cancellation Modal state (Stock Requests)
-  const [showCancelReqModal, setShowCancelReqModal] = useState(false);
-  const [reqToCancel, setReqToCancel] = useState(null);
-  const [reqCancelCategory, setReqCancelCategory] = useState('Stock No Longer Required');
-  const [reqCancelReasonText, setReqCancelReasonText] = useState('');
-  const [cancellingReq, setCancellingReq] = useState(false);
-
-  // Doctor Consultation Booking state (10% Discount)
+  // Doctor Booking Modal state
   const [showBookModal, setShowBookModal] = useState(false);
   const [doctorsList, setDoctorsList] = useState([]);
   const [doctorsLoading, setDoctorsLoading] = useState(false);
+  const [doctorSearch, setDoctorSearch] = useState('');
   const [submittingBook, setSubmittingBook] = useState(false);
-  const [doctorSearch, setDoctorSearch] = useState('');  // search within booking modal
   const [bookForm, setBookForm] = useState({
     doctor_id: '',
     appointment_date: '',
@@ -130,28 +115,59 @@ const PharmacistDashboard = () => {
     symptoms: ''
   });
 
-  // Dynamically fetch booked slots when selected doctor or date changes
-  useEffect(() => {
-    if (bookForm.doctor_id && bookForm.appointment_date) {
-      setLoadingSlots(true);
-      fetch(`${API}/appointment/slots/${bookForm.doctor_id}/${bookForm.appointment_date}`)
-        .then(res => res.json())
-        .then(data => {
-          setBookedSlots(data.bookedTimes || []);
-        })
-        .catch(err => console.error("Error fetching booked slots:", err))
-        .finally(() => setLoadingSlots(false));
-    } else {
-      setBookedSlots([]);
-    }
-  }, [bookForm.doctor_id, bookForm.appointment_date]);
+  // Stock Request Cancellation Modal state
+  const [showCancelReqModal, setShowCancelReqModal] = useState(false);
+  const [reqToCancel, setReqToCancel] = useState(null);
+  const [reqCancelCategory, setReqCancelCategory] = useState('Stock No Longer Required');
+  const [reqCancelReasonText, setReqCancelReasonText] = useState('');
+  const [cancellingReq, setCancellingReq] = useState(false);
 
-  // Real-time clock — updates every minute for live slot restriction
+  // Doctor Location Map Modal state
+  const [showDoctorMapModal, setShowDoctorMapModal] = useState(false);
+  const [selectedApptForMap, setSelectedApptForMap] = useState(null);
+
+  const openDoctorMapModal = (appt) => {
+    setSelectedApptForMap(appt);
+    setShowDoctorMapModal(true);
+  };
+
+
+  // Real-time clock — updates every second/minute for live slot & meeting time restriction
   const [nowTime, setNowTime] = useState(() => new Date());
   useEffect(() => {
-    const t = setInterval(() => setNowTime(new Date()), 60_000);
+    const t = setInterval(() => setNowTime(new Date()), 1000);
     return () => clearInterval(t);
   }, []);
+
+  /* ── Parse appointment scheduled Date object ── */
+  const getScheduledDateTime = useCallback((appt) => {
+    if (!appt?.appointment_date || !appt?.appointment_time) return null;
+    const d = new Date(appt.appointment_date);
+    const timeStr = String(appt.appointment_time).trim();
+    let hours = 0;
+    let minutes = 0;
+    if (timeStr.toLowerCase().includes('am') || timeStr.toLowerCase().includes('pm')) {
+      const isPm = timeStr.toLowerCase().includes('pm');
+      const cleanTime = timeStr.replace(/(am|pm)/gi, '').trim();
+      const parts = cleanTime.split(':').map(Number);
+      hours = parts[0] || 0;
+      minutes = parts[1] || 0;
+      if (isPm && hours < 12) hours += 12;
+      if (!isPm && hours === 12) hours = 0;
+    } else {
+      const parts = timeStr.split(':').map(Number);
+      hours = parts[0] || 0;
+      minutes = parts[1] || 0;
+    }
+    d.setHours(hours, minutes, 0, 0);
+    return d;
+  }, []);
+
+  const isBeforeScheduledTime = useCallback((appt) => {
+    const scheduled = getScheduledDateTime(appt);
+    if (!scheduled) return false;
+    return nowTime < scheduled;
+  }, [getScheduledDateTime, nowTime]);
 
   // Standard 30-min appointment slots (24h format stored, 12h displayed)
   const SLOT_TIMES = [
@@ -206,6 +222,27 @@ const PharmacistDashboard = () => {
     mfg_date: '',
     expiry_date: '',
     description: '',
+    medicine_image: '',
+    requires_prescription: false
+  });
+
+  // Edit Medicine Request state (Pharmacist)
+  const [showEditReqModal, setShowEditReqModal] = useState(false);
+  const [editingReq, setEditingReq] = useState(null);
+  const [submittingEditReq, setSubmittingEditReq] = useState(false);
+  const [editReqForm, setEditReqForm] = useState({
+    medicine_name: '',
+    generic_name: '',
+    category: 'Tablet',
+    manufacturer: '',
+    strength: '',
+    unit: 'Strip',
+    price: '',
+    stock_available: '',
+    mfg_date: '',
+    expiry_date: '',
+    description: '',
+    medicine_image: '',
     requires_prescription: false
   });
 
@@ -224,8 +261,26 @@ const PharmacistDashboard = () => {
     else setGreeting('Good evening');
   }, [navigate]);
 
-  const handleJoinVideoCall = async (apptId) => {
+  const handleJoinVideoCall = async (apptOrId) => {
+    const apptId = typeof apptOrId === 'object' ? apptOrId._id : apptOrId;
     const token = getToken();
+
+    try {
+      const res = await fetch(`${API}/appointment/${apptId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      const currentAppt = data?.appointment || data;
+
+      if (currentAppt && (currentAppt.status === 'completed' || currentAppt.meet_time_end)) {
+        toast.error("Consultation has ended now and status is marked as Completed.");
+        fetchAppointments();
+        return;
+      }
+    } catch (e) {
+      console.warn('Error checking appointment status before join:', e);
+    }
+
     fetch(`${API}/appointment/${apptId}/video-call-reminder`, {
       method: 'POST',
       headers: {
@@ -234,7 +289,8 @@ const PharmacistDashboard = () => {
       }
     }).catch(err => console.error('Video call reminder failed:', err));
 
-    navigate(`/video-call/MediPulse_${apptId}`);
+    toast.success("Meeting is live! Rejoining video call room...");
+    navigate(`/video-call/MediPulse_${apptId}?role=pharmacist`, { state: { role: 'pharmacist' } });
   };
 
   // Fetch Profile
@@ -470,6 +526,31 @@ const PharmacistDashboard = () => {
       fetchActiveDoctors();
     }
   }, [showBookModal, fetchActiveDoctors]);
+
+  // Fetch booked slots when doctor or date changes in booking form
+  useEffect(() => {
+    if (!bookForm.doctor_id || !bookForm.appointment_date) {
+      setBookedSlots([]);
+      return;
+    }
+    const fetchBookedSlots = async () => {
+      setLoadingSlots(true);
+      try {
+        const res = await fetch(`${API}/appointment/doctor/${bookForm.doctor_id}/booked-slots?date=${bookForm.appointment_date}`);
+        const data = await res.json();
+        if (res.ok) {
+          setBookedSlots(data.booked_slots || data.slots || []);
+        } else {
+          setBookedSlots([]);
+        }
+      } catch {
+        setBookedSlots([]);
+      } finally {
+        setLoadingSlots(false);
+      }
+    };
+    fetchBookedSlots();
+  }, [bookForm.doctor_id, bookForm.appointment_date]);
 
   // Open Edit Profile Modal
   const openEditModal = () => {
@@ -775,7 +856,7 @@ const PharmacistDashboard = () => {
     const docAddress = docObj.visit_address || 'Medipulse OPD Block, Sector 4';
     const recDate = formatDate(rec.prescribed_date || rec.appointment_date || rec.createdAt);
     const disease = rec.disease || rec.diagnosis || rec.appointment_id?.disease || 'General Consultation';
-    const age = patObj.age || rec.age || '28';
+    const age = rec.patient_age || rec.age || (patObj.dob ? Math.floor((new Date() - new Date(patObj.dob)) / (365.25 * 24 * 60 * 60 * 1000)) : '') || patObj.age || 'N/A';
     const gender = patObj.gender || rec.gender || 'Male';
     const phone = patObj.phone || rec.phone || rec.booked_by?.phone || '+91 98765 43210';
     const followUpDateStr = rec.follow_up_date ? formatDate(rec.follow_up_date) : null;
@@ -980,12 +1061,83 @@ Verification Status: Digitally Verified Medical Record
         });
         fetchMedicineRequests();
       } else {
-        toast.error(data.message || 'Failed to submit medicine request');
+        toast.error(data.message || data.error || 'Failed to submit medicine request');
       }
     } catch (err) {
       toast.error('Server error submitting request');
     } finally {
       setSubmittingReq(false);
+    }
+  };
+
+  const handleImageFileUpload = (e, isEdit = false) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Image file size should be less than 5MB');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      if (isEdit) {
+        setEditReqForm(prev => ({ ...prev, medicine_image: reader.result }));
+      } else {
+        setReqForm(prev => ({ ...prev, medicine_image: reader.result }));
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const openEditReqModal = (req) => {
+    setEditingReq(req);
+    setEditReqForm({
+      medicine_name: req.medicine_name || '',
+      generic_name: req.generic_name || '',
+      category: req.category || 'Tablet',
+      manufacturer: req.manufacturer || '',
+      strength: req.strength || '',
+      unit: req.unit || 'Strip',
+      price: req.price !== undefined ? req.price : '',
+      stock_available: req.stock_available !== undefined ? req.stock_available : '',
+      mfg_date: req.mfg_date ? new Date(req.mfg_date).toISOString().split('T')[0] : '',
+      expiry_date: req.expiry_date ? new Date(req.expiry_date).toISOString().split('T')[0] : '',
+      description: req.description || '',
+      medicine_image: req.medicine_image || '',
+      requires_prescription: req.requires_prescription || false
+    });
+    setShowEditReqModal(true);
+  };
+
+  const handleUpdateMedicineRequest = async (e) => {
+    e.preventDefault();
+    if (!editingReq) return;
+    setSubmittingEditReq(true);
+    try {
+      const res = await fetch(`${API}/med-req/update/${editingReq._id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${getToken()}`
+        },
+        body: JSON.stringify({
+          ...editReqForm,
+          price: Number(editReqForm.price),
+          stock_available: Number(editReqForm.stock_available)
+        })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        toast.success('Medicine stock request updated successfully!');
+        setShowEditReqModal(false);
+        setEditingReq(null);
+        fetchMedicineRequests();
+      } else {
+        toast.error(data.message || data.error || 'Failed to update medicine request');
+      }
+    } catch (err) {
+      toast.error('Server error updating request');
+    } finally {
+      setSubmittingEditReq(false);
     }
   };
 
@@ -998,6 +1150,121 @@ Verification Status: Digitally Verified Medical Record
     localStorage.removeItem('pharmacistName');
     toast.success('Logged out successfully');
     navigate('/pharmacist/login');
+  };
+
+  /* ── Follow-up Modal State for Pharmacist ── */
+  const [showFollowUpModal, setShowFollowUpModal] = useState(false);
+  const [followUpAppt, setFollowUpAppt] = useState(null);
+  const [followUpForm, setFollowUpForm] = useState({
+    follow_up_date: '',
+    follow_up_time: '10:00',
+    follow_up_reason: ''
+  });
+  const [submittingFollowUp, setSubmittingFollowUp] = useState(false);
+
+  const isSlotPassed = (dateStr, timeStr) => {
+    if (!dateStr || !timeStr) return false;
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const todayStr = `${year}-${month}-${day}`;
+
+    if (dateStr < todayStr) return true;
+    if (dateStr > todayStr) return false;
+
+    const [slotH, slotM] = timeStr.split(':').map(Number);
+    const currentH = now.getHours();
+    const currentM = now.getMinutes();
+
+    if (slotH < currentH) return true;
+    if (slotH === currentH && slotM <= currentM) return true;
+    return false;
+  };
+
+  const openFollowUpModal = (appt) => {
+    setFollowUpAppt(appt);
+    const todayStr = new Date().toISOString().split('T')[0];
+    const presDateStr = appt.appointment_date ? new Date(appt.appointment_date).toISOString().split('T')[0] : '';
+    const minDateStr = (presDateStr && presDateStr > todayStr) ? presDateStr : todayStr;
+    const docFollowUpDateStr = appt.follow_up_date ? new Date(appt.follow_up_date).toISOString().split('T')[0] : '';
+    const defaultDate = (docFollowUpDateStr && docFollowUpDateStr >= minDateStr) ? docFollowUpDateStr : minDateStr;
+
+    setFollowUpForm({
+      follow_up_date: defaultDate,
+      follow_up_time: appt.appointment_time || '10:00',
+      follow_up_reason: ''
+    });
+    setShowFollowUpModal(true);
+  };
+
+  useEffect(() => {
+    if (!followUpAppt || !followUpForm.follow_up_date) {
+      setBookedSlots([]);
+      return;
+    }
+    const docId = typeof followUpAppt.doctor_id === 'object' ? followUpAppt.doctor_id?._id : followUpAppt.doctor_id;
+    if (!docId) return;
+
+    const fetchSlots = async () => {
+      setLoadingSlots(true);
+      try {
+        const res = await fetch(`${API}/appointment/slots/${docId}/${followUpForm.follow_up_date}`);
+        const data = await res.json();
+        if (res.ok) {
+          setBookedSlots(data.bookedTimes || data.booked_slots || data.slots || []);
+        } else {
+          setBookedSlots([]);
+        }
+      } catch {
+        setBookedSlots([]);
+      } finally {
+        setLoadingSlots(false);
+      }
+    };
+    fetchSlots();
+  }, [followUpAppt, followUpForm.follow_up_date]);
+
+  const handleConfirmFollowUpRequest = async (e) => {
+    e.preventDefault();
+    if (!followUpAppt || !followUpForm.follow_up_date) {
+      toast.error('Please select a valid follow-up date');
+      return;
+    }
+    if (!followUpForm.follow_up_reason || !followUpForm.follow_up_reason.trim()) {
+      toast.error('Please enter a reason for the follow-up request.');
+      return;
+    }
+    if (isSlotPassed(followUpForm.follow_up_date, followUpForm.follow_up_time)) {
+      toast.error('Selected time slot has already passed. Please choose an upcoming time slot.');
+      return;
+    }
+    const token = getToken();
+    if (!token) return;
+    setSubmittingFollowUp(true);
+    try {
+      const res = await fetch(`${API}/appointment/${followUpAppt._id}/request-followup`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify(followUpForm)
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        toast.success(data.message || 'Free follow-up request submitted to doctor!');
+        setShowFollowUpModal(false);
+        setFollowUpAppt(null);
+        fetchAppointments();
+      } else {
+        toast.error(data.message || 'Failed to submit follow-up request');
+      }
+    } catch (err) {
+      toast.error(err.message || 'Server error submitting follow-up request');
+    } finally {
+      setSubmittingFollowUp(false);
+    }
   };
 
   const formatDate = (d) => d ? new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
@@ -1024,7 +1291,11 @@ Verification Status: Digitally Verified Medical Record
     // 1. Status Filter
     const apptStatus = getEffectiveStatus(a);
     const filterStatus = (apptFilter || 'all').toLowerCase().trim();
-    if (filterStatus !== 'all' && apptStatus !== filterStatus) {
+    if (filterStatus === 'follow_up') {
+      if (!a.follow_up_date && (!a.follow_up_status || a.follow_up_status === 'none')) {
+        return false;
+      }
+    } else if (filterStatus !== 'all' && apptStatus !== filterStatus) {
       return false;
     }
 
@@ -1532,6 +1803,7 @@ Verification Status: Digitally Verified Medical Record
                     { key: 'pending', label: 'Pending', count: appointments.filter(a => getEffectiveStatus(a) === 'pending').length, color: '#3b82f6' },
                     { key: 'confirmed', label: 'Confirmed', count: appointments.filter(a => getEffectiveStatus(a) === 'confirmed').length, color: '#0d9488' },
                     { key: 'completed', label: 'Completed', count: appointments.filter(a => getEffectiveStatus(a) === 'completed').length, color: '#10b981' },
+                    { key: 'follow_up', label: 'Follow-up', count: appointments.filter(a => a.follow_up_date || (a.follow_up_status && a.follow_up_status !== 'none')).length, color: '#8b5cf6' },
                     { key: 'expired', label: 'Expired', count: appointments.filter(a => getEffectiveStatus(a) === 'expired').length, color: '#d97706' },
                     { key: 'cancelled', label: 'Cancelled', count: appointments.filter(a => getEffectiveStatus(a) === 'cancelled').length, color: '#f43f5e' },
                     { key: 'rejected', label: 'Rejected', count: appointments.filter(a => getEffectiveStatus(a) === 'rejected').length, color: '#f97316' }
@@ -1754,18 +2026,34 @@ Verification Status: Digitally Verified Medical Record
 
                           {/* Video Call CTA when confirmed, paid, online, and doctor has not ended meeting */}
                           {statusKey === 'confirmed' && paymentKey === 'paid' && appt.consult_mode === 'online' && !appt.meet_time_end && (
-                            <div style={{ marginTop: '0.75rem', padding: '0.6rem 1rem', background: '#eff6ff', borderRadius: 8, display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-                              <Stethoscope size={16} color="#2563eb" />
-                              <span style={{ fontSize: 13, color: '#1e40af', fontWeight: 600 }}>
-                                {appt.meet_time_start ? 'Video Consultation is Live! Click below to rejoin the call.' : 'Online Consultation Scheduled! Click below to enter the video call room.'}
-                              </span>
-                              <button
-                                onClick={() => handleJoinVideoCall(appt._id)}
-                                style={{ padding: '6px 14px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}
-                              >
-                                <Video size={14} /> {appt.meet_time_start ? 'Rejoin Video Call Room' : 'Join Video Call Room'}
-                              </button>
-                            </div>
+                            isBeforeScheduledTime(appt) ? (
+                              <div style={{ marginTop: '0.75rem', padding: '0.6rem 1rem', background: '#f8fafc', borderRadius: 8, border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                                <Stethoscope size={16} color="#94a3b8" />
+                                <span style={{ fontSize: 13, color: '#64748b', fontWeight: 600 }}>
+                                  Online Consultation Scheduled for {appt.appointment_time || ''}. Meet button will enable at scheduled time.
+                                </span>
+                                <button
+                                  disabled={true}
+                                  title={`Video call room will enable at scheduled time (${appt.appointment_time || ''})`}
+                                  style={{ padding: '6px 14px', background: '#e2e8f0', color: '#94a3b8', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: 'not-allowed', display: 'flex', alignItems: 'center', gap: 5 }}
+                                >
+                                  <Clock size={14} /> Join Video Call Room (Available at {appt.appointment_time || ''})
+                                </button>
+                              </div>
+                            ) : (
+                              <div style={{ marginTop: '0.75rem', padding: '0.6rem 1rem', background: '#eff6ff', borderRadius: 8, display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                                <Stethoscope size={16} color="#2563eb" />
+                                <span style={{ fontSize: 13, color: '#1e40af', fontWeight: 600 }}>
+                                  {appt.meet_time_start ? 'Video Consultation is Live! Click below to rejoin the call.' : 'Online Consultation Scheduled! Click below to enter the video call room.'}
+                                </span>
+                                <button
+                                  onClick={() => handleJoinVideoCall(appt._id)}
+                                  style={{ padding: '6px 14px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5, boxShadow: '0 4px 10px rgba(37,99,235,0.35)' }}
+                                >
+                                  <Video size={14} /> {appt.meet_time_start ? 'Rejoin Video Call Room' : 'Join Video Call Room'}
+                                </button>
+                              </div>
+                            )
                           )}
 
                           {/* Clinic Map CTA when confirmed/completed, paid, and offline */}
@@ -1844,6 +2132,106 @@ Verification Status: Digitally Verified Medical Record
                               </span>
                             </div>
                           )}
+
+                          {/* Follow-up Status Box */}
+                          {(appt.follow_up_date || (appt.follow_up_status && appt.follow_up_status !== 'none')) && (() => {
+                            const fDateStr = appt.follow_up_date ? appt.follow_up_date.split('T')[0] : '';
+                            const todayStr = new Date().toISOString().split('T')[0];
+                            const isPastFollowUp = fDateStr && fDateStr < todayStr;
+                            const fStatus = appt.follow_up_status || 'none';
+
+                            return (
+                              <div style={{
+                                marginTop: '0.85rem',
+                                padding: '0.85rem 1.1rem',
+                                background: fStatus === 'accepted' ? '#f0fdf4' : fStatus === 'rejected' || fStatus === 'cancelled' ? '#fef2f2' : fStatus === 'requested' ? '#f0f9ff' : '#faf5ff',
+                                borderRadius: '12px',
+                                border: `1.5px solid ${fStatus === 'accepted' ? '#86efac' : fStatus === 'rejected' || fStatus === 'cancelled' ? '#fca5a5' : fStatus === 'requested' ? '#bae6fd' : '#e9d5ff'}`
+                              }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.4rem' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                    <Calendar size={16} color={fStatus === 'accepted' ? '#16a34a' : fStatus === 'rejected' || fStatus === 'cancelled' ? '#dc2626' : '#7c3aed'} />
+                                    <span style={{ fontWeight: 800, fontSize: '13px', color: '#1e293b' }}>
+                                      Follow-up Consultation Box
+                                    </span>
+                                    <span style={{
+                                      fontSize: '11px', fontWeight: 800, padding: '2px 8px', borderRadius: '10px', textTransform: 'capitalize',
+                                      background: fStatus === 'accepted' ? '#dcfce7' : fStatus === 'requested' ? '#e0f2fe' : fStatus === 'rejected' || fStatus === 'cancelled' ? '#fee2e2' : '#f3e8ff',
+                                      color: fStatus === 'accepted' ? '#15803d' : fStatus === 'requested' ? '#0369a1' : fStatus === 'rejected' || fStatus === 'cancelled' ? '#b91c1c' : '#6b21a8'
+                                    }}>
+                                      {fStatus === 'none' ? 'Date Assigned' : fStatus}
+                                    </span>
+                                  </div>
+                                  <span style={{ fontSize: '12px', fontWeight: 700, color: '#059669', background: '#ecfdf5', padding: '2px 8px', borderRadius: '6px', border: '1px solid #a7f3d0' }}>
+                                    Fee: FREE (₹0)
+                                  </span>
+                                </div>
+
+                                <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', fontSize: '12px', color: '#475569' }}>
+                                  <span><strong>Assigned Follow-up Date:</strong> {formatDate(appt.follow_up_date)}</span>
+                                  <span><strong>Mode:</strong> <span style={{ textTransform: 'capitalize', fontWeight: 700 }}>{appt.consult_mode || 'offline'}</span> (Same as primary meet)</span>
+                                </div>
+
+                                {/* Action / Message Status */}
+                                {fStatus === 'none' && (
+                                  <div style={{ marginTop: '0.6rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem' }}>
+                                    <span style={{ fontSize: '12px', color: isPastFollowUp ? '#dc2626' : '#6b21a8', fontWeight: 600 }}>
+                                      {isPastFollowUp ? 'Follow-up date has passed.' : 'Send a free follow-up request to doctor for selected date.'}
+                                    </span>
+                                    <button
+                                      onClick={() => openFollowUpModal(appt)}
+                                      disabled={isPastFollowUp}
+                                      style={{
+                                        padding: '6px 14px',
+                                        borderRadius: '8px',
+                                        border: 'none',
+                                        background: isPastFollowUp ? '#cbd5e1' : '#7c3aed',
+                                        color: '#ffffff',
+                                        fontWeight: 700,
+                                        fontSize: '12px',
+                                        cursor: isPastFollowUp ? 'not-allowed' : 'pointer',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '5px'
+                                      }}
+                                    >
+                                      <CalendarCheck size={13} />
+                                      {isPastFollowUp ? 'Follow-up Date Passed' : 'Select Date & Request Follow-Up'}
+                                    </button>
+                                  </div>
+                                )}
+
+                                {fStatus === 'requested' && (
+                                  <p style={{ marginTop: '0.5rem', fontSize: '12px', color: '#0369a1', fontWeight: 600, margin: '0.5rem 0 0' }}>
+                                    ⏳ Follow-up request sent to doctor. Awaiting doctor's approval.
+                                  </p>
+                                )}
+
+                                {fStatus === 'accepted' && (
+                                  <p style={{ marginTop: '0.5rem', fontSize: '12px', color: '#15803d', fontWeight: 700, margin: '0.5rem 0 0' }}>
+                                    ✓ Doctor accepted your follow-up request! Scheduled for {formatDate(appt.follow_up_date)} ({appt.consult_mode || 'offline'} mode).
+                                  </p>
+                                )}
+
+                                {fStatus === 'rejected' && (
+                                  <p style={{ marginTop: '0.5rem', fontSize: '12px', color: '#b91c1c', fontWeight: 600, margin: '0.5rem 0 0' }}>
+                                    ✕ Doctor rejected the follow-up request.
+                                  </p>
+                                )}
+
+                                {fStatus === 'cancelled' && (
+                                  <div style={{ marginTop: '0.5rem', fontSize: '12px', color: '#b91c1c', fontWeight: 600 }}>
+                                    <p style={{ margin: 0 }}>✕ Doctor cancelled the accepted follow-up meet.</p>
+                                    {appt.follow_up_cancel_reason && (
+                                      <p style={{ margin: '2px 0 0', fontWeight: 700, color: '#991b1b' }}>
+                                        Cancellation Reason: "{appt.follow_up_cancel_reason}"
+                                      </p>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })()}
 
                           {/* Cancellation or Rejection Feedback info */}
                           {statusKey === 'rejected' && (
@@ -2154,13 +2542,22 @@ Verification Status: Digitally Verified Medical Record
                                   <Eye size={13} /> View Specs
                                 </button>
                                 {isPending && (
-                                  <button
-                                    onClick={() => openCancelReqModal(req)}
-                                    style={{ padding: '4px 10px', background: '#fee2e2', border: '1px solid #fca5a5', borderRadius: 6, fontSize: 12, fontWeight: 700, color: '#dc2626', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
-                                    title="Cancel this pending stock request"
-                                  >
-                                    <X size={13} /> Cancel
-                                  </button>
+                                  <>
+                                    <button
+                                      onClick={() => openEditReqModal(req)}
+                                      style={{ padding: '4px 10px', background: '#e0f2fe', border: '1px solid #7dd3fc', borderRadius: 6, fontSize: 12, fontWeight: 700, color: '#0369a1', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
+                                      title="Update this pending stock request"
+                                    >
+                                      <Edit size={13} /> Update
+                                    </button>
+                                    <button
+                                      onClick={() => openCancelReqModal(req)}
+                                      style={{ padding: '4px 10px', background: '#fee2e2', border: '1px solid #fca5a5', borderRadius: 6, fontSize: 12, fontWeight: 700, color: '#dc2626', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
+                                      title="Cancel this pending stock request"
+                                    >
+                                      <X size={13} /> Cancel
+                                    </button>
+                                  </>
                                 )}
                               </div>
                             </td>
@@ -2972,9 +3369,10 @@ Verification Status: Digitally Verified Medical Record
                       <option value="Capsule">Capsule</option>
                       <option value="Syrup">Syrup</option>
                       <option value="Injection">Injection</option>
-                      <option value="Ointment">Ointment</option>
+                      <option value="Cream">Cream</option>
                       <option value="Drops">Drops</option>
-                      <option value="Equipment">Equipment</option>
+                      <option value="Powder">Powder</option>
+                      <option value="Other">Other</option>
                     </select>
                   </div>
                   <div className="pd-form-group">
@@ -3002,13 +3400,20 @@ Verification Status: Digitally Verified Medical Record
                   </div>
                   <div className="pd-form-group">
                     <label>Unit *</label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="e.g. Strip / Bottle"
+                    <select
                       value={reqForm.unit}
                       onChange={e => setReqForm({ ...reqForm, unit: e.target.value })}
-                    />
+                    >
+                      <option value="Strip">Strip</option>
+                      <option value="Bottle">Bottle</option>
+                      <option value="Ampoule">Ampoule</option>
+                      <option value="Vial">Vial</option>
+                      <option value="Tin">Tin</option>
+                      <option value="Box">Box</option>
+                      <option value="Tube">Tube</option>
+                      <option value="Piece">Piece</option>
+                      <option value="Packet">Packet</option>
+                    </select>
                   </div>
                 </div>
 
@@ -3057,6 +3462,57 @@ Verification Status: Digitally Verified Medical Record
                   </div>
                 </div>
 
+                <div className="pd-form-group" style={{ marginTop: '0.5rem' }}>
+                  <label>Medicine / Stock Image</label>
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <input
+                      type="text"
+                      placeholder="Paste Image URL or select file below..."
+                      value={reqForm.medicine_image || ''}
+                      onChange={e => setReqForm({ ...reqForm, medicine_image: e.target.value })}
+                      style={{ flex: 1 }}
+                    />
+                    <label style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      padding: '8px 14px',
+                      background: '#0f766e',
+                      color: '#ffffff',
+                      borderRadius: '8px',
+                      fontSize: '0.82rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap'
+                    }}>
+                      <Upload size={14} /> Add Image File
+                      <input
+                        type="file"
+                        accept="image/*"
+                        hidden
+                        onChange={(e) => handleImageFileUpload(e, false)}
+                      />
+                    </label>
+                  </div>
+                  {reqForm.medicine_image && (
+                    <div style={{ marginTop: '8px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <img
+                        src={reqForm.medicine_image}
+                        alt="Preview"
+                        style={{ width: 44, height: 44, borderRadius: 8, objectFit: 'cover', border: '1px solid #cbd5e1' }}
+                        onError={e => { e.target.style.display = 'none'; }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setReqForm({ ...reqForm, medicine_image: '' })}
+                        style={{ background: '#fee2e2', color: '#dc2626', border: 'none', borderRadius: 6, padding: '4px 8px', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer' }}
+                      >
+                        Remove Image
+                      </button>
+                    </div>
+                  )}
+                </div>
+
                 <div className="pd-form-group" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.5rem' }}>
                   <input
                     type="checkbox"
@@ -3077,6 +3533,223 @@ Verification Status: Digitally Verified Medical Record
                 </button>
                 <button type="submit" className="pd-btn-primary" disabled={submittingReq}>
                   {submittingReq ? <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> : 'Submit Request'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ==================== UPDATE STOCK REQUEST MODAL (PHARMACIST) ==================== */}
+      {showEditReqModal && editingReq && (
+        <div className="pd-modal-overlay" onClick={() => setShowEditReqModal(false)}>
+          <div className="pd-modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: 650 }}>
+            <div className="pd-modal-header">
+              <h3><Edit size={18} color="#0f766e" /> Update Stock Request</h3>
+              <button className="pd-modal-close" onClick={() => setShowEditReqModal(false)}>
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleUpdateMedicineRequest}>
+              <div className="pd-modal-body">
+                <div className="pd-form-row">
+                  <div className="pd-form-group">
+                    <label>Medicine Name *</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. Amoxicillin 500mg"
+                      value={editReqForm.medicine_name}
+                      onChange={e => setEditReqForm({ ...editReqForm, medicine_name: e.target.value })}
+                    />
+                  </div>
+                  <div className="pd-form-group">
+                    <label>Generic Name</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Amoxicillin"
+                      value={editReqForm.generic_name}
+                      onChange={e => setEditReqForm({ ...editReqForm, generic_name: e.target.value })}
+                    />
+                  </div>
+                </div>
+
+                <div className="pd-form-row">
+                  <div className="pd-form-group">
+                    <label>Category *</label>
+                    <select
+                      value={editReqForm.category}
+                      onChange={e => setEditReqForm({ ...editReqForm, category: e.target.value })}
+                    >
+                      <option value="Tablet">Tablet</option>
+                      <option value="Capsule">Capsule</option>
+                      <option value="Syrup">Syrup</option>
+                      <option value="Injection">Injection</option>
+                      <option value="Cream">Cream</option>
+                      <option value="Drops">Drops</option>
+                      <option value="Powder">Powder</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </div>
+                  <div className="pd-form-group">
+                    <label>Manufacturer *</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. Sun Pharma"
+                      value={editReqForm.manufacturer}
+                      onChange={e => setEditReqForm({ ...editReqForm, manufacturer: e.target.value })}
+                    />
+                  </div>
+                </div>
+
+                <div className="pd-form-row">
+                  <div className="pd-form-group">
+                    <label>Strength *</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. 500mg"
+                      value={editReqForm.strength}
+                      onChange={e => setEditReqForm({ ...editReqForm, strength: e.target.value })}
+                    />
+                  </div>
+                  <div className="pd-form-group">
+                    <label>Unit *</label>
+                    <select
+                      value={editReqForm.unit}
+                      onChange={e => setEditReqForm({ ...editReqForm, unit: e.target.value })}
+                    >
+                      <option value="Strip">Strip</option>
+                      <option value="Bottle">Bottle</option>
+                      <option value="Ampoule">Ampoule</option>
+                      <option value="Vial">Vial</option>
+                      <option value="Tin">Tin</option>
+                      <option value="Box">Box</option>
+                      <option value="Tube">Tube</option>
+                      <option value="Piece">Piece</option>
+                      <option value="Packet">Packet</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="pd-form-row">
+                  <div className="pd-form-group">
+                    <label>Price (₹) *</label>
+                    <input
+                      type="number"
+                      required
+                      step="0.01"
+                      placeholder="e.g. 150"
+                      value={editReqForm.price}
+                      onChange={e => setEditReqForm({ ...editReqForm, price: e.target.value })}
+                    />
+                  </div>
+                  <div className="pd-form-group">
+                    <label>Quantity Available *</label>
+                    <input
+                      type="number"
+                      required
+                      placeholder="e.g. 100"
+                      value={editReqForm.stock_available}
+                      onChange={e => setEditReqForm({ ...editReqForm, stock_available: e.target.value })}
+                    />
+                  </div>
+                </div>
+
+                <div className="pd-form-row">
+                  <div className="pd-form-group">
+                    <label>MFG Date *</label>
+                    <input
+                      type="date"
+                      required
+                      value={editReqForm.mfg_date}
+                      onChange={e => setEditReqForm({ ...editReqForm, mfg_date: e.target.value })}
+                    />
+                  </div>
+                  <div className="pd-form-group">
+                    <label>Expiry Date *</label>
+                    <input
+                      type="date"
+                      required
+                      value={editReqForm.expiry_date}
+                      onChange={e => setEditReqForm({ ...editReqForm, expiry_date: e.target.value })}
+                    />
+                  </div>
+                </div>
+
+                <div className="pd-form-group" style={{ marginTop: '0.5rem' }}>
+                  <label>Medicine / Stock Image</label>
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <input
+                      type="text"
+                      placeholder="Paste Image URL or select file below..."
+                      value={editReqForm.medicine_image || ''}
+                      onChange={e => setEditReqForm({ ...editReqForm, medicine_image: e.target.value })}
+                      style={{ flex: 1 }}
+                    />
+                    <label style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      padding: '8px 14px',
+                      background: '#0f766e',
+                      color: '#ffffff',
+                      borderRadius: '8px',
+                      fontSize: '0.82rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap'
+                    }}>
+                      <Upload size={14} /> Change Image
+                      <input
+                        type="file"
+                        accept="image/*"
+                        hidden
+                        onChange={(e) => handleImageFileUpload(e, true)}
+                      />
+                    </label>
+                  </div>
+                  {editReqForm.medicine_image && (
+                    <div style={{ marginTop: '8px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <img
+                        src={editReqForm.medicine_image}
+                        alt="Preview"
+                        style={{ width: 44, height: 44, borderRadius: 8, objectFit: 'cover', border: '1px solid #cbd5e1' }}
+                        onError={e => { e.target.style.display = 'none'; }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setEditReqForm({ ...editReqForm, medicine_image: '' })}
+                        style={{ background: '#fee2e2', color: '#dc2626', border: 'none', borderRadius: 6, padding: '4px 8px', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer' }}
+                      >
+                        Remove Image
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                <div className="pd-form-group" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.5rem' }}>
+                  <input
+                    type="checkbox"
+                    id="editReqRx"
+                    checked={editReqForm.requires_prescription}
+                    onChange={e => setEditReqForm({ ...editReqForm, requires_prescription: e.target.checked })}
+                    style={{ width: 18, height: 18 }}
+                  />
+                  <label htmlFor="editReqRx" style={{ margin: 0, fontWeight: 600, cursor: 'pointer' }}>
+                    Requires Prescription (Rx)
+                  </label>
+                </div>
+              </div>
+
+              <div className="pd-modal-footer">
+                <button type="button" className="pd-btn-secondary" onClick={() => setShowEditReqModal(false)}>
+                  Cancel
+                </button>
+                <button type="submit" className="pd-btn-primary" disabled={submittingEditReq}>
+                  {submittingEditReq ? <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> : 'Update Request'}
                 </button>
               </div>
             </form>
@@ -3165,7 +3838,7 @@ Verification Status: Digitally Verified Medical Record
                       <div>
                         <span style={{ fontSize: '11px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Age</span>
                         <div style={{ fontSize: '15px', fontWeight: 800, color: '#0f172a', marginTop: '3px' }}>
-                          {selectedPrescription.patient_age || selectedPrescription.age || selectedPrescription.patient_id?.age || 'N/A'} Yrs
+                          {selectedPrescription.patient_age || selectedPrescription.age || (selectedPrescription.patient_id?.dob ? Math.floor((new Date() - new Date(selectedPrescription.patient_id.dob)) / (365.25 * 24 * 60 * 60 * 1000)) : '') || selectedPrescription.patient_id?.age || 'N/A'} Yrs
                         </div>
                       </div>
 
@@ -3322,8 +3995,14 @@ Verification Status: Digitally Verified Medical Record
             </div>
             
             <div className="pd-modal-body" style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f8fafc', padding: '12px 16px', borderRadius: 10, border: '1px solid #e2e8f0' }}>
-                <div>
+              <div style={{ display: 'flex', gap: 14, alignItems: 'center', background: '#f8fafc', padding: '12px 16px', borderRadius: 10, border: '1px solid #e2e8f0' }}>
+                <img
+                  src={selectedReqDetails.medicine_image || '/img/medicine_bottle.png'}
+                  alt={selectedReqDetails.medicine_name}
+                  style={{ width: 60, height: 60, borderRadius: 10, objectFit: 'cover', border: '1px solid #cbd5e1', background: '#fff' }}
+                  onError={e => { e.target.src = '/img/medicine_bottle.png'; }}
+                />
+                <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 16, fontWeight: 800, color: '#0f172a' }}>{selectedReqDetails.medicine_name}</div>
                   <div style={{ fontSize: 12, color: '#64748b' }}>Generic: {selectedReqDetails.generic_name || 'N/A'}</div>
                 </div>
@@ -3342,6 +4021,7 @@ Verification Status: Digitally Verified Medical Record
                 <div><strong>Mfg Date:</strong> {formatDate(selectedReqDetails.mfg_date)}</div>
                 <div><strong>Expiry Date:</strong> {formatDate(selectedReqDetails.expiry_date)}</div>
                 <div><strong>Prescription Rx:</strong> {selectedReqDetails.requires_prescription ? 'Required' : 'Not Required (OTC)'}</div>
+                <div><strong>Stock Image:</strong> {selectedReqDetails.medicine_image ? <span style={{ color: '#0d9488', fontWeight: 600 }}>Attached ✓</span> : <span style={{ color: '#94a3b8' }}>Default Image</span>}</div>
                 <div><strong>Submitted On:</strong> {formatDate(selectedReqDetails.createdAt)}</div>
               </div>
 
@@ -3796,6 +4476,175 @@ Verification Status: Digitally Verified Medical Record
                   )}
                 </button>
               </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ==================== FREE FOLLOW-UP REQUEST MODAL ==================== */}
+      {showFollowUpModal && followUpAppt && (() => {
+        const docObj = (typeof followUpAppt.doctor_id === 'object' && followUpAppt.doctor_id) 
+          ? followUpAppt.doctor_id 
+          : {};
+        const docName = docObj.first_name ? `Dr. ${docObj.first_name} ${docObj.last_name || ''}` : 'Doctor Specialist';
+        const docSpec = docObj.specialization || followUpAppt.specialization || 'General Specialist';
+
+        return (
+          <div style={{
+            position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(4px)',
+            zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px'
+          }} onClick={() => setShowFollowUpModal(false)}>
+            <div style={{
+              background: '#ffffff', borderRadius: '20px', width: '100%', maxWidth: '520px',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)', overflow: 'hidden', border: '1px solid #e2e8f0'
+            }} onClick={e => e.stopPropagation()}>
+              <div style={{
+                background: 'linear-gradient(135deg, #0d9488 0%, #0f766e 100%)',
+                color: '#ffffff', padding: '20px 24px', position: 'relative'
+              }}>
+                <button
+                  onClick={() => setShowFollowUpModal(false)}
+                  style={{
+                    position: 'absolute', right: '16px', top: '16px', background: 'rgba(255,255,255,0.15)',
+                    border: 'none', color: '#ffffff', borderRadius: '50%', width: '32px', height: '32px',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer'
+                  }}
+                >
+                  <X size={18} />
+                </button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <div style={{ background: 'rgba(255,255,255,0.2)', padding: '8px', borderRadius: '12px' }}>
+                    <CalendarCheck size={22} color="#ffffff" />
+                  </div>
+                  <div>
+                    <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800 }}>Request Follow-Up Consultation</h3>
+                    <p style={{ margin: '2px 0 0', fontSize: '12px', color: '#ccfbf1' }}>
+                      Free Follow-Up consultation booking (No Payment Required)
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <form onSubmit={handleConfirmFollowUpRequest}>
+                <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  
+                  {/* Doctor & Fee Summary Card */}
+                  <div style={{ background: '#f0fdfa', border: '1.5px solid #99f6e4', borderRadius: '14px', padding: '16px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                      <div>
+                        <h4 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: '#0f172a' }}>{docName}</h4>
+                        <span style={{ fontSize: '12px', color: '#0d9488', fontWeight: 700 }}>{docSpec}</span>
+                      </div>
+                      <span style={{ background: '#ecfdf5', color: '#047857', border: '1px solid #a7f3d0', padding: '4px 10px', borderRadius: '12px', fontSize: '11px', fontWeight: 800 }}>
+                        FREE (₹0 Fee)
+                      </span>
+                    </div>
+                    <div style={{ fontSize: '12px', color: '#475569', marginTop: 8 }}>
+                      Primary Reason: <strong>{followUpAppt.disease || 'General Consultation'}</strong>
+                      {followUpAppt.consult_mode && <span> · Mode: <strong style={{ textTransform: 'capitalize' }}>{followUpAppt.consult_mode}</strong></span>}
+                    </div>
+                  </div>
+
+                  {/* Date Selector */}
+                  {(() => {
+                    const todayStr = new Date().toISOString().split('T')[0];
+                    const presDateStr = followUpAppt.appointment_date ? new Date(followUpAppt.appointment_date).toISOString().split('T')[0] : (followUpAppt.prescribed_date ? new Date(followUpAppt.prescribed_date).toISOString().split('T')[0] : '');
+                    const minDateStr = (presDateStr && presDateStr > todayStr) ? presDateStr : todayStr;
+                    const maxDateStr = followUpAppt.follow_up_date ? new Date(followUpAppt.follow_up_date).toISOString().split('T')[0] : '';
+                    return (
+                      <div>
+                        <label style={{ fontSize: '13px', fontWeight: 800, color: '#334155', display: 'block', marginBottom: '6px' }}>
+                          Select Follow-Up Date *
+                        </label>
+                        <input
+                          type="date"
+                          required
+                          min={minDateStr}
+                          max={maxDateStr || undefined}
+                          value={followUpForm.follow_up_date}
+                          onChange={e => setFollowUpForm({ ...followUpForm, follow_up_date: e.target.value })}
+                          style={{ width: '100%', padding: '10px 14px', borderRadius: '10px', border: '1.5px solid #cbd5e1', fontSize: '14px', outline: 'none', boxSizing: 'border-box' }}
+                        />
+                        {maxDateStr && (
+                          <span style={{ fontSize: '11px', color: '#0d9488', marginTop: '4px', display: 'block', fontWeight: 600 }}>
+                            Allowed dates: between prescription date and doctor's scheduled follow-up date ({formatDate(maxDateStr)}).
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })()}
+
+                  {/* Time Slot Picker */}
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                      <label style={{ fontSize: '13px', fontWeight: 800, color: '#334155', margin: 0 }}>
+                        Select Time Slot (30 Mins) *
+                      </label>
+                      {loadingSlots && (
+                        <span style={{ fontSize: 11, color: '#0d9488', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <Loader2 size={12} style={{ animation: 'spin 1s linear infinite' }} /> Checking slots...
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(85px, 1fr))', gap: '8px', maxHeight: '140px', overflowY: 'auto', paddingRight: '2px' }}>
+                      {SLOT_TIMES.map(t24 => {
+                        const isBooked = bookedSlots.includes(t24);
+                        const isPassed = isSlotPassed(followUpForm.follow_up_date, t24);
+                        const isDisabled = isBooked || isPassed;
+                        const isSelected = followUpForm.follow_up_time === t24;
+                        return (
+                          <button
+                            key={t24}
+                            type="button"
+                            disabled={isDisabled}
+                            onClick={() => !isDisabled && setFollowUpForm({ ...followUpForm, follow_up_time: t24 })}
+                            style={{
+                              padding: '8px 4px', borderRadius: '8px',
+                              border: `1.5px solid ${isSelected ? '#0d9488' : isDisabled ? '#e2e8f0' : '#cbd5e1'}`,
+                              fontSize: '12px', fontWeight: 700,
+                              cursor: isDisabled ? 'not-allowed' : 'pointer',
+                              background: isSelected ? '#0d9488' : isBooked ? '#fff7ed' : isPassed ? '#f1f5f9' : '#ffffff',
+                              color: isSelected ? '#ffffff' : isBooked ? '#c2410c' : isPassed ? '#94a3b8' : '#334155',
+                              opacity: isDisabled ? 0.6 : 1, transition: 'all 0.15s'
+                            }}
+                          >
+                            {t24}
+                            {isBooked && <span style={{ display: 'block', fontSize: '9px', color: '#c2410c' }}>Booked</span>}
+                            {!isBooked && isPassed && <span style={{ display: 'block', fontSize: '9px', color: '#94a3b8' }}>Passed</span>}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Notes / Reason */}
+                  <div>
+                    <label style={{ fontSize: '13px', fontWeight: 800, color: '#334155', display: 'block', marginBottom: '6px' }}>
+                      Follow-Up Reason / Query Details <span style={{ color: '#ef4444' }}>*</span>
+                    </label>
+                    <textarea
+                      rows={2}
+                      required
+                      placeholder="e.g. Post-medication review, progress updates..."
+                      value={followUpForm.follow_up_reason}
+                      onChange={e => setFollowUpForm({ ...followUpForm, follow_up_reason: e.target.value })}
+                      style={{ width: '100%', padding: '10px 14px', borderRadius: '10px', border: '1.5px solid #cbd5e1', fontSize: '13px', outline: 'none', boxSizing: 'border-box' }}
+                    />
+                  </div>
+
+                </div>
+
+                <div style={{ padding: '16px 24px', background: '#f8fafc', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+                  <button type="button" onClick={() => setShowFollowUpModal(false)}
+                    style={{ padding: '10px 20px', borderRadius: '10px', border: '1px solid #cbd5e1', background: '#ffffff', color: '#475569', fontWeight: 700, fontSize: '14px', cursor: 'pointer' }}>
+                    Cancel
+                  </button>
+                  <button type="submit" disabled={submittingFollowUp}
+                    style={{ padding: '10px 24px', borderRadius: '10px', border: 'none', background: 'linear-gradient(135deg, #0d9488 0%, #0f766e 100%)', color: '#ffffff', fontWeight: 800, fontSize: '14px', cursor: 'pointer', boxShadow: '0 4px 12px rgba(13,148,136,0.3)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    {submittingFollowUp ? <><Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> Submitting...</> : <><CalendarCheck size={16} /> Submit Free Follow-Up Request</>}
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         );

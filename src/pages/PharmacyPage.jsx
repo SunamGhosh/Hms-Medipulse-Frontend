@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ShoppingCart } from 'lucide-react';
+import { ShoppingCart, Search, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import RoleSelectionModal from '../components/RoleSelectionModal';
 import SignupModal from '../components/SignupModal';
 import ProfileDropdown from '../components/ProfileDropdown';
+import API_BASE_URL from '../config/api';
 import './PharmacyPage.css';
 
 const categories = [
@@ -18,7 +19,7 @@ const categories = [
   'Other'
 ];
 
-const API = import.meta.env.VITE_URL || 'http://localhost:5000';
+const API = API_BASE_URL;
 
 const PharmacyPage = () => {
   const [selectedCategory, setSelectedCategory] = useState('');
@@ -26,6 +27,10 @@ const PharmacyPage = () => {
   const [isSignupModalOpen, setIsSignupModalOpen] = useState(false);
   const [medicines, setMedicines] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  // Search state
+  const [searchInput, setSearchInput] = useState('');
+  const [activeSearchQuery, setActiveSearchQuery] = useState('');
   
   // Cart state
   const [cartItems, setCartItems] = useState({});
@@ -139,9 +144,26 @@ const PharmacyPage = () => {
     }
   };
 
-  const filteredMedicines = selectedCategory 
-    ? medicines.filter(med => med.category === selectedCategory)
-    : medicines;
+  const handleSearchSubmit = (e) => {
+    if (e) e.preventDefault();
+    setActiveSearchQuery(searchInput);
+  };
+
+  const handleClearSearch = () => {
+    setSearchInput('');
+    setActiveSearchQuery('');
+  };
+
+  const filteredMedicines = medicines.filter(med => {
+    const matchesCategory = !selectedCategory || med.category === selectedCategory;
+    const q = activeSearchQuery.trim().toLowerCase();
+    const name = (med.medicine_name || '').toLowerCase();
+    const generic = (med.generic_name || '').toLowerCase();
+    const cat = (med.category || '').toLowerCase();
+    const mfg = (med.manufacturer || '').toLowerCase();
+    const matchesSearch = !q || name.includes(q) || generic.includes(q) || cat.includes(q) || mfg.includes(q);
+    return matchesCategory && matchesSearch;
+  });
 
   return (
     <div className="pp-container">
@@ -188,8 +210,37 @@ const PharmacyPage = () => {
       </nav>
 
       <div className="pp-content-wrapper">
-        <h1 className="pp-page-title">Pharmacy Shop</h1>
-        <p className="pp-page-subtitle">Get your medicines delivered right to your door.</p>
+        <div className="pp-header-row">
+          <div>
+            <h1 className="pp-page-title">Pharmacy Shop</h1>
+            <p className="pp-page-subtitle">Get your medicines delivered right to your door.</p>
+          </div>
+
+          {/* Search Medicine Bar with Search Button */}
+          <form onSubmit={handleSearchSubmit} className="pp-search-form">
+            <div className="pp-search-box-container">
+              <Search size={18} className="pp-search-icon" />
+              <input
+                type="text"
+                placeholder="Search medicine, category, or generic..."
+                value={searchInput}
+                onChange={(e) => {
+                  setSearchInput(e.target.value);
+                  setActiveSearchQuery(e.target.value);
+                }}
+                className="pp-search-input"
+              />
+              {searchInput && (
+                <button type="button" className="pp-search-clear-btn" onClick={handleClearSearch} title="Clear search">
+                  <X size={16} />
+                </button>
+              )}
+            </div>
+            <button type="submit" className="pp-search-submit-btn">
+              <Search size={16} /> Search
+            </button>
+          </form>
+        </div>
 
         <div className="pp-main-layout">
           {/* Left Sidebar: Categories */}

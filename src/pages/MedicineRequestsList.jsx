@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import {
   FileCheck, Clock, CheckCircle2, XCircle, Search, Eye, X,
-  AlertCircle, Check, Loader2, Pill, AlertTriangle, User
+  AlertCircle, Check, Loader2, Pill, AlertTriangle, User, Edit, Upload
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import './MedicineRequestsList.css';
 
-const API = import.meta.env.VITE_URL || 'http://localhost:5000';
+import API_BASE_URL from '../config/api';
+
+const API = API_BASE_URL;
 
 const getToken = () => {
   let t = localStorage.getItem('token') || localStorage.getItem('adminToken') || '';
@@ -62,6 +64,27 @@ const MedicineRequestsList = () => {
   const [showViewModal, setShowViewModal] = useState(false);
   const [selectedReq, setSelectedReq] = useState(null);
 
+  /* Edit Medicine Request Modal State (Admin) */
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingReq, setEditingReq] = useState(null);
+  const [submittingEdit, setSubmittingEdit] = useState(false);
+  const [editForm, setEditForm] = useState({
+    medicine_name: '',
+    generic_name: '',
+    category: 'Tablet',
+    manufacturer: '',
+    strength: '',
+    unit: 'Strip',
+    price: '',
+    stock_available: '',
+    mfg_date: '',
+    expiry_date: '',
+    description: '',
+    medicine_image: '',
+    requires_prescription: false,
+    status: 'Pending'
+  });
+
   const fetchRequests = async (isPolling = false) => {
     try {
       const token = getToken();
@@ -84,10 +107,6 @@ const MedicineRequestsList = () => {
 
   useEffect(() => {
     fetchRequests();
-    const intervalId = setInterval(() => {
-      fetchRequests(true);
-    }, 3000);
-    return () => clearInterval(intervalId);
   }, []);
 
   /* ---- APPROVE (ACCEPT) MEDICINE REQUEST ---- */
@@ -164,6 +183,76 @@ const MedicineRequestsList = () => {
       setRejectError(err.message || 'An error occurred while rejecting request');
     } finally {
       setActionLoading(false);
+    }
+  };
+
+  /* ---- EDIT / UPDATE MEDICINE REQUEST (ADMIN) ---- */
+  const handleImageUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Image file size should be less than 5MB');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setEditForm(prev => ({ ...prev, medicine_image: reader.result }));
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const openEditModal = (req) => {
+    setEditingReq(req);
+    setEditForm({
+      medicine_name: req.medicine_name || '',
+      generic_name: req.generic_name || '',
+      category: req.category || 'Tablet',
+      manufacturer: req.manufacturer || '',
+      strength: req.strength || '',
+      unit: req.unit || 'Strip',
+      price: req.price !== undefined ? req.price : '',
+      stock_available: req.stock_available !== undefined ? req.stock_available : '',
+      mfg_date: req.mfg_date ? new Date(req.mfg_date).toISOString().split('T')[0] : '',
+      expiry_date: req.expiry_date ? new Date(req.expiry_date).toISOString().split('T')[0] : '',
+      description: req.description || '',
+      medicine_image: req.medicine_image || '',
+      requires_prescription: req.requires_prescription || false,
+      status: req.status || 'Pending'
+    });
+    setShowEditModal(true);
+  };
+
+  const handleEditSubmit = async (e) => {
+    e.preventDefault();
+    if (!editingReq) return;
+    setSubmittingEdit(true);
+    try {
+      const token = getToken();
+      const res = await fetch(`${API}/med-req/update/${editingReq._id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          ...editForm,
+          price: Number(editForm.price),
+          stock_available: Number(editForm.stock_available)
+        })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        toast.success(`Medicine request for "${editForm.medicine_name}" updated successfully!`);
+        setShowEditModal(false);
+        setEditingReq(null);
+        fetchRequests();
+      } else {
+        toast.error(data.message || data.error || 'Failed to update medicine request');
+      }
+    } catch (err) {
+      toast.error(err.message || 'Server error updating medicine request');
+    } finally {
+      setSubmittingEdit(false);
     }
   };
 
@@ -372,6 +461,17 @@ const MedicineRequestsList = () => {
                           <Eye size={15} /> View Specs
                         </button>
 
+                        {isApproved && (
+                          <button
+                            className="mr-btn mr-btn-edit"
+                            onClick={() => openEditModal(req)}
+                            style={{ background: '#e0f2fe', color: '#0369a1', border: '1px solid #7dd3fc', borderRadius: 6, padding: '4px 10px', fontSize: '0.8rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer' }}
+                            title="Update Approved Medicine Request Specs & Stock Image"
+                          >
+                            <Edit size={14} /> Update Specs
+                          </button>
+                        )}
+
                         {isPending && (
                           <>
                             <button
@@ -514,14 +614,14 @@ const MedicineRequestsList = () => {
             </div>
 
             <div className="mr-modal-body">
-              <div className="mr-view-top">
+              <div className="mr-view-top" style={{ display: 'flex', gap: 16, alignItems: 'center', background: '#f8fafc', padding: 14, borderRadius: 12, border: '1px solid #e2e8f0' }}>
                 <img
                   src={selectedReq.medicine_image || '/img/medicine_bottle.png'}
                   alt={selectedReq.medicine_name}
-                  style={{ width: 64, height: 64, borderRadius: 12, objectFit: 'cover', border: '1px solid #e2e8f0' }}
+                  style={{ width: 68, height: 68, borderRadius: 12, objectFit: 'cover', border: '1px solid #cbd5e1', background: '#fff' }}
                   onError={e => { e.target.src = '/img/medicine_bottle.png'; }}
                 />
-                <div>
+                <div style={{ flex: 1 }}>
                   <h4 style={{ margin: 0, fontSize: '1.15rem', color: '#0f172a', fontWeight: 800 }}>{selectedReq.medicine_name}</h4>
                   <p style={{ margin: '2px 0 6px', color: '#64748b', fontSize: '0.85rem' }}>{selectedReq.generic_name || 'Generic N/A'}</p>
                   <span className={`mr-badge mr-badge-${(selectedReq.status || 'pending').toLowerCase()}`}>
@@ -576,6 +676,7 @@ const MedicineRequestsList = () => {
                 <div><strong>Mfg Date:</strong> {selectedReq.mfg_date ? new Date(selectedReq.mfg_date).toLocaleDateString() : 'N/A'}</div>
                 <div><strong>Expiry Date:</strong> {selectedReq.expiry_date ? new Date(selectedReq.expiry_date).toLocaleDateString() : 'N/A'}</div>
                 <div><strong>Requires Prescription:</strong> {selectedReq.requires_prescription ? 'Yes ✓' : 'No'}</div>
+                <div><strong>Stock Image:</strong> {selectedReq.medicine_image ? <span style={{ color: '#0369a1', fontWeight: 600 }}>Custom Image Attached ✓</span> : <span style={{ color: '#94a3b8' }}>Default Image</span>}</div>
               </div>
 
               {selectedReq.description && (
@@ -589,6 +690,15 @@ const MedicineRequestsList = () => {
 
               <div className="mr-modal-footer" style={{ marginTop: 20 }}>
                 <button className="mr-btn-cancel" onClick={() => setShowViewModal(false)}>Close</button>
+                {selectedReq.status === 'Approved' && (
+                  <button
+                    className="mr-btn mr-btn-edit"
+                    onClick={() => { const r = selectedReq; setShowViewModal(false); openEditModal(r); }}
+                    style={{ background: '#e0f2fe', color: '#0369a1', border: '1px solid #7dd3fc', borderRadius: 6, padding: '8px 14px', fontSize: '0.85rem', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}
+                  >
+                    <Edit size={16} /> Update Request Specs
+                  </button>
+                )}
                 {selectedReq.status === 'Pending' && (
                   <>
                     <button className="mr-btn mr-btn-approve" onClick={() => { setShowViewModal(false); handleApprove(selectedReq); }}>
@@ -601,6 +711,229 @@ const MedicineRequestsList = () => {
                 )}
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================================================================
+          EDIT / UPDATE MEDICINE REQUEST MODAL (ADMIN)
+      ================================================================ */}
+      {showEditModal && editingReq && (
+        <div className="mr-modal-overlay" onClick={() => setShowEditModal(false)}>
+          <div className="mr-modal" style={{ maxWidth: 680, width: '100%', maxHeight: '88vh', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
+            <div className="mr-modal-header">
+              <h3><Edit size={20} color="#0369a1" /> Update Medicine Request (Admin)</h3>
+              <button className="mr-modal-close" onClick={() => setShowEditModal(false)}><X size={20} /></button>
+            </div>
+
+            <form onSubmit={handleEditSubmit} className="mr-modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 14, overflowY: 'auto', maxHeight: 'calc(88vh - 130px)', paddingRight: 6 }}>
+              <p style={{ color: '#64748b', fontSize: '0.88rem', margin: 0 }}>
+                Update medicine details, pricing, stock quantities, and image for request <strong style={{ color: '#0f172a' }}>#{editingReq._id}</strong> ({editingReq.medicine_name}).
+              </p>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div>
+                  <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#334155', display: 'block', marginBottom: 4 }}>Medicine Name *</label>
+                  <input
+                    type="text"
+                    required
+                    value={editForm.medicine_name}
+                    onChange={e => setEditForm({ ...editForm, medicine_name: e.target.value })}
+                    style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: '0.88rem' }}
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#334155', display: 'block', marginBottom: 4 }}>Generic Name</label>
+                  <input
+                    type="text"
+                    value={editForm.generic_name}
+                    onChange={e => setEditForm({ ...editForm, generic_name: e.target.value })}
+                    style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: '0.88rem' }}
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div>
+                  <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#334155', display: 'block', marginBottom: 4 }}>Category *</label>
+                  <select
+                    value={editForm.category}
+                    onChange={e => setEditForm({ ...editForm, category: e.target.value })}
+                    style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: '0.88rem' }}
+                  >
+                    <option value="Tablet">Tablet</option>
+                    <option value="Capsule">Capsule</option>
+                    <option value="Syrup">Syrup</option>
+                    <option value="Injection">Injection</option>
+                    <option value="Cream">Cream</option>
+                    <option value="Drops">Drops</option>
+                    <option value="Powder">Powder</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#334155', display: 'block', marginBottom: 4 }}>Manufacturer *</label>
+                  <input
+                    type="text"
+                    required
+                    value={editForm.manufacturer}
+                    onChange={e => setEditForm({ ...editForm, manufacturer: e.target.value })}
+                    style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: '0.88rem' }}
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div>
+                  <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#334155', display: 'block', marginBottom: 4 }}>Strength *</label>
+                  <input
+                    type="text"
+                    required
+                    value={editForm.strength}
+                    onChange={e => setEditForm({ ...editForm, strength: e.target.value })}
+                    style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: '0.88rem' }}
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#334155', display: 'block', marginBottom: 4 }}>Unit *</label>
+                  <select
+                    value={editForm.unit}
+                    onChange={e => setEditForm({ ...editForm, unit: e.target.value })}
+                    style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: '0.88rem' }}
+                  >
+                    <option value="Strip">Strip</option>
+                    <option value="Bottle">Bottle</option>
+                    <option value="Ampoule">Ampoule</option>
+                    <option value="Vial">Vial</option>
+                    <option value="Tin">Tin</option>
+                    <option value="Box">Box</option>
+                    <option value="Tube">Tube</option>
+                    <option value="Piece">Piece</option>
+                    <option value="Packet">Packet</option>
+                  </select>
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div>
+                  <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#334155', display: 'block', marginBottom: 4 }}>Price (₹) *</label>
+                  <input
+                    type="number"
+                    required
+                    step="0.01"
+                    value={editForm.price}
+                    onChange={e => setEditForm({ ...editForm, price: e.target.value })}
+                    style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: '0.88rem' }}
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#334155', display: 'block', marginBottom: 4 }}>Quantity / Stock Available *</label>
+                  <input
+                    type="number"
+                    required
+                    value={editForm.stock_available}
+                    onChange={e => setEditForm({ ...editForm, stock_available: e.target.value })}
+                    style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: '0.88rem' }}
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div>
+                  <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#334155', display: 'block', marginBottom: 4 }}>MFG Date *</label>
+                  <input
+                    type="date"
+                    required
+                    value={editForm.mfg_date}
+                    onChange={e => setEditForm({ ...editForm, mfg_date: e.target.value })}
+                    style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: '0.88rem' }}
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#334155', display: 'block', marginBottom: 4 }}>Expiry Date *</label>
+                  <input
+                    type="date"
+                    required
+                    value={editForm.expiry_date}
+                    onChange={e => setEditForm({ ...editForm, expiry_date: e.target.value })}
+                    style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: '0.88rem' }}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#334155', display: 'block', marginBottom: 4 }}>Medicine / Stock Image</label>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <input
+                    type="text"
+                    placeholder="Paste Image URL or select image file below..."
+                    value={editForm.medicine_image || ''}
+                    onChange={e => setEditForm({ ...editForm, medicine_image: e.target.value })}
+                    style={{ flex: 1, padding: '8px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: '0.88rem' }}
+                  />
+                  <label style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '8px 14px',
+                    background: '#0284c7',
+                    color: '#ffffff',
+                    borderRadius: '8px',
+                    fontSize: '0.82rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap'
+                  }}>
+                    <Upload size={14} /> Upload Image File
+                    <input
+                      type="file"
+                      accept="image/*"
+                      hidden
+                      onChange={handleImageUpload}
+                    />
+                  </label>
+                </div>
+                {editForm.medicine_image && (
+                  <div style={{ marginTop: '8px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <img
+                      src={editForm.medicine_image}
+                      alt="Preview"
+                      style={{ width: 48, height: 48, borderRadius: 8, objectFit: 'cover', border: '1px solid #cbd5e1' }}
+                      onError={e => { e.target.style.display = 'none'; }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setEditForm({ ...editForm, medicine_image: '' })}
+                      style={{ background: '#fee2e2', color: '#dc2626', border: 'none', borderRadius: 6, padding: '4px 8px', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer' }}
+                    >
+                      Remove Image
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: 4 }}>
+                <input
+                  type="checkbox"
+                  id="adminEditRx"
+                  checked={editForm.requires_prescription}
+                  onChange={e => setEditForm({ ...editForm, requires_prescription: e.target.checked })}
+                  style={{ width: 18, height: 18 }}
+                />
+                <label htmlFor="adminEditRx" style={{ margin: 0, fontWeight: 600, fontSize: '0.88rem', cursor: 'pointer' }}>
+                  Requires Prescription (Rx)
+                </label>
+              </div>
+
+              <div className="mr-modal-footer" style={{ marginTop: 16 }}>
+                <button type="button" className="mr-btn-cancel" onClick={() => setShowEditModal(false)}>
+                  Cancel
+                </button>
+                <button type="submit" className="mr-btn mr-btn-approve" disabled={submittingEdit}>
+                  {submittingEdit ? <Loader2 size={16} className="mr-spinner" /> : 'Save Changes'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

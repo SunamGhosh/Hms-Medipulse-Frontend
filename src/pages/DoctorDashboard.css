@@ -2347,6 +2347,7 @@
   justify-content: center;
   padding: 20px;
   animation: fadeIn 0.2s ease;
+  overflow-y: auto;
 }
 
 .dd-cancel-modal {
@@ -2355,11 +2356,24 @@
   max-width: 560px;
   border-radius: 24px;
   box-shadow: 0 32px 64px rgba(0, 0, 0, 0.2), 0 0 0 1px rgba(255,255,255,0.08);
-  overflow: hidden;
   animation: cancelModalIn 0.35s cubic-bezier(0.16, 1, 0.3, 1);
   max-height: 90vh;
   overflow-y: auto;
   scrollbar-width: thin;
+}
+
+.dd-cancel-modal::-webkit-scrollbar {
+  width: 6px;
+}
+.dd-cancel-modal::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+.dd-cancel-modal::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+.dd-cancel-modal::-webkit-scrollbar-thumb:hover {
+  background: #0d9488;
 }
 
 @keyframes cancelModalIn {

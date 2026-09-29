@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { io } from 'socket.io-client';
 import toast from 'react-hot-toast';
 import {
@@ -24,6 +24,24 @@ const ICE_SERVERS = {
 const VideoCall = () => {
   const { roomId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  const queryParams = new URLSearchParams(location.search);
+  const roleParam = location.state?.role || queryParams.get('role');
+
+  const checkIsDoctor = useCallback(() => {
+    if (roleParam === 'doctor') return true;
+    if (roleParam === 'patient' || roleParam === 'pharmacist' || roleParam === 'user') return false;
+
+    const userToken = sessionStorage.getItem('token') || localStorage.getItem('token');
+    const pharmacistToken = sessionStorage.getItem('pharmacistToken') || localStorage.getItem('pharmacistToken');
+    if (userToken || pharmacistToken) return false;
+
+    const doctorToken = sessionStorage.getItem('doctorToken') || localStorage.getItem('doctorToken');
+    return Boolean(doctorToken);
+  }, [roleParam]);
+
+  const isDoctor = checkIsDoctor();
 
   // Refs
   const socketRef = useRef(null);
@@ -296,6 +314,32 @@ const VideoCall = () => {
 
     const init = async () => {
       try {
+        const API = import.meta.env.VITE_URL || 'http://localhost:5000/api';
+        const cleanApptId = roomId ? roomId.replace('MediPulse_', '').trim() : '';
+        const activeToken = (isDoctor ? (sessionStorage.getItem('doctorToken') || localStorage.getItem('doctorToken')) : null) ||
+          sessionStorage.getItem('token') || localStorage.getItem('token') ||
+          sessionStorage.getItem('pharmacistToken') || localStorage.getItem('pharmacistToken');
+
+        if (cleanApptId && activeToken) {
+          try {
+            const checkUrl = isDoctor
+              ? `${API}/appointment/doctor/${cleanApptId}`
+              : `${API}/appointment/${cleanApptId}`;
+            const res = await fetch(checkUrl, {
+              headers: { Authorization: `Bearer ${activeToken}` }
+            });
+            const data = await res.json();
+            const appt = data?.appointment || data;
+            if (appt && (appt.status === 'completed' || appt.meet_time_end)) {
+              toast.error("Consultation has ended now and status is marked as Completed.");
+              setTimeout(() => navigate(-1), 1000);
+              return;
+            }
+          } catch (e) {
+            console.warn('[VideoCall] Could not verify initial appointment status:', e);
+          }
+        }
+
         let stream;
         try {
           stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
@@ -351,6 +395,11 @@ const VideoCall = () => {
 
         socket.on('user-left', () => {
           console.log('[VideoCall] Other user left');
+          if (isDoctor) {
+            toast.info('Patient left the video call. Meeting room remains active for rejoin.');
+          } else {
+            toast.info('Doctor is temporary out or reconnecting. Rejoining stream...');
+          }
           setIsConnected(false);
           setConnectionStatus('waiting');
           if (remoteVideoRef.current) {
@@ -366,9 +415,9 @@ const VideoCall = () => {
           }
         });
 
-        socket.on('call-ended', ({ isDoctor }) => {
-          if (isDoctor) {
-            toast.success('Doctor has ended the video consultation meeting. The call is completed.');
+        socket.on('call-ended', ({ isDoctor: endedByDoctor }) => {
+          if (endedByDoctor) {
+            toast.error("Consultation has ended now and status is marked as Completed.");
             if (localStreamRef.current) {
               localStreamRef.current.getTracks().forEach((t) => t.stop());
             }
@@ -377,7 +426,7 @@ const VideoCall = () => {
             if (timerRef.current) clearInterval(timerRef.current);
             setTimeout(() => navigate(-1), 1200);
           } else {
-            toast.info('The other participant left the call.');
+            toast.info('Participant left the video call. Meeting room remains live for rejoin.');
           }
         });
 
@@ -427,9 +476,6 @@ const VideoCall = () => {
   };
 
   const endCall = async () => {
-    const doctorToken = localStorage.getItem('doctorToken') || sessionStorage.getItem('doctorToken');
-    const isDoctor = Boolean(doctorToken);
-
     if (socketRef.current && roomId) {
       socketRef.current.emit('end-call', { roomId, isDoctor });
     }
@@ -441,7 +487,9 @@ const VideoCall = () => {
     if (socketRef.current) socketRef.current.disconnect();
     if (timerRef.current) clearInterval(timerRef.current);
 
-    const token = doctorToken || localStorage.getItem('token') || sessionStorage.getItem('token');
+    const token = (isDoctor ? (sessionStorage.getItem('doctorToken') || localStorage.getItem('doctorToken')) : null) || 
+                  sessionStorage.getItem('token') || localStorage.getItem('token') || 
+                  sessionStorage.getItem('pharmacistToken') || localStorage.getItem('pharmacistToken');
     const cleanApptId = roomId ? roomId.replace('MediPulse_', '').trim() : '';
 
     if (isDoctor && cleanApptId && token) {
@@ -458,8 +506,8 @@ const VideoCall = () => {
       } catch (err) {
         console.error('Call completion sync error:', err);
       }
-    } else if (!isDoctor) {
-      toast.info('You left the video call. You can rejoin anytime while doctor\'s meet is live.');
+    } else {
+      toast.success("Meeting is live! You can rejoin the video call anytime while doctor's meet is active.");
     }
 
     navigate(-1);

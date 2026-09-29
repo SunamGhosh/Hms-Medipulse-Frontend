@@ -5,6 +5,8 @@ import './PharmacistLogin.css';
 
 import Header from '../components/Header';
 
+import API_BASE_URL from '../config/api';
+
 const PharmacistLogin = () => {
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
@@ -33,7 +35,7 @@ const PharmacistLogin = () => {
     setErrorMsg('');
 
     try {
-      const response = await fetch(`${import.meta.env.VITE_URL}/pharmacist/login`, {
+      const response = await fetch(`${API_BASE_URL}/pharmacist/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
@@ -79,7 +81,7 @@ const PharmacistLogin = () => {
     setIsForgotLoading(true);
 
     try {
-      const res = await fetch(`${import.meta.env.VITE_URL}/pharmacist/reset-password`, {
+      const res = await fetch(`${API_BASE_URL}/pharmacist/reset-password`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: forgotEmail, newPassword })

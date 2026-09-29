@@ -49,12 +49,15 @@ const PatientRecordsModal = ({ isOpen, onClose, patient }) => {
             <ShieldCheck size={20} color="#0d9488" />
             <div>
               <h2 style={{ margin: 0, fontSize: '1.2rem' }}>Medical History: {patient?.first_name} {patient?.last_name}</h2>
-              {(patient?.gender || patient?.age || patient?.patient_age) && (
-                <span style={{ fontSize: '12px', color: '#ccfbf1', fontWeight: 600 }}>
-                  {patient?.gender ? (patient.gender.charAt(0).toUpperCase() + patient.gender.slice(1).toLowerCase()) : ''}
-                  {(patient?.age || patient?.patient_age) ? ` • ${patient.age || patient.patient_age} Years` : ''}
-                </span>
-              )}
+              {(() => {
+                const displayAge = patient?.patient_age || patient?.age || (patient?.dob ? Math.floor((new Date() - new Date(patient.dob)) / (365.25 * 24 * 60 * 60 * 1000)) : '');
+                return (patient?.gender || displayAge) ? (
+                  <span style={{ fontSize: '12px', color: '#ccfbf1', fontWeight: 600 }}>
+                    {patient?.gender ? (patient.gender.charAt(0).toUpperCase() + patient.gender.slice(1).toLowerCase()) : ''}
+                    {displayAge ? ` • ${displayAge} Years` : ''}
+                  </span>
+                ) : null;
+              })()}
             </div>
           </div>
           <button onClick={onClose} className="prm-close-btn"><X size={20} /></button>

@@ -1,18 +1,22 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Clock, Star, Users, Loader2 } from 'lucide-react';
+import { Clock, Star, Users, Loader2, Search, X } from 'lucide-react';
 import RoleSelectionModal from '../components/RoleSelectionModal';
 import BookAppointmentModal from '../components/BookAppointmentModal';
 import SignupModal from '../components/SignupModal';
 import ProfileDropdown from '../components/ProfileDropdown';
 import './DoctorsPage.css';
 
-const API = import.meta.env.VITE_URL || 'http://localhost:4000/api';
+import API_BASE_URL from '../config/api';
+
+const API = API_BASE_URL;
 
 const DoctorsPage = () => {
   const [allDoctors, setAllDoctors] = useState([]);
   const [specializations, setSpecializations] = useState([]);
   const [selectedSpecialty, setSelectedSpecialty] = useState('');
+  const [searchInput, setSearchInput] = useState('');
+  const [activeSearchQuery, setActiveSearchQuery] = useState('');
   const [isRoleModalOpen, setIsRoleModalOpen] = useState(false);
   const [isBookModalOpen, setIsBookModalOpen] = useState(false);
   const [isSignupModalOpen, setIsSignupModalOpen] = useState(false);
@@ -65,9 +69,25 @@ const DoctorsPage = () => {
     fetchDoctors();
   }, []);
 
-  const filteredDoctors = selectedSpecialty 
-    ? allDoctors.filter(doc => doc.specialty === selectedSpecialty)
-    : allDoctors;
+  const handleSearchSubmit = (e) => {
+    if (e) e.preventDefault();
+    setActiveSearchQuery(searchInput);
+  };
+
+  const handleClearSearch = () => {
+    setSearchInput('');
+    setActiveSearchQuery('');
+  };
+
+  const filteredDoctors = allDoctors.filter(doc => {
+    const matchesSpecialty = !selectedSpecialty || doc.specialty === selectedSpecialty;
+    const q = activeSearchQuery.trim().toLowerCase();
+    const name = (doc.name || '').toLowerCase();
+    const spec = (doc.specialty || '').toLowerCase();
+    const creds = (doc.credentials || '').toLowerCase();
+    const matchesSearch = !q || name.includes(q) || spec.includes(q) || creds.includes(q);
+    return matchesSpecialty && matchesSearch;
+  });
 
   return (
     <div className="dp-container">
@@ -110,8 +130,37 @@ const DoctorsPage = () => {
       </nav>
 
       <div className="dp-content-wrapper">
-        <h1 className="dp-page-title">Find the right doctor for you</h1>
-        <p className="dp-page-subtitle">Browse through our extensive list of trusted doctors.</p>
+        <div className="dp-header-row">
+          <div>
+            <h1 className="dp-page-title">Find the right doctor for you</h1>
+            <p className="dp-page-subtitle">Browse through our extensive list of trusted doctors.</p>
+          </div>
+
+          {/* Search Doctor Bar with Search Button */}
+          <form onSubmit={handleSearchSubmit} className="dp-search-form">
+            <div className="dp-search-box-container">
+              <Search size={18} className="dp-search-icon" />
+              <input
+                type="text"
+                placeholder="Search doctor by name, specialty, or qualification..."
+                value={searchInput}
+                onChange={(e) => {
+                  setSearchInput(e.target.value);
+                  setActiveSearchQuery(e.target.value);
+                }}
+                className="dp-search-input"
+              />
+              {searchInput && (
+                <button type="button" className="dp-search-clear-btn" onClick={handleClearSearch} title="Clear search">
+                  <X size={16} />
+                </button>
+              )}
+            </div>
+            <button type="submit" className="dp-search-submit-btn">
+              <Search size={16} /> Search
+            </button>
+          </form>
+        </div>
 
         <div className="dp-main-layout">
           {/* Left Sidebar: Specializations */}

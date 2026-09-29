@@ -7,6 +7,8 @@ import {
 } from 'lucide-react';
 import './Dashboard.css';
 
+import API_BASE_URL from '../config/api';
+
 const StatCard = ({ title, value, icon: Icon, trend, color, subtitle }) => (
   <div className={`stat-card stat-card--${color}`}>
     <div className="stat-card__top">
@@ -73,7 +75,7 @@ const Dashboard = () => {
           navigate('/admin/login');
           return;
         }
-        const response = await fetch(`${import.meta.env.VITE_URL}/admin/dashboard-stats`, {
+        const response = await fetch(`${API_BASE_URL}/admin/dashboard-stats`, {
           headers: {
             'Authorization': `Bearer ${token}`
           }

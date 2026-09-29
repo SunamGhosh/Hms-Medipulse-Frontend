@@ -5,7 +5,9 @@ import './DoctorLogin.css';
 
 import Header from '../components/Header';
 
-const API = import.meta.env.VITE_URL || 'http://localhost:4000/api';
+import API_BASE_URL from '../config/api';
+
+const API = API_BASE_URL;
 
 const DoctorLogin = () => {
   const navigate = useNavigate();

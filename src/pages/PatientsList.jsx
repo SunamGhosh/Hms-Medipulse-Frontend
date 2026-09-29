@@ -6,7 +6,9 @@ import {
 import toast from 'react-hot-toast';
 import './PatientsList.css';
 
-const API = import.meta.env.VITE_URL || 'http://localhost:5000';
+import API_BASE_URL from '../config/api';
+
+const API = API_BASE_URL;
 
 const genderColor = { male: '#3b82f6', female: '#ec4899', other: '#8b5cf6' };
 
