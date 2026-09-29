@@ -473,14 +473,16 @@ const MedicineRequestsList = () => {
                           <Eye size={15} /> View Specs
                         </button>
 
-                        <button
-                          className="mr-btn mr-btn-edit"
-                          onClick={() => openEditModal(req)}
-                          style={{ background: '#e0f2fe', color: '#0369a1', border: '1px solid #7dd3fc', borderRadius: 6, padding: '4px 10px', fontSize: '0.8rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer' }}
-                          title="Update Medicine Request Specs & Stock Image"
-                        >
-                          <Edit size={14} /> Update Specs
-                        </button>
+                        {isApproved && (
+                          <button
+                            className="mr-btn mr-btn-edit"
+                            onClick={() => openEditModal(req)}
+                            style={{ background: '#e0f2fe', color: '#0369a1', border: '1px solid #7dd3fc', borderRadius: 6, padding: '4px 10px', fontSize: '0.8rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer' }}
+                            title="Update Approved Medicine Request Specs & Stock Image"
+                          >
+                            <Edit size={14} /> Update Specs
+                          </button>
+                        )}
 
                         {isPending && (
                           <>
