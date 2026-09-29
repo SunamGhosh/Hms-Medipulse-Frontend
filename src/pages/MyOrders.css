@@ -849,6 +849,157 @@
   to { transform: scale(1); opacity: 1; }
 }
 
+/* Horizontal Track and Moving Truck Styles */
+.mo-horizontal-track-container {
+  padding: 18px 14px;
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  border-radius: 12px;
+  margin-bottom: 24px;
+  border: 1px solid #e2e8f0;
+  position: relative;
+}
+
+.mo-horizontal-track-road {
+  height: 6px;
+  background: #cbd5e1;
+  border-radius: 3px;
+  position: relative;
+  margin: 15px 12px 10px 12px; /* Margin to keep truck/milestones within bounds */
+}
+
+.mo-horizontal-track-progress {
+  position: absolute;
+  height: 100%;
+  background: linear-gradient(90deg, #10b981 0%, #059669 100%);
+  border-radius: 3px;
+  transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.mo-horizontal-track-dashed {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 2px;
+  transform: translateY(-50%);
+  border-top: 1px dashed rgba(255, 255, 255, 0.6);
+  pointer-events: none;
+}
+
+/* Moving Truck Icon Wrapper (No circle background, sits on the road) */
+.mo-horizontal-truck-wrapper {
+  position: absolute;
+  top: -34px; /* Move up so wheels sit directly on the 6px road line */
+  width: 55px;
+  height: 36px;
+  transition: left 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+/* Driving Engine Vibration/Shake animation */
+.mo-horizontal-truck-wrapper.driving {
+  animation: truckDrive 0.3s infinite alternate ease-in-out;
+}
+
+.mo-horizontal-truck-wrapper.delivered {
+  animation: pulseDelivered 2.5s infinite ease-in-out;
+}
+
+.mo-truck-exhaust-smoke {
+  position: absolute;
+  left: 2px;
+  bottom: 2px;
+  width: 5px;
+  height: 5px;
+  background: #94a3b8;
+  border-radius: 50%;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.mo-horizontal-truck-wrapper.driving .mo-truck-exhaust-smoke {
+  animation: exhaustSmoke 0.6s infinite linear;
+}
+
+@keyframes exhaustSmoke {
+  0% { transform: scale(0.6) translate(0, 0); opacity: 0.8; }
+  50% { transform: scale(1) translate(-8px, -2px); opacity: 0.4; }
+  100% { transform: scale(1.4) translate(-14px, -4px); opacity: 0; }
+}
+
+/* Milestone Dots */
+.mo-horizontal-milestone {
+  position: absolute;
+  top: 50%;
+  width: 14px;
+  height: 14px;
+  transform: translate(-50%, -50%);
+  z-index: 3;
+}
+
+.mo-milestone-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 3px solid #94a3b8;
+  transition: all 0.3s;
+}
+
+.mo-horizontal-milestone.passed .mo-milestone-dot {
+  border-color: #10b981;
+  background: #10b981;
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2);
+}
+
+.mo-horizontal-milestone.current .mo-milestone-dot {
+  border-color: #ec4899;
+  background: #ffffff;
+  transform: scale(1.2);
+  box-shadow: 0 0 0 4px rgba(236, 72, 153, 0.3);
+}
+
+/* Step labels row */
+.mo-horizontal-track-labels {
+  display: flex;
+  justify-content: space-between;
+  padding: 0 2px;
+  margin-top: 8px;
+}
+
+.mo-horizontal-track-labels span {
+  font-size: 10px;
+  color: #64748b;
+  font-weight: 700;
+  text-align: center;
+  width: 60px;
+}
+
+.mo-horizontal-track-labels span:first-child {
+  text-align: left;
+}
+
+.mo-horizontal-track-labels span:last-child {
+  text-align: right;
+}
+
+/* Animations */
+@keyframes truckDrive {
+  0% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-1px) rotate(1deg); }
+  100% { transform: translateY(0) rotate(-1deg); }
+}
+
+@keyframes pulseDelivered {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.06); }
+  100% { transform: scale(1); }
+}
+
 
 
 

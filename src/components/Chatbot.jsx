@@ -348,7 +348,7 @@ const Chatbot = () => {
         const data = await res.json();
         const order = data.orders?.find(o => o._id === orderId);
         if (order) {
-          const estDate = new Date(order.placed_at || order.createdAt || Date.now());
+          const estDate = new Date(order.placed_at || order.createdAt || new Date());
           estDate.setDate(estDate.getDate() + 3);
           const formattedEstDate = estDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
           addMessage('bot', `Your order status is **${order.status.toUpperCase()}**.\n\nEstimated delivery date: **${formattedEstDate}**.\n\nTracking timeline:\n- Placed at: ${new Date(order.placed_at || order.createdAt).toLocaleDateString('en-IN')}\n- Current status: ${order.status}`);
