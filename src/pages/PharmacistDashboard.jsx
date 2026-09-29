@@ -14,6 +14,14 @@ import DoctorLocationMapModal from '../components/DoctorLocationMapModal';
 const API = import.meta.env.VITE_URL || 'http://localhost:5000';
 const getToken = () => sessionStorage.getItem('pharmacistToken') || localStorage.getItem('pharmacistToken');
 
+const formatImgUrl = (img) => {
+  if (!img) return '/img/medicine_bottle.png';
+  if (typeof img === 'string' && img.startsWith('data:application/octet-stream')) {
+    return img.replace('data:application/octet-stream', 'data:image/jpeg');
+  }
+  return img;
+};
+
 const STATUS_CONFIG = {
   pending:   { color: 'blue',   label: 'Pending',   dot: '#3b82f6' },
   confirmed: { color: 'teal',   label: 'Confirmed', dot: '#0d9488' },
@@ -1079,10 +1087,14 @@ Verification Status: Digitally Verified Medical Record
     }
     const reader = new FileReader();
     reader.onloadend = () => {
+      let result = reader.result;
+      if (typeof result === 'string' && result.startsWith('data:application/octet-stream')) {
+        result = result.replace('data:application/octet-stream', 'data:image/jpeg');
+      }
       if (isEdit) {
-        setEditReqForm(prev => ({ ...prev, medicine_image: reader.result }));
+        setEditReqForm(prev => ({ ...prev, medicine_image: result }));
       } else {
-        setReqForm(prev => ({ ...prev, medicine_image: reader.result }));
+        setReqForm(prev => ({ ...prev, medicine_image: result }));
       }
     };
     reader.readAsDataURL(file);
@@ -2331,8 +2343,18 @@ Verification Status: Digitally Verified Medical Record
                         return (
                           <tr key={m._id}>
                             <td>
-                              <div style={{ fontWeight: 700, color: '#0f172a' }}>{m.medicine_name}</div>
-                              {m.generic_name && <div style={{ fontSize: 11, color: '#64748b' }}>{m.generic_name} ({m.strength})</div>}
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                <img
+                                  src={formatImgUrl(m.medicine_image)}
+                                  alt={m.medicine_name}
+                                  style={{ width: 42, height: 42, borderRadius: 8, objectFit: 'cover', border: '1px solid #cbd5e1', flexShrink: 0, background: '#fff' }}
+                                  onError={e => { e.target.src = '/img/medicine_bottle.png'; }}
+                                />
+                                <div>
+                                  <div style={{ fontWeight: 700, color: '#0f172a' }}>{m.medicine_name}</div>
+                                  {m.generic_name && <div style={{ fontSize: 11, color: '#64748b' }}>{m.generic_name} ({m.strength})</div>}
+                                </div>
+                              </div>
                             </td>
                             <td><span className="pd-tag">{m.category}</span></td>
                             <td>{m.manufacturer || '—'}</td>
@@ -2510,8 +2532,18 @@ Verification Status: Digitally Verified Medical Record
                         return (
                           <tr key={req._id}>
                             <td>
-                              <div style={{ fontWeight: 700, color: '#0f172a' }}>{req.medicine_name}</div>
-                              {req.generic_name && <div style={{ fontSize: 11, color: '#64748b' }}>{req.generic_name}</div>}
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                <img
+                                  src={formatImgUrl(req.medicine_image)}
+                                  alt={req.medicine_name}
+                                  style={{ width: 42, height: 42, borderRadius: 8, objectFit: 'cover', border: '1px solid #cbd5e1', flexShrink: 0, background: '#fff' }}
+                                  onError={e => { e.target.src = '/img/medicine_bottle.png'; }}
+                                />
+                                <div>
+                                  <div style={{ fontWeight: 700, color: '#0f172a' }}>{req.medicine_name}</div>
+                                  {req.generic_name && <div style={{ fontSize: 11, color: '#64748b' }}>{req.generic_name}</div>}
+                                </div>
+                              </div>
                             </td>
                             <td><span className="pd-tag">{req.category}</span></td>
                             <td>{req.strength} ({req.unit})</td>
@@ -3997,7 +4029,7 @@ Verification Status: Digitally Verified Medical Record
             <div className="pd-modal-body" style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               <div style={{ display: 'flex', gap: 14, alignItems: 'center', background: '#f8fafc', padding: '12px 16px', borderRadius: 10, border: '1px solid #e2e8f0' }}>
                 <img
-                  src={selectedReqDetails.medicine_image || '/img/medicine_bottle.png'}
+                  src={formatImgUrl(selectedReqDetails.medicine_image)}
                   alt={selectedReqDetails.medicine_name}
                   style={{ width: 60, height: 60, borderRadius: 10, objectFit: 'cover', border: '1px solid #cbd5e1', background: '#fff' }}
                   onError={e => { e.target.src = '/img/medicine_bottle.png'; }}

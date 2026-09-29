@@ -19,6 +19,7 @@ const AddMedicine = () => {
     price: '',
     stock_available: '',
     description: '',
+    medicine_image: '',
     requires_prescription: false,
     mfg_date: '',
     expiry_date: '',
@@ -287,6 +288,70 @@ const AddMedicine = () => {
               </div>
               {formErrors.expiry_date && <span className="error-text">{formErrors.expiry_date}</span>}
             </div>
+          </div>
+
+          <div className="form-group full-width" style={{ marginTop: '24px' }}>
+            <label className="field-label">Medicine Image</label>
+            <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+              <input
+                type="text"
+                name="medicine_image"
+                value={form.medicine_image}
+                onChange={handleChange}
+                placeholder="Paste Image URL or select image file..."
+                style={{ flex: 1, padding: '10px 14px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: '0.9rem' }}
+              />
+              <label style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '10px 16px',
+                background: '#0284c7',
+                color: '#ffffff',
+                borderRadius: '8px',
+                fontSize: '0.85rem',
+                fontWeight: 700,
+                cursor: 'pointer',
+                whiteSpace: 'nowrap'
+              }}>
+                Upload Image File
+                <input
+                  type="file"
+                  accept="image/*"
+                  hidden
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    const reader = new FileReader();
+                    reader.onloadend = () => {
+                      let res = reader.result;
+                      if (typeof res === 'string' && res.startsWith('data:application/octet-stream')) {
+                        res = res.replace('data:application/octet-stream', 'data:image/jpeg');
+                      }
+                      setForm(prev => ({ ...prev, medicine_image: res }));
+                    };
+                    reader.readAsDataURL(file);
+                  }}
+                />
+              </label>
+            </div>
+            {form.medicine_image && (
+              <div style={{ marginTop: '10px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <img
+                  src={form.medicine_image.startsWith('data:application/octet-stream') ? form.medicine_image.replace('data:application/octet-stream', 'data:image/jpeg') : form.medicine_image}
+                  alt="Preview"
+                  style={{ width: 56, height: 56, borderRadius: 8, objectFit: 'cover', border: '1px solid #cbd5e1' }}
+                  onError={e => { e.target.style.display = 'none'; }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setForm(prev => ({ ...prev, medicine_image: '' }))}
+                  style={{ background: '#fee2e2', color: '#dc2626', border: 'none', borderRadius: 6, padding: '4px 10px', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}
+                >
+                  Remove Image
+                </button>
+              </div>
+            )}
           </div>
 
           <div className="form-group full-width" style={{ marginTop: '24px' }}>

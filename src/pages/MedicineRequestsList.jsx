@@ -37,6 +37,14 @@ const getPharmacistDetails = (req) => {
   return { name: req.requested_by, id: req.requested_by, email: '', store: '' };
 };
 
+const formatImgUrl = (img) => {
+  if (!img) return '/img/medicine_bottle.png';
+  if (typeof img === 'string' && img.startsWith('data:application/octet-stream')) {
+    return img.replace('data:application/octet-stream', 'data:image/jpeg');
+  }
+  return img;
+};
+
 const MedicineRequestsList = () => {
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -196,7 +204,11 @@ const MedicineRequestsList = () => {
     }
     const reader = new FileReader();
     reader.onloadend = () => {
-      setEditForm(prev => ({ ...prev, medicine_image: reader.result }));
+      let result = reader.result;
+      if (typeof result === 'string' && result.startsWith('data:application/octet-stream')) {
+        result = result.replace('data:application/octet-stream', 'data:image/jpeg');
+      }
+      setEditForm(prev => ({ ...prev, medicine_image: result }));
     };
     reader.readAsDataURL(file);
   };
@@ -388,7 +400,7 @@ const MedicineRequestsList = () => {
                     <td>
                       <div className="mr-medicine-cell">
                         <img
-                          src={req.medicine_image || '/img/medicine_bottle.png'}
+                          src={formatImgUrl(req.medicine_image)}
                           alt={req.medicine_name}
                           className="mr-avatar"
                           onError={e => { e.target.src = '/img/medicine_bottle.png'; }}
@@ -461,16 +473,14 @@ const MedicineRequestsList = () => {
                           <Eye size={15} /> View Specs
                         </button>
 
-                        {isApproved && (
-                          <button
-                            className="mr-btn mr-btn-edit"
-                            onClick={() => openEditModal(req)}
-                            style={{ background: '#e0f2fe', color: '#0369a1', border: '1px solid #7dd3fc', borderRadius: 6, padding: '4px 10px', fontSize: '0.8rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer' }}
-                            title="Update Approved Medicine Request Specs & Stock Image"
-                          >
-                            <Edit size={14} /> Update Specs
-                          </button>
-                        )}
+                        <button
+                          className="mr-btn mr-btn-edit"
+                          onClick={() => openEditModal(req)}
+                          style={{ background: '#e0f2fe', color: '#0369a1', border: '1px solid #7dd3fc', borderRadius: 6, padding: '4px 10px', fontSize: '0.8rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer' }}
+                          title="Update Medicine Request Specs & Stock Image"
+                        >
+                          <Edit size={14} /> Update Specs
+                        </button>
 
                         {isPending && (
                           <>
@@ -616,7 +626,7 @@ const MedicineRequestsList = () => {
             <div className="mr-modal-body">
               <div className="mr-view-top" style={{ display: 'flex', gap: 16, alignItems: 'center', background: '#f8fafc', padding: 14, borderRadius: 12, border: '1px solid #e2e8f0' }}>
                 <img
-                  src={selectedReq.medicine_image || '/img/medicine_bottle.png'}
+                  src={formatImgUrl(selectedReq.medicine_image)}
                   alt={selectedReq.medicine_name}
                   style={{ width: 68, height: 68, borderRadius: 12, objectFit: 'cover', border: '1px solid #cbd5e1', background: '#fff' }}
                   onError={e => { e.target.src = '/img/medicine_bottle.png'; }}
@@ -896,7 +906,7 @@ const MedicineRequestsList = () => {
                 {editForm.medicine_image && (
                   <div style={{ marginTop: '8px', display: 'flex', alignItems: 'center', gap: '10px' }}>
                     <img
-                      src={editForm.medicine_image}
+                      src={formatImgUrl(editForm.medicine_image)}
                       alt="Preview"
                       style={{ width: 48, height: 48, borderRadius: 8, objectFit: 'cover', border: '1px solid #cbd5e1' }}
                       onError={e => { e.target.style.display = 'none'; }}
