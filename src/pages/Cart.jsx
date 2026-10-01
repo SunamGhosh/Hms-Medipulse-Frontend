@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, ChevronRight, ShoppingBasket, Info, MapPin, Navigation, Loader2, Map, CreditCard, Banknote, CheckCircle2, Volume2 } from 'lucide-react';
+import { ArrowLeft, ChevronRight, ShoppingBasket, Info, MapPin, Navigation, Loader2, Map, CreditCard, Banknote, CheckCircle2, Volume2, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import ProfileDropdown from '../components/ProfileDropdown';
 import MapPickerModal from '../components/MapPickerModal';
+import API_BASE_URL from '../config/api';
 import './Cart.css';
 
 const Cart = () => {
@@ -33,11 +34,30 @@ const Cart = () => {
 
   const fetchCart = async () => {
     try {
-      const res = await fetch('http://localhost:5000/cart', {
+      const res = await fetch(`${API_BASE_URL}/cart`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const data = await res.json();
-      setCartItems(data.success && data.cart ? data.cart : []);
+      if (data.success && Array.isArray(data.cart)) {
+        // Automatically prune any orphan/removed items that have no valid medicine
+        const validItems = [];
+        for (const item of data.cart) {
+          if (!item.medicine_name || item.warning?.code === 'MEDICINE_REMOVED' || item.is_available === false) {
+            // Attempt cleanup in the background
+            try {
+              fetch(`${API_BASE_URL}/cart/remove/${item.medicine_id}`, {
+                method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${token}` }
+              }).catch(() => {});
+            } catch (e) {}
+          } else {
+            validItems.push(item);
+          }
+        }
+        setCartItems(validItems);
+      } else {
+        setCartItems([]);
+      }
     } catch (err) {
       console.error('Error fetching cart:', err);
       setCartItems([]);
@@ -80,7 +100,7 @@ const Cart = () => {
 
   const fetchAddresses = async () => {
     try {
-      const res = await fetch('http://localhost:5000/user/addresses', {
+      const res = await fetch(`${API_BASE_URL}/user/addresses`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const data = await res.json();
@@ -145,7 +165,7 @@ const Cart = () => {
     if (e) e.stopPropagation();
     if (!confirm('Are you sure you want to delete this address?')) return;
     try {
-      const res = await fetch(`http://localhost:5000/user/addresses/${addressId}`, {
+      const res = await fetch(`${API_BASE_URL}/user/addresses/${addressId}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -183,8 +203,8 @@ const Cart = () => {
 
     try {
       const url = editingAddress
-        ? `http://localhost:5000/user/addresses/${editingAddress._id}`
-        : 'http://localhost:5000/user/addresses';
+        ? `${API_BASE_URL}/user/addresses/${editingAddress._id}`
+        : `${API_BASE_URL}/user/addresses`;
       const method = editingAddress ? 'PUT' : 'POST';
 
       const res = await fetch(url, {
@@ -315,17 +335,28 @@ const Cart = () => {
     );
   };
 
+  // ── Remove item directly ───────────────────────────
+  const handleRemoveItem = async (medicineId) => {
+    setCartItems(prev => prev.filter(i => i.medicine_id !== medicineId));
+    try {
+      await fetch(`${API_BASE_URL}/cart/remove/${medicineId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      toast.success('Item removed from cart');
+    } catch (err) {
+      fetchCart();
+      console.error('Error removing item:', err);
+    }
+  };
+
   // ── Optimistic quantity update ───────────────────────────
   const handleQuantity = async (medicineId, action) => {
     const item = cartItems.find(i => i.medicine_id === medicineId);
     if (!item) return;
 
-    if (action === 'decrease' && item.quantity === 1) {
-      setCartItems(prev => prev.filter(i => i.medicine_id !== medicineId));
-      await fetch(`http://localhost:5000/cart/remove/${medicineId}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
+    if (action === 'decrease' && item.quantity <= 1) {
+      handleRemoveItem(medicineId);
       return;
     }
 
@@ -333,14 +364,14 @@ const Cart = () => {
     setCartItems(prev =>
       prev.map(i =>
         i.medicine_id === medicineId
-          ? { ...i, quantity: action === 'increase' ? i.quantity + 1 : i.quantity - 1 }
+          ? { ...i, quantity: action === 'increase' ? i.quantity + 1 : Math.max(1, i.quantity - 1) }
           : i
       )
     );
 
     const endpoint = action === 'increase'
-      ? `http://localhost:5000/cart/increase/${medicineId}`
-      : `http://localhost:5000/cart/decrease/${medicineId}`;
+      ? `${API_BASE_URL}/cart/increase/${medicineId}`
+      : `${API_BASE_URL}/cart/decrease/${medicineId}`;
 
     try {
       const res = await fetch(endpoint, {
@@ -431,7 +462,7 @@ const Cart = () => {
     }
 
     try {
-      const orderRes = await fetch('http://localhost:5000/api/payment/create-order', {
+      const orderRes = await fetch(`${API_BASE_URL}/api/payment/create-order`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ amount: grandTotal })
@@ -459,7 +490,7 @@ const Cart = () => {
         image: '/img/logo.jpeg',
         order_id: orderData.order.id,
         handler: async (response) => {
-          const verRes = await fetch('http://localhost:5000/api/payment/verify-payment', {
+          const verRes = await fetch(`${API_BASE_URL}/api/payment/verify-payment`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
             body: JSON.stringify({
@@ -501,11 +532,12 @@ const Cart = () => {
 
   if (loading) return <div className="cart-loading">Loading your cart...</div>;
 
-  const itemsTotal = cartItems.reduce((s, i) => s + i.price * i.quantity, 0);
-  const handlingFee = 9;
-  const grandTotal = itemsTotal + handlingFee;
-  const totalQty   = cartItems.reduce((s, i) => s + i.quantity, 0);
+  const validItems = cartItems.filter(i => i && typeof i.price === 'number' && !isNaN(i.price));
+  const itemsTotal = validItems.reduce((s, i) => s + (Number(i.price) || 0) * (Number(i.quantity) || 0), 0);
+  const totalQty   = cartItems.reduce((s, i) => s + (Number(i.quantity) || 0), 0);
   const hasItems   = cartItems.length > 0;
+  const handlingFee = hasItems ? 9 : 0;
+  const grandTotal = itemsTotal + handlingFee;
 
   if (orderConfirmedInfo) {
     return (
@@ -656,20 +688,34 @@ const Cart = () => {
                       <div className="cart-item-row compact" key={item.medicine_id} style={{ display: 'flex', alignItems: 'center', padding: '10px 20px', borderBottom: '1px solid #f8fafc', gap: 14 }}>
                         <img
                           src={item.medicine_image || '/img/medicine_bottle.png'}
-                          alt={item.medicine_name}
+                          alt={item.medicine_name || 'Medicine'}
                           className="cart-item-img compact"
                           style={{ width: 44, height: 44, objectFit: 'contain', borderRadius: 8, background: '#f8fafc', padding: 4, flexShrink: 0, border: '1px solid #e2e8f0' }}
                           onError={e => { e.target.src = '/img/medicine_bottle.png'; }}
                         />
                         <div className="cart-item-info compact" style={{ flex: 1, minWidth: 0 }}>
-                          <h4 style={{ fontSize: '0.88rem', fontWeight: 700, color: '#1e293b', margin: '0 0 2px 0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.medicine_name}</h4>
-                          <p className="cart-item-meta" style={{ fontSize: '0.75rem', color: '#94a3b8', margin: 0 }}>Qty: {item.quantity} &middot; ₹{item.price} each</p>
+                          <h4 style={{ fontSize: '0.88rem', fontWeight: 700, color: '#1e293b', margin: '0 0 2px 0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {item.medicine_name || 'Medicine'}
+                          </h4>
+                          <p className="cart-item-meta" style={{ fontSize: '0.75rem', color: '#94a3b8', margin: 0 }}>
+                            Qty: {item.quantity} &middot; ₹{Number(item.price || 0).toFixed(2)} each
+                          </p>
                         </div>
                         <div className="blinkit-qty compact" style={{ display: 'flex', alignItems: 'center', background: '#16a34a', borderRadius: 6, overflow: 'hidden', flexShrink: 0 }}>
                           <button onClick={() => handleQuantity(item.medicine_id, 'decrease')} style={{ background: 'transparent', border: 'none', color: 'white', fontSize: '0.95rem', fontWeight: 700, width: 26, height: 26, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>−</button>
                           <span style={{ color: 'white', fontWeight: 700, fontSize: '0.82rem', minWidth: 18, textAlign: 'center' }}>{item.quantity}</span>
                           <button onClick={() => handleQuantity(item.medicine_id, 'increase')} style={{ background: 'transparent', border: 'none', color: 'white', fontSize: '0.95rem', fontWeight: 700, width: 26, height: 26, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
                         </div>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveItem(item.medicine_id)}
+                          title="Remove item"
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', padding: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 4, transition: 'color 0.15s' }}
+                          onMouseEnter={e => e.currentTarget.style.color = '#ef4444'}
+                          onMouseLeave={e => e.currentTarget.style.color = '#94a3b8'}
+                        >
+                          <Trash2 size={16} />
+                        </button>
                       </div>
                     ))}
                   </div>

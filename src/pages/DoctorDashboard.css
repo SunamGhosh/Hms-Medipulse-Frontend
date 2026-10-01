@@ -1069,8 +1069,9 @@
   .dd-filter-bar { flex-direction: column; align-items: stretch; }
   .dd-search-box { width: 100%; min-width: 0; }
   .dd-date-tracking-box { flex-direction: column; align-items: stretch; }
-  .dd-appt-card { flex-direction: column; align-items: flex-start; }
-  .dd-ac-actions { width: 100%; justify-content: flex-end; }
+  .dd-appt-card { flex-direction: column; align-items: stretch; }
+  .dd-ac-main-row { flex-direction: column; align-items: flex-start; gap: 14px; }
+  .dd-ac-actions { width: 100%; justify-content: flex-start; }
 }
 
 /* ============================================================
@@ -1497,15 +1498,22 @@
   background: #ffffff;
   border: 1.5px solid #e2e8f0;
   border-radius: 16px;
-  padding: 20px 24px;
+  padding: 18px 24px;
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 20px;
+  flex-direction: column;
+  gap: 14px;
   position: relative;
   overflow: hidden;
   transition: all 0.22s ease-in-out;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.02);
+}
+
+.dd-ac-main-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  width: 100%;
 }
 
 .dd-appt-card:hover {

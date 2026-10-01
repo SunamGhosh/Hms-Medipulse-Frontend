@@ -878,6 +878,10 @@ Verification Status: Digitally Verified Medical Record
             <Pill size={18} /> {!sidebarCollapsed && <span>Pharmacy</span>}
           </Link>
 
+          <Link to="/wishlist" className="ud-nav-item" title={sidebarCollapsed ? "My Wishlist" : ""}>
+            <Heart size={18} /> {!sidebarCollapsed && <span>My Wishlist</span>}
+          </Link>
+
           <button className={`ud-nav-item${view === VIEWS.APPOINTMENTS ? ' active' : ''}`}
             onClick={() => setView(VIEWS.APPOINTMENTS)} title={sidebarCollapsed ? "Appointments" : ""} style={{ background: 'none', border: 'none', font: 'inherit', cursor: 'pointer', width: '100%', textAlign: 'left' }}>
             <CalendarCheck size={18} /> {!sidebarCollapsed && <span>Appointments</span>}
@@ -979,8 +983,7 @@ Verification Status: Digitally Verified Medical Record
                 <div className="ud-actions-grid">
                   {quickActions.map((a, i) =>
                     a.action ? (
-                      <button key={i} className={`ud-action-card ud-action-${a.color}`} onClick={a.action}
-                        style={{ background: 'none', border: '1.5px solid rgba(255,255,255,0.6)', cursor: 'pointer', textAlign: 'left', width: '100%', font: 'inherit', padding: '20px', borderRadius: '16px', display: 'flex', alignItems: 'center', gap: '16px' }}>
+                      <button key={i} className={`ud-action-card ud-action-${a.color}`} onClick={a.action}>
                         <div className="ud-action-icon">{a.icon}</div>
                         <div className="ud-action-text"><strong>{a.label}</strong><span>{a.desc}</span></div>
                         <ArrowRight size={18} className="ud-action-arrow" />
@@ -1099,16 +1102,15 @@ Verification Status: Digitally Verified Medical Record
         {/* ════════════ APPOINTMENTS VIEW ════════════ */}
         {view === VIEWS.APPOINTMENTS && (
           <section className="ud-section">
-            <div className="ud-section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+            <div className="ud-section-header ud-appt-top-bar">
               <h2 className="ud-section-title">My Appointments</h2>
-              <button className="ud-book-appt-btn" onClick={() => setIsBookModalOpen(true)}
-                style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'linear-gradient(135deg,#0d9488,#14b8a6)', color: '#fff', border: 'none', borderRadius: '10px', padding: '10px 18px', fontWeight: 700, fontSize: '14px', cursor: 'pointer', boxShadow: '0 4px 12px rgba(13,148,136,0.3)' }}>
+              <button className="ud-book-appt-btn" onClick={() => setIsBookModalOpen(true)}>
                 <Plus size={16} /> Book New Appointment
               </button>
             </div>
 
             {/* Status Filter Tabs */}
-            <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '8px', marginBottom: '16px' }}>
+            <div className="ud-appt-filter-tabs">
               {[
                 { key: 'all', label: 'All', count: appointments.length },
                 { key: 'pending', label: 'Pending', count: appointments.filter(a => a.status === 'pending').length },
@@ -1120,31 +1122,10 @@ Verification Status: Digitally Verified Medical Record
                 <button
                   key={tab.key}
                   onClick={() => setUserApptFilter(tab.key)}
-                  style={{
-                    background: userApptFilter === tab.key ? '#0d9488' : '#fff',
-                    color: userApptFilter === tab.key ? '#fff' : '#475569',
-                    border: `1.5px solid ${userApptFilter === tab.key ? '#0d9488' : '#cbd5e1'}`,
-                    borderRadius: '20px',
-                    padding: '6px 14px',
-                    fontSize: '13px',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    whiteSpace: 'nowrap',
-                    transition: 'all 0.2s'
-                  }}
+                  className={`ud-appt-filter-btn${userApptFilter === tab.key ? ' active' : ''}`}
                 >
                   <span>{tab.label}</span>
-                  <span style={{
-                    background: userApptFilter === tab.key ? 'rgba(255,255,255,0.25)' : '#f1f5f9',
-                    color: userApptFilter === tab.key ? '#fff' : '#64748b',
-                    borderRadius: '10px',
-                    padding: '1px 7px',
-                    fontSize: '11px',
-                    fontWeight: 800
-                  }}>
+                  <span className="ud-appt-filter-count">
                     {tab.count}
                   </span>
                 </button>
@@ -1168,7 +1149,7 @@ Verification Status: Digitally Verified Medical Record
                   </button>
                 </div>
               ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <div className="ud-appt-list">
                   {appointments
                     .filter(appt => {
                       if (userApptFilter === 'follow_up') {
@@ -1187,207 +1168,214 @@ Verification Status: Digitally Verified Medical Record
                     const canCancel = (appt.status === 'pending' || appt.status === 'confirmed') && appt.payment_status !== 'paid';
                     const hasFollowUp = appt.follow_up_date || (appt.follow_up_status && appt.follow_up_status !== 'none');
 
-                    return (
-                      <div key={appt._id} style={{
-                        background: '#fff',
-                        border: '1.5px solid #e2e8f0',
-                        borderRadius: '14px',
-                        padding: '1.25rem 1.5rem',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: '1rem',
-                        transition: 'all 0.2s',
-                      }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', width: '100%' }}>
-                          {/* Status dot */}
-                          <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: cfg.dot, flexShrink: 0, boxShadow: `0 0 0 4px ${cfg.dot}22` }} />
+                    const hasNoticeBadge = appt.refund_status === 'refunded' ||
+                      (appt.payment_status === 'paid' && appt.refund_status === 'pending') ||
+                      (appt.status === 'expired' && appt.refund_status === 'not_applicable') ||
+                      (appt.payment_status === 'paid');
 
-                          {/* Info */}
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '0.4rem' }}>
-                              <span style={{ fontWeight: 700, fontSize: '15px', color: '#0f172a' }}>
+                    const hasActionButtons = (appt.status === 'confirmed' && appt.payment_status !== 'paid' && appt.consultation_fee) ||
+                      (appt.status === 'confirmed' && appt.payment_status === 'paid' && appt.consult_mode === 'online' && !appt.meet_time_end) ||
+                      ((appt.status === 'confirmed' || appt.status === 'completed') && appt.payment_status === 'paid' && (appt.consult_mode === 'offline' || appt.consult_mode !== 'online')) ||
+                      (appt.status === 'completed') ||
+                      canCancel;
+
+                    const showActionsBar = hasNoticeBadge || hasActionButtons;
+
+                    return (
+                      <div key={appt._id} className="ud-appt-card">
+                        {/* ── Top Header Row ── */}
+                        <div className="ud-appt-header">
+                          <div className="ud-appt-header-left">
+                            <div className="ud-appt-status-dot" style={{ background: cfg.dot, boxShadow: `0 0 0 4px ${cfg.dot}22` }} />
+                            <div className="ud-appt-doc-info">
+                              <h3 className="ud-appt-doc-name">
                                 Dr. {appt.doctor_id?.first_name} {appt.doctor_id?.last_name}
-                              </span>
-                              <span style={{ fontSize: '12px', color: '#64748b', background: '#f1f5f9', padding: '2px 10px', borderRadius: '12px', fontWeight: 600 }}>
+                              </h3>
+                              <span className="ud-appt-spec-badge">
                                 {appt.doctor_id?.specialization || 'General'}
                               </span>
                             </div>
-                            <div style={{ display: 'flex', gap: '1.25rem', flexWrap: 'wrap', fontSize: '13px', color: '#64748b' }}>
-                              {appt.patient_id && (
-                                <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                  <User size={12} /> {appt.patient_id?.first_name} {appt.patient_id?.last_name}
-                                </span>
-                              )}
-                              <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                <Clock size={12} /> {formatDate(appt.appointment_date)} at {appt.appointment_time}
-                              </span>
-                              {appt.disease && (
-                                <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                  <Stethoscope size={12} /> {appt.disease}
-                                </span>
-                              )}
-                              {appt.consult_mode && (
-                                <span style={{ textTransform: 'capitalize', background: '#f0fdfa', color: '#0d9488', padding: '1px 8px', borderRadius: '8px', fontWeight: 600 }}>
-                                  {appt.consult_mode}
-                                </span>
-                              )}
-                            </div>
-                            {/* Meeting Time Info — visible on completed appointments */}
-                            {appt.status === 'completed' && (appt.meet_time_start || appt.meet_time_end) && (
-                              <div style={{
-                                display: 'inline-flex', alignItems: 'center', gap: '6px', marginTop: '6px',
-                                fontSize: '12px', color: '#475569', background: '#f0fdfa',
-                                padding: '4px 12px', borderRadius: '20px', border: '1px solid #99f6e4'
-                              }}>
-                                <Clock size={12} style={{ color: '#0d9488', flexShrink: 0 }} />
-                                <span style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '4px' }}>
-                                  {appt.meet_time_start && (
-                                    <span>Started: <strong style={{ color: '#0f172a' }}>{new Date(appt.meet_time_start).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })}</strong></span>
-                                  )}
-                                  {appt.meet_time_start && appt.meet_time_end && <span style={{ color: '#cbd5e1' }}> · </span>}
-                                  {appt.meet_time_end && (
-                                    <span>Ended: <strong style={{ color: '#0f172a' }}>{new Date(appt.meet_time_end).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })}</strong></span>
-                                  )}
-                                  {appt.meet_time != null && (
-                                    <span style={{ color: '#0d9488', fontWeight: 700 }}> · {appt.meet_time} min</span>
-                                  )}
-                                </span>
-                              </div>
-                            )}
                           </div>
 
-                          {/* Fee */}
-                          {appt.consultation_fee && (
-                            <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                              <div style={{ fontWeight: 700, fontSize: '15px', color: '#0d9488' }}>₹{appt.consultation_fee}</div>
-                              <div style={{ fontSize: '11px', color: '#94a3b8' }}>fee</div>
-                            </div>
-                          )}
-
-                          {/* Status badge */}
-                          <span style={{
-                            padding: '6px 14px', borderRadius: '20px', fontSize: '12px', fontWeight: 700,
-                            background: cfg.dot + '18', color: cfg.dot, flexShrink: 0,
-                          }}>
-                            {cfg.label}
-                          </span>
-
-                          <div style={{ display: 'flex', gap: '8px', flexShrink: 0, flexWrap: 'wrap', alignItems: 'center' }}>
-                            {/* Refund & Expiry Status badges */}
-                            {appt.refund_status === 'refunded' ? (
-                              <span style={{ background: '#ccfbf1', border: '1.5px solid #99f6e4', color: '#0f766e', borderRadius: '20px', padding: '5px 13px', fontSize: '12px', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                <CheckCircle2 size={12} /> 100% Refund Received (₹{appt.refund_amount || appt.consultation_fee})
-                              </span>
-                            ) : appt.payment_status === 'paid' && appt.refund_status === 'pending' ? (
-                              <span style={{ background: '#fff7ed', border: '1.5px solid #fed7aa', color: '#c2410c', borderRadius: '20px', padding: '5px 13px', fontSize: '12px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                <Clock size={12} /> 100% Refund Pending by Doctor
-                              </span>
-                            ) : appt.status === 'expired' && appt.refund_status === 'not_applicable' ? (
-                              <span style={{ background: '#fef2f2', border: '1.5px solid #fecaca', color: '#dc2626', borderRadius: '20px', padding: '5px 13px', fontSize: '12px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                <XCircle size={12} /> Expired (No Refund - Patient No-Show)
-                              </span>
-                            ) : appt.payment_status === 'paid' ? (
-                              <span style={{ background: '#f0fdf4', border: '1.5px solid #86efac', color: '#16a34a', borderRadius: '20px', padding: '5px 13px', fontSize: '12px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                <CheckCircle2 size={12} /> Payment Done
-                              </span>
-                            ) : null}
-                            {/* Pay Now button — only for confirmed + unpaid */}
-                            {appt.status === 'confirmed' && appt.payment_status !== 'paid' && appt.consultation_fee && (
-                              <button onClick={() => openPaymentModal(appt)}
-                                style={{ background: 'linear-gradient(135deg,#0d9488,#14b8a6)', border: 'none', color: '#fff', borderRadius: '8px', padding: '6px 14px', fontWeight: 700, fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', boxShadow: '0 4px 10px rgba(13,148,136,0.35)' }}>
-                                <CreditCard size={13} /> Pay Now
-                              </button>
+                          <div className="ud-appt-header-right">
+                            {appt.consultation_fee && (
+                              <div className="ud-appt-fee-box">
+                                <span className="ud-appt-fee-val">₹{appt.consultation_fee}</span>
+                                <span className="ud-appt-fee-lbl">fee</span>
+                              </div>
                             )}
-                            {appt.status === 'confirmed' && appt.payment_status === 'paid' && appt.consult_mode === 'online' && !appt.meet_time_end && (
-                              isBeforeScheduledTime(appt) ? (
-                                <button
-                                  disabled={true}
-                                  title={`Join Video Call button will enable at scheduled time (${appt.appointment_time || ''})`}
-                                  style={{
-                                    background: '#f3f4f6',
-                                    border: '1px solid #e5e7eb',
-                                    color: '#9ca3af',
-                                    borderRadius: '8px',
-                                    padding: '6px 14px',
-                                    fontWeight: 700,
-                                    fontSize: '13px',
-                                    cursor: 'not-allowed',
-                                    opacity: 0.75,
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '5px'
-                                  }}
-                                >
-                                  <Clock size={13} /> Join Meet (Available at {appt.appointment_time || ''})
-                                </button>
-                              ) : (
-                                <button
-                                  onClick={() => handleJoinVideoCall(appt._id)}
-                                  style={{
-                                    background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
-                                    border: 'none',
-                                    color: '#ffffff',
-                                    borderRadius: '8px',
-                                    padding: '6px 14px',
-                                    fontWeight: 700,
-                                    fontSize: '13px',
-                                    cursor: 'pointer',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '5px',
-                                    boxShadow: '0 4px 10px rgba(37,99,235,0.35)'
-                                  }}
-                                >
-                                  <Video size={13} /> {appt.meet_time_start ? 'Rejoin Video Call' : 'Join Video Call'}
-                                </button>
-                              )
-                            )}
-                            {(appt.status === 'confirmed' || appt.status === 'completed') && appt.payment_status === 'paid' && (appt.consult_mode === 'offline' || appt.consult_mode !== 'online') && (
-                              <button onClick={() => openDoctorMapModal(appt)}
-                                style={{ background: '#f0fdfa', border: '1.5px solid #99f6e4', color: '#0d9488', borderRadius: '8px', padding: '6px 14px', fontWeight: 700, fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px', boxShadow: '0 2px 6px rgba(13,148,136,0.15)' }}>
-                                <MapPin size={13} /> View Clinic Map
-                              </button>
-                            )}
-                            {/* Completed Consultation Prescription Actions */}
-                            {appt.status === 'completed' && (
-                              (patientPrescriptions.some(p => (p.appointment_id?._id || p.appointment_id) === appt._id) || appt.prescription_added) ? (
-                                <button onClick={() => handleViewPrescription(appt._id)}
-                                  style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', color: '#0d9488', borderRadius: '8px', padding: '6px 14px', fontWeight: 700, fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                  <FileText size={13} /> View Prescription
-                                </button>
-                              ) : (
-                                <button disabled={true}
-                                  style={{ background: '#f1f5f9', border: '1px solid #cbd5e1', color: '#94a3b8', borderRadius: '8px', padding: '6px 14px', fontWeight: 700, fontSize: '13px', cursor: 'not-allowed', opacity: 0.7 }}
-                                  title="Doctor has not added prescription for this consultation yet">
-                                  <FileText size={13} /> Prescription Pending
-                                </button>
-                              )
-                            )}
-                            {/* Cancel button */}
-                            {canCancel && (
-                              <button onClick={() => handleCancel(appt._id)}
-                                style={{ background: '#fff5f5', border: '1px solid #fecaca', color: '#ef4444', borderRadius: '8px', padding: '6px 14px', fontWeight: 700, fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', transition: 'all 0.2s' }}>
-                                <XCircle size={13} /> Cancel
-                              </button>
-                            )}
+                            <span className="ud-appt-status-pill" style={{ background: `${cfg.dot}18`, color: cfg.dot }}>
+                              {cfg.label}
+                            </span>
                           </div>
                         </div>
 
+                        {/* ── Details / Metadata Row ── */}
+                        <div className="ud-appt-details">
+                          {appt.patient_id && (
+                            <div className="ud-appt-meta-item">
+                              <User size={14} className="ud-appt-meta-icon" />
+                              <span>{appt.patient_id?.first_name} {appt.patient_id?.last_name}</span>
+                            </div>
+                          )}
+                          <div className="ud-appt-meta-item">
+                            <Clock size={14} className="ud-appt-meta-icon" />
+                            <span>{formatDate(appt.appointment_date)} at {appt.appointment_time}</span>
+                          </div>
+                          {appt.disease && (
+                            <div className="ud-appt-meta-item">
+                              <Stethoscope size={14} className="ud-appt-meta-icon" />
+                              <span>{appt.disease}</span>
+                            </div>
+                          )}
+                          {appt.consult_mode && (
+                            <div className={`ud-appt-mode-pill ${appt.consult_mode}`}>
+                              {appt.consult_mode === 'online' ? <Video size={12} /> : <MapPin size={12} />}
+                              <span>{appt.consult_mode}</span>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Meeting Time Info — visible on completed appointments */}
+                        {appt.status === 'completed' && (appt.meet_time_start || appt.meet_time_end) && (
+                          <div className="ud-appt-meet-time-pill">
+                            <Clock size={13} style={{ color: '#0d9488', flexShrink: 0 }} />
+                            <span style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '4px' }}>
+                              {appt.meet_time_start && (
+                                <span>Started: <strong style={{ color: '#0f172a' }}>{new Date(appt.meet_time_start).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })}</strong></span>
+                              )}
+                              {appt.meet_time_start && appt.meet_time_end && <span style={{ color: '#cbd5e1' }}> · </span>}
+                              {appt.meet_time_end && (
+                                <span>Ended: <strong style={{ color: '#0f172a' }}>{new Date(appt.meet_time_end).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })}</strong></span>
+                              )}
+                              {appt.meet_time != null && (
+                                <span style={{ color: '#0d9488', fontWeight: 700 }}> · {appt.meet_time} min</span>
+                              )}
+                            </span>
+                          </div>
+                        )}
+
+                        {/* ── Actions & Status Notice Bar ── */}
+                        {showActionsBar && (
+                          <div className="ud-appt-actions-bar">
+                            <div className="ud-appt-badges-left">
+                              {appt.refund_status === 'refunded' ? (
+                                <span className="ud-appt-notice-badge" style={{ background: '#ccfbf1', border: '1.5px solid #99f6e4', color: '#0f766e' }}>
+                                  <CheckCircle2 size={13} /> 100% Refund Received (₹{appt.refund_amount || appt.consultation_fee})
+                                </span>
+                              ) : appt.payment_status === 'paid' && appt.refund_status === 'pending' ? (
+                                <span className="ud-appt-notice-badge" style={{ background: '#fff7ed', border: '1.5px solid #fed7aa', color: '#c2410c' }}>
+                                  <Clock size={13} /> 100% Refund Pending by Doctor
+                                </span>
+                              ) : appt.status === 'expired' && appt.refund_status === 'not_applicable' ? (
+                                <span className="ud-appt-notice-badge" style={{ background: '#fef2f2', border: '1.5px solid #fecaca', color: '#dc2626' }}>
+                                  <XCircle size={13} /> Expired (No Refund - Patient No-Show)
+                                </span>
+                              ) : appt.payment_status === 'paid' ? (
+                                <span className="ud-appt-notice-badge" style={{ background: '#f0fdf4', border: '1.5px solid #86efac', color: '#16a34a' }}>
+                                  <CheckCircle2 size={13} /> Payment Done
+                                </span>
+                              ) : null}
+                            </div>
+
+                            <div className="ud-appt-btns-right">
+                              {/* Pay Now button — only for confirmed + unpaid */}
+                              {appt.status === 'confirmed' && appt.payment_status !== 'paid' && appt.consultation_fee && (
+                                <button
+                                  onClick={() => openPaymentModal(appt)}
+                                  className="ud-appt-action-btn"
+                                  style={{ background: 'linear-gradient(135deg,#0d9488,#14b8a6)', color: '#fff', boxShadow: '0 4px 10px rgba(13,148,136,0.35)' }}
+                                >
+                                  <CreditCard size={14} /> Pay Now
+                                </button>
+                              )}
+
+                              {appt.status === 'confirmed' && appt.payment_status === 'paid' && appt.consult_mode === 'online' && !appt.meet_time_end && (
+                                isBeforeScheduledTime(appt) ? (
+                                  <button
+                                    disabled={true}
+                                    title={`Join Video Call button will enable at scheduled time (${appt.appointment_time || ''})`}
+                                    className="ud-appt-action-btn"
+                                    style={{
+                                      background: '#f3f4f6',
+                                      border: '1px solid #e5e7eb',
+                                      color: '#9ca3af',
+                                      cursor: 'not-allowed',
+                                      opacity: 0.75
+                                    }}
+                                  >
+                                    <Clock size={14} /> Join Meet (Available at {appt.appointment_time || ''})
+                                  </button>
+                                ) : (
+                                  <button
+                                    onClick={() => handleJoinVideoCall(appt._id)}
+                                    className="ud-appt-action-btn"
+                                    style={{
+                                      background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
+                                      color: '#ffffff',
+                                      boxShadow: '0 4px 10px rgba(37,99,235,0.35)'
+                                    }}
+                                  >
+                                    <Video size={14} /> {appt.meet_time_start ? 'Rejoin Video Call' : 'Join Video Call'}
+                                  </button>
+                                )
+                              )}
+
+                              {(appt.status === 'confirmed' || appt.status === 'completed') && appt.payment_status === 'paid' && (appt.consult_mode === 'offline' || appt.consult_mode !== 'online') && (
+                                <button
+                                  onClick={() => openDoctorMapModal(appt)}
+                                  className="ud-appt-action-btn"
+                                  style={{
+                                    background: '#f0fdfa',
+                                    border: '1.5px solid #99f6e4',
+                                    color: '#0d9488',
+                                    boxShadow: '0 2px 6px rgba(13,148,136,0.15)'
+                                  }}
+                                >
+                                  <MapPin size={14} /> View Clinic Map
+                                </button>
+                              )}
+
+                              {/* Completed Consultation Prescription Actions */}
+                              {appt.status === 'completed' && (
+                                (patientPrescriptions.some(p => (p.appointment_id?._id || p.appointment_id) === appt._id) || appt.prescription_added) ? (
+                                  <button
+                                    onClick={() => handleViewPrescription(appt._id)}
+                                    className="ud-appt-action-btn"
+                                    style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', color: '#0d9488' }}
+                                  >
+                                    <FileText size={14} /> View Prescription
+                                  </button>
+                                ) : (
+                                  <button
+                                    disabled={true}
+                                    className="ud-appt-action-btn"
+                                    style={{ background: '#f1f5f9', border: '1px solid #cbd5e1', color: '#94a3b8', cursor: 'not-allowed', opacity: 0.7 }}
+                                    title="Doctor has not added prescription for this consultation yet"
+                                  >
+                                    <FileText size={14} /> Prescription Pending
+                                  </button>
+                                )
+                              )}
+
+                              {/* Cancel button */}
+                              {canCancel && (
+                                <button
+                                  onClick={() => handleCancel(appt._id)}
+                                  className="ud-appt-action-btn"
+                                  style={{ background: '#fff5f5', border: '1px solid #fecaca', color: '#ef4444' }}
+                                >
+                                  <XCircle size={14} /> Cancel
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        )}
+
                         {/* ── Follow-up Status Box in User Panel ── */}
                         {hasFollowUp && (
-                          <div style={{
-                            width: '100%',
-                            background: 'linear-gradient(135deg, #f0fdfa 0%, #e6fffa 100%)',
-                            border: '1.5px solid #99f6e4',
-                            borderRadius: '12px',
-                            padding: '14px 18px',
-                            marginTop: '4px',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            gap: '10px',
-                            boxShadow: '0 2px 10px rgba(13,148,136,0.08)'
-                          }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+                          <div className="ud-appt-followup-box">
+                            <div className="ud-appt-followup-header">
                               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                                 <CalendarCheck size={16} style={{ color: '#0d9488' }} />
                                 <span style={{ fontWeight: 800, fontSize: '13px', color: '#0f766e', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
@@ -1424,7 +1412,7 @@ Verification Status: Digitally Verified Medical Record
                             </div>
 
                             {/* Follow-up Details Grid */}
-                            <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', fontSize: '12px', color: '#334155', background: 'rgba(255,255,255,0.7)', padding: '10px 14px', borderRadius: '8px', border: '1px solid #ccfbf1' }}>
+                            <div className="ud-appt-followup-grid">
                               <span><strong>Follow-up Date:</strong> {appt.follow_up_date ? formatDate(appt.follow_up_date) : 'Not scheduled'}</span>
                               <span><strong>Consultation Mode:</strong> <span style={{ textTransform: 'capitalize', color: '#0d9488', fontWeight: 700 }}>{appt.consult_mode}</span> (Same as initial meet)</span>
                               <span><strong>Consultation Fee:</strong> <span style={{ color: '#16a34a', fontWeight: 700 }}>Free / ₹0 (No Payment Required)</span></span>
@@ -1442,6 +1430,7 @@ Verification Status: Digitally Verified Medical Record
                               <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '4px' }}>
                                 <button
                                   onClick={() => openFollowUpModal(appt)}
+                                  className="ud-appt-followup-btn"
                                   style={{
                                     background: 'linear-gradient(135deg,#0d9488,#14b8a6)', color: '#fff',
                                     border: 'none', borderRadius: '8px', padding: '8px 18px', fontWeight: 700,

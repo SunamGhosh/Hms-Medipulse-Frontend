@@ -22,6 +22,7 @@ import PharmacistLogin from './pages/PharmacistLogin';
 import PharmacistDashboard from './pages/PharmacistDashboard';
 import VideoCall from './pages/VideoCall';
 import Cart from './pages/Cart';
+import Wishlist from './pages/Wishlist';
 import MyOrders from './pages/MyOrders';
 import MedicalRecordsList from './pages/MedicalRecordsList';
 import PatientsList from './pages/PatientsList';
@@ -40,13 +41,24 @@ function App() {
 
   return (
     <>
-      <Toaster position="top-right" />
+      <Toaster 
+        position="top-right" 
+        containerStyle={{
+          top: 92,
+        }}
+        toastOptions={{
+          style: {
+            zIndex: 999999,
+          },
+        }}
+      />
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/about" element={<About />} />
         <Route path="/doctors" element={<DoctorsPage />} />
         <Route path="/pharmacy" element={<PharmacyPage />} />
         <Route path="/cart" element={<Cart />} />
+        <Route path="/wishlist" element={<Wishlist />} />
         <Route path="/my-orders" element={<MyOrders />} />
         <Route path="/login" element={<UserLogin />} />
         <Route path="/admin/login" element={<Login />} />

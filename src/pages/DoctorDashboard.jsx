@@ -1657,8 +1657,10 @@ Verification Status: Digitally Verified Medical Record
                         {/* Left Status Accent Bar */}
                         <div className="dd-ac-status-bar" style={{ background: isPharmacistBooked ? '#0d9488' : cfg.dot }} />
 
-                        {/* Patient Avatar & Main Info */}
-                        <div className="dd-ac-patient-info">
+                        {/* Top Main Row: Patient Info + Actions */}
+                        <div className="dd-ac-main-row">
+                          {/* Patient Avatar & Main Info */}
+                          <div className="dd-ac-patient-info">
                           <div className="dd-ac-avatar" style={{
                             background: isPharmacistBooked
                               ? 'linear-gradient(135deg, #0d9488 0%, #0f766e 100%)'
@@ -1999,118 +2001,128 @@ Verification Status: Digitally Verified Medical Record
                               </span>
                             </div>
                           )}
+                        </div> {/* Closes dd-ac-actions */}
+                      </div> {/* Closes dd-ac-main-row */}
 
-                          {/* ── Follow-up Status Box in Doctor Panel ── */}
-                          {(appt.follow_up_date || (appt.follow_up_status && appt.follow_up_status !== 'none') || appt.status === 'completed') && (
-                            <div style={{
-                              width: '100%',
-                              background: 'linear-gradient(135deg, #f0fdfa 0%, #e6fffa 100%)',
-                              border: '1.5px solid #99f6e4',
-                              borderRadius: '12px',
-                              padding: '12px 16px',
-                              marginTop: '10px',
-                              display: 'flex',
-                              flexDirection: 'column',
-                              gap: '8px',
-                              boxShadow: '0 2px 8px rgba(13, 148, 136, 0.06)'
+                      {/* ── Follow-up Status Box in Doctor Panel (Full-Width Bottom Section) ── */}
+                      {(appt.follow_up_date || (appt.follow_up_status && appt.follow_up_status !== 'none') || appt.status === 'completed') && (
+                        <div className="dd-ac-followup-banner" style={{
+                          width: '100%',
+                          background: 'linear-gradient(135deg, #f0fdfa 0%, #e6fffa 100%)',
+                          border: '1.5px solid #99f6e4',
+                          borderRadius: '12px',
+                          padding: '12px 18px',
+                          marginTop: '4px',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '10px',
+                          boxShadow: '0 2px 8px rgba(13, 148, 136, 0.06)'
+                        }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <CalendarCheck size={17} style={{ color: '#0d9488' }} />
+                              <span style={{ fontWeight: 800, fontSize: '13px', color: '#0f766e', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                                Follow-up Consultation Status
+                              </span>
+                            </div>
+
+                            <span style={{
+                              padding: '4px 12px', borderRadius: '20px', fontSize: '11px', fontWeight: 800,
+                              background: appt.follow_up_status === 'accepted' ? '#dcfce7' : appt.follow_up_status === 'requested' ? '#dbeafe' : appt.follow_up_status === 'rejected' ? '#ffedd5' : appt.follow_up_status === 'cancelled' ? '#fee2e2' : '#f1f5f9',
+                              color: appt.follow_up_status === 'accepted' ? '#15803d' : appt.follow_up_status === 'requested' ? '#1d4ed8' : appt.follow_up_status === 'rejected' ? '#c2410c' : appt.follow_up_status === 'cancelled' ? '#b91c1c' : '#475569',
+                              border: `1px solid ${appt.follow_up_status === 'accepted' ? '#86efac' : appt.follow_up_status === 'requested' ? '#93c5fd' : appt.follow_up_status === 'rejected' ? '#fdba74' : appt.follow_up_status === 'cancelled' ? '#fca5a5' : '#cbd5e1'}`
                             }}>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+                              {appt.follow_up_status === 'accepted' ? 'Status: Confirmed / Accepted' :
+                               appt.follow_up_status === 'requested' ? 'Status: Requested by Patient' :
+                               appt.follow_up_status === 'rejected' ? 'Status: Rejected' :
+                               appt.follow_up_status === 'cancelled' ? 'Status: Cancelled' :
+                               appt.follow_up_date ? 'Status: Date Scheduled' : 'Status: Not Requested'}
+                            </span>
+                          </div>
+
+                          <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap', fontSize: '12.5px', color: '#334155', alignItems: 'center' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <strong style={{ color: '#0f766e' }}>Follow-up Date & Time:</strong>
+                              {editingFollowUpDateApptId === appt._id ? (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                  <input
+                                    type="date"
+                                    value={newFollowUpDateInput}
+                                    onChange={(e) => setNewFollowUpDateInput(e.target.value)}
+                                    style={{ border: '1.5px solid #0d9488', borderRadius: '6px', padding: '3px 8px', fontSize: '12px' }}
+                                  />
+                                  <button onClick={() => handleSaveFollowUpDate(appt._id, newFollowUpDateInput)} style={{ background: '#0d9488', color: '#fff', border: 'none', borderRadius: '6px', padding: '3px 10px', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}>Save</button>
+                                  <button onClick={() => setEditingFollowUpDateApptId(null)} style={{ background: '#cbd5e1', color: '#334155', border: 'none', borderRadius: '6px', padding: '3px 8px', fontSize: '11px', cursor: 'pointer' }}>Cancel</button>
+                                </div>
+                              ) : (
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                  <CalendarCheck size={16} style={{ color: '#0d9488' }} />
-                                  <span style={{ fontWeight: 800, fontSize: '13px', color: '#0f766e', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
-                                    Follow-up Consultation Status
-                                  </span>
-                                </div>
-
-                                <span style={{
-                                  padding: '3px 11px', borderRadius: '20px', fontSize: '11px', fontWeight: 800, textTransform: 'uppercase',
-                                  background: appt.follow_up_status === 'accepted' ? '#dcfce7' : appt.follow_up_status === 'requested' ? '#dbeafe' : appt.follow_up_status === 'rejected' ? '#ffedd5' : appt.follow_up_status === 'cancelled' ? '#fee2e2' : '#f1f5f9',
-                                  color: appt.follow_up_status === 'accepted' ? '#15803d' : appt.follow_up_status === 'requested' ? '#1d4ed8' : appt.follow_up_status === 'rejected' ? '#c2410c' : appt.follow_up_status === 'cancelled' ? '#b91c1c' : '#475569',
-                                  border: `1px solid ${appt.follow_up_status === 'accepted' ? '#86efac' : appt.follow_up_status === 'requested' ? '#93c5fd' : appt.follow_up_status === 'rejected' ? '#fdba74' : appt.follow_up_status === 'cancelled' ? '#fca5a5' : '#cbd5e1'}`
-                                }}>
-                                  Status: {appt.follow_up_status || 'none'}
-                                </span>
-                              </div>
-
-                              <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', fontSize: '12px', color: '#334155', alignItems: 'center' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                  <strong>Follow-up Date & Time:</strong>
-                                  {editingFollowUpDateApptId === appt._id ? (
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                      <input
-                                        type="date"
-                                        value={newFollowUpDateInput}
-                                        onChange={(e) => setNewFollowUpDateInput(e.target.value)}
-                                        style={{ border: '1px solid #0d9488', borderRadius: '6px', padding: '2px 6px', fontSize: '12px' }}
-                                      />
-                                      <button onClick={() => handleSaveFollowUpDate(appt._id, newFollowUpDateInput)} style={{ background: '#0d9488', color: '#fff', border: 'none', borderRadius: '4px', padding: '2px 8px', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}>Save</button>
-                                      <button onClick={() => setEditingFollowUpDateApptId(null)} style={{ background: '#cbd5e1', color: '#334155', border: 'none', borderRadius: '4px', padding: '2px 8px', fontSize: '11px', cursor: 'pointer' }}>Cancel</button>
-                                    </div>
-                                  ) : (
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                      <span>{appt.follow_up_date ? formatDate(appt.follow_up_date) : 'Not set'} {appt.follow_up_time ? `at ${appt.follow_up_time}` : ''}</span>
-                                      <button onClick={() => { setEditingFollowUpDateApptId(appt._id); setNewFollowUpDateInput(appt.follow_up_date ? new Date(appt.follow_up_date).toISOString().split('T')[0] : ''); }} style={{ background: 'none', border: 'none', color: '#0d9488', cursor: 'pointer', padding: '1px 4px' }} title="Set or update follow-up date">
-                                        <Edit2 size={12} />
-                                      </button>
-                                    </div>
-                                  )}
-                                </div>
-
-                                <span><strong>Consultation Mode:</strong> <span style={{ textTransform: 'capitalize', color: '#0d9488', fontWeight: 700 }}>{appt.consult_mode}</span> (Same as initial meet)</span>
-                                <span><strong>Consultation Fee:</strong> <span style={{ color: '#16a34a', fontWeight: 700 }}>Free / ₹0 (No Charges)</span></span>
-                                <span><strong>Booked By:</strong> {appt.booker_role === 'pharmacist' ? 'Pharmacist' : 'Patient'}</span>
-                              </div>
-
-                              {/* Follow-up Request Reason / Patient Note */}
-                              {appt.follow_up_reason && (
-                                <div style={{ background: '#ffffff', border: '1px solid #ccfbf1', borderRadius: '8px', padding: '6px 12px', color: '#0f766e', fontSize: '12px', fontWeight: 600 }}>
-                                  📝 Patient Request Note: {appt.follow_up_reason}
-                                </div>
-                              )}
-
-                              {/* Doctor Rejection Reason Box */}
-                              {appt.follow_up_status === 'rejected' && (appt.cancel_reason || appt.follow_up_cancel_reason) && (
-                                <div style={{ background: '#fff', border: '1px solid #fed7aa', borderRadius: '8px', padding: '8px 12px', color: '#c2410c', fontSize: '12px', fontWeight: 600 }}>
-                                  ❌ Rejection Reason: {appt.cancel_reason || appt.follow_up_cancel_reason}
-                                </div>
-                              )}
-
-                              {/* Doctor Cancellation Reason Box */}
-                              {appt.follow_up_status === 'cancelled' && appt.follow_up_cancel_reason && (
-                                <div style={{ background: '#fff', border: '1px solid #fca5a5', borderRadius: '8px', padding: '8px 12px', color: '#991b1b', fontSize: '12px', fontWeight: 600 }}>
-                                  ❌ Cancellation Reason: {appt.follow_up_cancel_reason}
-                                </div>
-                              )}
-
-                              {/* Action Buttons for Doctor */}
-                              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '4px' }}>
-                                {appt.follow_up_status === 'requested' && (
-                                  <>
-                                    <button
-                                      onClick={() => handleRespondFollowUp(appt._id, 'accept')}
-                                      style={{ background: '#10b981', color: '#fff', border: 'none', borderRadius: '6px', padding: '6px 14px', fontWeight: 700, fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                      <CheckCircle2 size={13} /> Confirm Follow-up
-                                    </button>
-                                    <button
-                                      onClick={() => handleOpenFollowUpRejectModal(appt)}
-                                      style={{ background: '#ea580c', color: '#fff', border: 'none', borderRadius: '6px', padding: '6px 14px', fontWeight: 700, fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                      <XCircle size={13} /> Reject Follow-up
-                                    </button>
-                                  </>
-                                )}
-
-                                {appt.follow_up_status === 'accepted' && (
-                                  <button
-                                    onClick={() => handleOpenFollowUpCancelModal(appt)}
-                                    style={{ background: '#fff1f2', border: '1px solid #fecaca', color: '#dc2626', borderRadius: '6px', padding: '6px 14px', fontWeight: 700, fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                    <XCircle size={13} /> Cancel Follow-up
+                                  <span style={{ fontWeight: 600 }}>{appt.follow_up_date ? formatDate(appt.follow_up_date) : 'Not set'} {appt.follow_up_time ? `at ${appt.follow_up_time}` : ''}</span>
+                                  <button 
+                                    onClick={() => { setEditingFollowUpDateApptId(appt._id); setNewFollowUpDateInput(appt.follow_up_date ? new Date(appt.follow_up_date).toISOString().split('T')[0] : ''); }} 
+                                    style={{ background: '#ffffff', border: '1px solid #99f6e4', borderRadius: '6px', color: '#0d9488', cursor: 'pointer', padding: '2px 8px', fontSize: '11px', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px' }} 
+                                    title="Set or update follow-up date"
+                                  >
+                                    <Edit2 size={11} /> {appt.follow_up_date ? 'Change' : 'Set Date'}
                                   </button>
-                                )}
-                              </div>
+                                </div>
+                              )}
+                            </div>
+
+                            <span><strong style={{ color: '#0f766e' }}>Consultation Mode:</strong> <span style={{ textTransform: 'capitalize', color: '#0d9488', fontWeight: 700 }}>{appt.consult_mode || 'offline'}</span> (Same as initial meet)</span>
+                            <span><strong style={{ color: '#0f766e' }}>Consultation Fee:</strong> <span style={{ color: '#16a34a', fontWeight: 800, background: '#dcfce7', padding: '2px 8px', borderRadius: '6px', border: '1px solid #86efac' }}>Free / ₹0 (No Charges)</span></span>
+                            <span><strong style={{ color: '#0f766e' }}>Booked By:</strong> {appt.booker_role === 'pharmacist' ? 'Pharmacist (10% Privilege)' : 'Patient User'}</span>
+                          </div>
+
+                          {/* Follow-up Request Reason / Patient Note */}
+                          {appt.follow_up_reason && (
+                            <div style={{ background: '#ffffff', border: '1px solid #ccfbf1', borderRadius: '8px', padding: '8px 14px', color: '#0f766e', fontSize: '12px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <FileText size={14} />
+                              <span><strong>Patient Request Note:</strong> {appt.follow_up_reason}</span>
                             </div>
                           )}
+
+                          {/* Doctor Rejection Reason Box */}
+                          {appt.follow_up_status === 'rejected' && (appt.cancel_reason || appt.follow_up_cancel_reason) && (
+                            <div style={{ background: '#fff', border: '1px solid #fed7aa', borderRadius: '8px', padding: '8px 12px', color: '#c2410c', fontSize: '12px', fontWeight: 600 }}>
+                              ❌ Rejection Reason: {appt.cancel_reason || appt.follow_up_cancel_reason}
+                            </div>
+                          )}
+
+                          {/* Doctor Cancellation Reason Box */}
+                          {appt.follow_up_status === 'cancelled' && appt.follow_up_cancel_reason && (
+                            <div style={{ background: '#fff', border: '1px solid #fca5a5', borderRadius: '8px', padding: '8px 12px', color: '#991b1b', fontSize: '12px', fontWeight: 600 }}>
+                              ❌ Cancellation Reason: {appt.follow_up_cancel_reason}
+                            </div>
+                          )}
+
+                          {/* Action Buttons for Doctor */}
+                          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '4px' }}>
+                            {appt.follow_up_status === 'requested' && (
+                              <>
+                                <button
+                                  onClick={() => handleRespondFollowUp(appt._id, 'accept')}
+                                  style={{ background: '#10b981', color: '#fff', border: 'none', borderRadius: '6px', padding: '6px 14px', fontWeight: 700, fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                  <CheckCircle2 size={13} /> Confirm Follow-up
+                                </button>
+                                <button
+                                  onClick={() => handleOpenFollowUpRejectModal(appt)}
+                                  style={{ background: '#ea580c', color: '#fff', border: 'none', borderRadius: '6px', padding: '6px 14px', fontWeight: 700, fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                  <XCircle size={13} /> Reject Follow-up
+                                </button>
+                              </>
+                            )}
+
+                            {appt.follow_up_status === 'accepted' && (
+                              <button
+                                onClick={() => handleOpenFollowUpCancelModal(appt)}
+                                style={{ background: '#fff1f2', border: '1px solid #fecaca', color: '#dc2626', borderRadius: '6px', padding: '6px 14px', fontWeight: 700, fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                <XCircle size={13} /> Cancel Follow-up
+                              </button>
+                            )}
+                          </div>
                         </div>
-                      </div>
+                      )}
+                    </div>
                     );
                   })}
                 </div>
