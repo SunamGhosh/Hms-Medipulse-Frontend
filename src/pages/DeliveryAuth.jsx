@@ -50,7 +50,7 @@ const DeliveryAuth = () => {
 
   return (
     <div className="delivery-auth-page">
-      <Toaster position="top-center" />
+      <Toaster position="top-center" containerStyle={{ top: 92 }} />
       <div className="auth-card">
         <div className="auth-header">
           <Truck size={40} className="auth-icon" />

@@ -1,0 +1,433 @@
+/* Wishlist.css */
+
+.wl-container {
+  min-height: 100vh;
+  background-color: var(--bg-color, #f8fafc);
+  padding-top: 80px;
+}
+
+/* Navbar */
+.wl-navbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 5%;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: var(--shadow-sm, 0 1px 3px rgba(0,0,0,0.06));
+  backdrop-filter: blur(12px);
+  z-index: 1000;
+  border-bottom: 1px solid var(--border-color, #e2e8f0);
+}
+
+.wl-content-wrapper {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 36px 5% 60px;
+}
+
+/* Header bar */
+.wl-header-bar {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 20px;
+  margin-bottom: 32px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid var(--border-color, #e2e8f0);
+}
+
+.wl-breadcrumb {
+  margin-bottom: 12px;
+}
+
+.wl-breadcrumb-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-muted, #64748b);
+  font-size: 0.9rem;
+  font-weight: 500;
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+.wl-breadcrumb-link:hover {
+  color: #e11d48;
+}
+
+.wl-title-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.wl-page-title {
+  font-size: 2.2rem;
+  font-weight: 800;
+  color: var(--text-main, #0f172a);
+  margin: 0;
+  letter-spacing: -0.02em;
+}
+
+.wl-badge-counter {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 12px;
+  background: #ffe4e6;
+  color: #be123c;
+  font-size: 0.85rem;
+  font-weight: 700;
+  border-radius: 9999px;
+}
+
+.wl-page-subtitle {
+  font-size: 1rem;
+  color: var(--text-muted, #64748b);
+  margin-top: 6px;
+  margin-bottom: 0;
+}
+
+/* Action buttons top */
+.wl-actions-top {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.wl-btn-clear {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  background: #f1f5f9;
+  color: #64748b;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.wl-btn-clear:hover {
+  background: #fee2e2;
+  color: #dc2626;
+  border-color: #fca5a5;
+}
+
+.wl-btn-move-all {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 22px;
+  background: linear-gradient(135deg, #16a34a, #15803d);
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(22, 163, 74, 0.25);
+  transition: all 0.2s ease;
+}
+
+.wl-btn-move-all:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(22, 163, 74, 0.35);
+}
+
+.wl-btn-move-all:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Grid */
+.wl-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+  gap: 24px;
+}
+
+/* Card */
+.wl-card {
+  background: #ffffff;
+  border-radius: 14px;
+  border: 1px solid var(--border-color, #e2e8f0);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.wl-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 24px -6px rgba(0, 0, 0, 0.08);
+  border-color: #cbd5e1;
+}
+
+/* Card Image Box */
+.wl-card-image-box {
+  position: relative;
+  height: 200px;
+  width: 100%;
+  background: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  border-bottom: 1px solid var(--border-color, #f1f5f9);
+}
+
+.wl-card-image {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  transition: transform 0.3s ease;
+}
+
+.wl-card:hover .wl-card-image {
+  transform: scale(1.06);
+}
+
+/* Remove button */
+.wl-remove-btn {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid #e2e8f0;
+  color: #94a3b8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  z-index: 5;
+}
+
+.wl-remove-btn:hover {
+  background: #fee2e2;
+  color: #ef4444;
+  border-color: #fca5a5;
+  transform: scale(1.1);
+}
+
+/* Card Details */
+.wl-card-details {
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+.wl-card-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.wl-card-category {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #ea580c;
+  background: #fff7ed;
+  padding: 3px 8px;
+  border-radius: 6px;
+}
+
+.wl-stock-badge {
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 6px;
+}
+
+.wl-stock-badge.in-stock {
+  color: #16a34a;
+  background: #f0fdf4;
+}
+
+.wl-stock-badge.out-stock {
+  color: #dc2626;
+  background: #fef2f2;
+}
+
+.wl-card-title {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--text-main, #0f172a);
+  margin: 0 0 4px;
+  line-height: 1.3;
+}
+
+.wl-card-generic {
+  font-size: 0.85rem;
+  color: var(--text-muted, #64748b);
+  margin: 0 0 10px;
+  font-style: italic;
+}
+
+.wl-card-specs {
+  font-size: 0.82rem;
+  color: #64748b;
+  margin-bottom: 16px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+/* Footer & Price */
+.wl-card-footer {
+  margin-top: auto;
+  padding-top: 14px;
+  border-top: 1px solid #f1f5f9;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.wl-card-price {
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: var(--text-main, #0f172a);
+}
+
+.wl-btn-add-cart {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 9px 16px;
+  background: #16a34a;
+  color: white;
+  border: 1px solid #16a34a;
+  border-radius: 8px;
+  font-size: 0.88rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.wl-btn-add-cart:hover {
+  background: #15803d;
+  border-color: #15803d;
+}
+
+.wl-btn-add-cart.disabled {
+  background: #f1f5f9;
+  color: #94a3b8;
+  border-color: #e2e8f0;
+  cursor: not-allowed;
+}
+
+.wl-btn-add-cart.in-cart {
+  background: #f0fdf4;
+  color: #16a34a;
+  border-color: #bbf7d0;
+}
+
+.wl-btn-add-cart.in-cart:hover {
+  background: #dcfce7;
+}
+
+/* Empty State */
+.wl-empty-box {
+  background: #ffffff;
+  border: 2px dashed #cbd5e1;
+  border-radius: 20px;
+  padding: 64px 24px;
+  text-align: center;
+  max-width: 580px;
+  margin: 40px auto;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.02);
+}
+
+.wl-empty-icon-wrap {
+  width: 88px;
+  height: 88px;
+  border-radius: 50%;
+  background: #fff1f2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 20px;
+  box-shadow: 0 8px 24px rgba(225, 29, 72, 0.15);
+}
+
+.wl-empty-heart {
+  color: #e11d48;
+}
+
+.wl-empty-title {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: var(--text-main, #0f172a);
+  margin-bottom: 10px;
+}
+
+.wl-empty-desc {
+  font-size: 0.95rem;
+  color: var(--text-muted, #64748b);
+  line-height: 1.6;
+  margin-bottom: 28px;
+}
+
+.wl-btn-explore {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 28px;
+  background: linear-gradient(135deg, #e11d48, #be123c);
+  color: #ffffff;
+  border-radius: 10px;
+  font-size: 1rem;
+  font-weight: 700;
+  text-decoration: none;
+  box-shadow: 0 4px 14px rgba(225, 29, 72, 0.3);
+  transition: all 0.25s ease;
+}
+
+.wl-btn-explore:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(225, 29, 72, 0.4);
+}
+
+/* Loading Box */
+.wl-loading-box {
+  text-align: center;
+  padding: 80px 20px;
+  color: #64748b;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .wl-header-bar {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  .wl-actions-top {
+    width: 100%;
+    justify-content: space-between;
+  }
+}

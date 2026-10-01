@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ShoppingCart, Search, X } from 'lucide-react';
+import { ShoppingCart, Heart, Search, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import RoleSelectionModal from '../components/RoleSelectionModal';
 import SignupModal from '../components/SignupModal';
@@ -23,6 +23,7 @@ const API = API_BASE_URL;
 
 const PharmacyPage = () => {
   const [selectedCategory, setSelectedCategory] = useState('');
+  const [showWishlistOnly, setShowWishlistOnly] = useState(false);
   const [isRoleModalOpen, setIsRoleModalOpen] = useState(false);
   const [isSignupModalOpen, setIsSignupModalOpen] = useState(false);
   const [medicines, setMedicines] = useState([]);
@@ -36,11 +37,14 @@ const PharmacyPage = () => {
   const [cartItems, setCartItems] = useState({});
   const [cartTotalItems, setCartTotalItems] = useState(0);
 
+  // Wishlist state
+  const [wishlistIds, setWishlistIds] = useState(new Set());
+  const [wishlistTotalItems, setWishlistTotalItems] = useState(0);
+
   const token = localStorage.getItem('userToken');
   const navigate = useNavigate();
 
   const dashboardPath = token ? '/user/dashboard' : null;
-
 
   useEffect(() => {
     const fetchMedicines = async () => {
@@ -58,7 +62,10 @@ const PharmacyPage = () => {
     };
     
     fetchMedicines();
-    if (token) fetchCart();
+    if (token) {
+      fetchCart();
+      fetchWishlist();
+    }
   }, [token]);
 
   const fetchCart = async () => {
@@ -80,6 +87,69 @@ const PharmacyPage = () => {
       }
     } catch (err) {
       console.error('Error fetching cart:', err);
+    }
+  };
+
+  const fetchWishlist = async () => {
+    try {
+      const response = await fetch(`${API}/wishlist`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await response.json();
+      if (data.success) {
+        setWishlistIds(new Set(data.medicine_ids || []));
+        setWishlistTotalItems(data.total_items || 0);
+      }
+    } catch (err) {
+      console.error('Error fetching wishlist:', err);
+    }
+  };
+
+  const handleToggleWishlist = async (medicineId, e) => {
+    if (e) e.stopPropagation();
+    if (!token) {
+      toast.error('Please login to save medicines to your wishlist.');
+      setIsRoleModalOpen(true);
+      return;
+    }
+
+    const wasWishlisted = wishlistIds.has(medicineId);
+    const updatedSet = new Set(wishlistIds);
+    if (wasWishlisted) {
+      updatedSet.delete(medicineId);
+    } else {
+      updatedSet.add(medicineId);
+    }
+    setWishlistIds(updatedSet);
+    setWishlistTotalItems(updatedSet.size);
+
+    try {
+      const res = await fetch(`${API}/wishlist/toggle`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ medicine_id: medicineId })
+      });
+      const data = await res.json();
+      if (data.success) {
+        if (data.in_wishlist) {
+          toast.success('Added to wishlist ❤️');
+        } else {
+          toast('Removed from wishlist', { icon: '🤍' });
+        }
+        if (typeof data.total_items === 'number') {
+          setWishlistTotalItems(data.total_items);
+        }
+      } else {
+        fetchWishlist();
+        toast.error(data.message || 'Failed to update wishlist');
+      }
+    } catch (error) {
+      console.error('Error updating wishlist:', error);
+      fetchWishlist();
+      toast.error('Failed to update wishlist');
     }
   };
 
@@ -155,6 +225,9 @@ const PharmacyPage = () => {
   };
 
   const filteredMedicines = medicines.filter(med => {
+    if (showWishlistOnly && !wishlistIds.has(med._id)) {
+      return false;
+    }
     const matchesCategory = !selectedCategory || med.category === selectedCategory;
     const q = activeSearchQuery.trim().toLowerCase();
     const name = (med.medicine_name || '').toLowerCase();
@@ -186,7 +259,11 @@ const PharmacyPage = () => {
               {dashboardPath && (
                 <Link to={dashboardPath} className="btn-dashboard">Dashboard</Link>
               )}
-              <Link to="/cart" className="nav-cart-icon">
+              <Link to="/wishlist" className="nav-wishlist-icon" title="My Wishlist">
+                <Heart size={20} className={wishlistTotalItems > 0 ? "wishlist-icon-filled" : ""} />
+                {wishlistTotalItems > 0 && <span className="wishlist-badge">{wishlistTotalItems}</span>}
+              </Link>
+              <Link to="/cart" className="nav-cart-icon" title="My Cart">
                 <ShoppingCart size={22} />
                 {cartTotalItems > 0 && <span className="cart-badge">{cartTotalItems}</span>}
               </Link>
@@ -247,20 +324,42 @@ const PharmacyPage = () => {
           <aside className="pp-sidebar">
             <ul className="pp-category-list">
               <li 
-                className={`pp-category-item ${selectedCategory === '' ? 'active' : ''}`}
-                onClick={() => setSelectedCategory('')}
+                className={`pp-category-item ${selectedCategory === '' && !showWishlistOnly ? 'active' : ''}`}
+                onClick={() => {
+                  setSelectedCategory('');
+                  setShowWishlistOnly(false);
+                }}
               >
                 All Categories
               </li>
               {categories.map((cat, idx) => (
                 <li 
                   key={idx} 
-                  className={`pp-category-item ${selectedCategory === cat ? 'active' : ''}`}
-                  onClick={() => setSelectedCategory(cat)}
+                  className={`pp-category-item ${selectedCategory === cat && !showWishlistOnly ? 'active' : ''}`}
+                  onClick={() => {
+                    setSelectedCategory(cat);
+                    setShowWishlistOnly(false);
+                  }}
                 >
                   {cat}
                 </li>
               ))}
+
+              {token && (
+                <li 
+                  className={`pp-category-item pp-category-item-wishlist ${showWishlistOnly ? 'active' : ''}`}
+                  onClick={() => {
+                    setShowWishlistOnly(!showWishlistOnly);
+                    setSelectedCategory('');
+                  }}
+                  title="Filter to only wishlisted items"
+                >
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Heart size={16} fill="#e11d48" color="#e11d48" /> My Wishlist
+                  </span>
+                  <span className="pp-wishlist-count-pill">{wishlistTotalItems}</span>
+                </li>
+              )}
             </ul>
           </aside>
 
@@ -271,10 +370,24 @@ const PharmacyPage = () => {
             ) : filteredMedicines.length > 0 ? (
               filteredMedicines.map(med => {
                 const qtyInCart = cartItems[med._id] || 0;
+                const isWishlisted = wishlistIds.has(med._id);
                 
                 return (
                   <div key={med._id} className="pp-medicine-card">
                     <div className="pp-medicine-image-wrapper">
+                      <button 
+                        type="button" 
+                        className={`pp-wishlist-btn ${isWishlisted ? 'active' : ''}`}
+                        onClick={(e) => handleToggleWishlist(med._id, e)}
+                        title={isWishlisted ? "Remove from Wishlist" : "Add to Wishlist"}
+                        aria-label={isWishlisted ? "Remove from Wishlist" : "Add to Wishlist"}
+                      >
+                        <Heart 
+                          size={18} 
+                          fill={isWishlisted ? "#e11d48" : "none"} 
+                          color={isWishlisted ? "#e11d48" : "#64748b"} 
+                        />
+                      </button>
                       <img 
                         src={med.medicine_image || '/img/medicine_bottle.png'} 
                         alt={med.medicine_name} 
@@ -306,8 +419,18 @@ const PharmacyPage = () => {
               })
             ) : (
               <div className="pp-no-medicines">
-                <p>No medicines found for this category.</p>
-                <button className="pp-reset-btn" onClick={() => setSelectedCategory('')}>View All Medicines</button>
+                {showWishlistOnly ? (
+                  <>
+                    <Heart size={44} color="#e11d48" style={{ marginBottom: '12px' }} />
+                    <p>Your wishlist is currently empty.</p>
+                    <button className="pp-reset-btn" onClick={() => setShowWishlistOnly(false)}>Browse All Medicines</button>
+                  </>
+                ) : (
+                  <>
+                    <p>No medicines found for this category.</p>
+                    <button className="pp-reset-btn" onClick={() => { setSelectedCategory(''); setShowWishlistOnly(false); }}>View All Medicines</button>
+                  </>
+                )}
               </div>
             )}
           </main>

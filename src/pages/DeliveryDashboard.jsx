@@ -112,7 +112,7 @@ const DeliveryDashboard = () => {
 
   return (
     <div className="delivery-dashboard">
-      <Toaster position="top-center" />
+      <Toaster position="top-center" containerStyle={{ top: 92 }} />
       <header className="dvd-header">
         <div className="dvd-header-left">
           <Truck size={24} color="#fff" />

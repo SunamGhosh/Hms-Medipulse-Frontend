@@ -114,6 +114,7 @@
 }
 
 .pp-medicine-image-wrapper {
+  position: relative;
   height: 220px;
   width: 100%;
   background-color: #ffffff;
@@ -273,6 +274,115 @@
   align-items: center;
   justify-content: center;
   padding: 0 4px;
+}
+
+/* Nav Wishlist Icon */
+.nav-wishlist-icon {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: #f1f5f9;
+  color: #1e293b;
+  text-decoration: none;
+  transition: all 0.2s ease;
+  margin-right: 6px;
+}
+
+.nav-wishlist-icon:hover {
+  background: #ffe4e6;
+  color: #e11d48;
+}
+
+.wishlist-icon-filled {
+  color: #e11d48;
+  fill: #e11d48;
+}
+
+.wishlist-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  background-color: #e11d48;
+  color: white;
+  font-size: 0.7rem;
+  font-weight: bold;
+  height: 18px;
+  min-width: 18px;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+  box-shadow: 0 2px 5px rgba(225, 29, 72, 0.4);
+}
+
+/* Medicine Card Wishlist Button */
+.pp-wishlist-btn {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid rgba(226, 232, 240, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+  transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 5;
+}
+
+.pp-wishlist-btn:hover {
+  transform: scale(1.14);
+  background: #ffffff;
+  box-shadow: 0 4px 12px rgba(225, 29, 72, 0.22);
+}
+
+.pp-wishlist-btn.active {
+  background: #fff1f2;
+  border-color: #fecdd3;
+  animation: heartPulse 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+@keyframes heartPulse {
+  0% { transform: scale(0.9); }
+  50% { transform: scale(1.22); }
+  100% { transform: scale(1); }
+}
+
+/* Category Sidebar Wishlist Item */
+.pp-category-item-wishlist {
+  display: flex !important;
+  align-items: center;
+  justify-content: space-between;
+  border-top: 1px dashed var(--border-color);
+  margin-top: 8px;
+  padding-top: 14px;
+  color: #e11d48 !important;
+  font-weight: 600;
+}
+
+.pp-category-item-wishlist:hover,
+.pp-category-item-wishlist.active {
+  background-color: #fff1f2 !important;
+  color: #be123c !important;
+  border-left: 4px solid #e11d48 !important;
+}
+
+.pp-wishlist-count-pill {
+  background: #e11d48;
+  color: white;
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 12px;
 }
 
 /* ADD button - added state */
