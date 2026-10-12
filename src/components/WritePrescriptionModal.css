@@ -126,7 +126,7 @@
   margin-top: 2rem;
   border: 1px solid #e2e8f0;
   border-radius: 12px;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .wpm-medicines-header {
@@ -136,6 +136,7 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
+  border-radius: 11px 11px 0 0;
 }
 
 .wpm-medicines-header h3 {
@@ -174,10 +175,13 @@
   color: #64748b;
   font-size: 14px;
   background: #fff;
+  border-radius: 0 0 11px 11px;
 }
 
 .wpm-meds-list {
   background: #fff;
+  overflow: visible;
+  border-radius: 0 0 11px 11px;
 }
 
 .wpm-med-row {
@@ -186,6 +190,7 @@
   gap: 10px;
   padding: 12px 16px;
   border-bottom: 1px solid #f1f5f9;
+  position: relative;
 }
 .wpm-med-row:last-child {
   border-bottom: none;
@@ -205,12 +210,311 @@
   border-color: #0d9488;
 }
 
-.wpm-med-select { flex: 2; }
-.wpm-med-dosage { flex: 1; }
-.wpm-med-freq { flex: 1; }
-.wpm-med-dur { flex: 1; }
+.wpm-med-select {
+  flex: 2;
+  min-width: 200px;
+  position: relative;
+}
+.wpm-med-dosage { flex: 1; min-width: 110px; }
+.wpm-med-freq { flex: 1; min-width: 120px; }
+.wpm-med-dur { flex: 1; min-width: 110px; }
 .wpm-med-qty { width: 70px; flex-shrink: 0; }
-.wpm-med-inst { flex: 2; }
+.wpm-med-inst { flex: 2; min-width: 160px; }
+
+/* ── Searchable Medicine Select ── */
+.wpm-searchable-select {
+  position: relative;
+  width: 100%;
+}
+
+.wpm-select-trigger {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7px 10px;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.2s ease;
+  min-height: 38px;
+  box-sizing: border-box;
+}
+
+.wpm-select-trigger:hover {
+  border-color: #0d9488;
+}
+
+.wpm-select-trigger:focus,
+.wpm-searchable-select.is-open .wpm-select-trigger {
+  border-color: #0d9488;
+  box-shadow: 0 0 0 2px rgba(13, 148, 136, 0.15);
+}
+
+.wpm-trigger-content {
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  margin-right: 6px;
+}
+
+.wpm-placeholder {
+  color: #94a3b8;
+  font-size: 13px;
+}
+
+.wpm-selected-med-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #0f172a;
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wpm-med-title {
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.wpm-med-strength-tag {
+  background: #f0fdfa;
+  color: #0d9488;
+  border: 1px solid #99f6e4;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+.wpm-med-cat-tag {
+  background: #f1f5f9;
+  color: #475569;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 5px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+.wpm-trigger-icons {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #64748b;
+  flex-shrink: 0;
+}
+
+.wpm-clear-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  color: #94a3b8;
+  transition: all 0.15s;
+}
+
+.wpm-clear-btn:hover {
+  background: #fee2e2;
+  color: #ef4444;
+}
+
+.wpm-chevron {
+  transition: transform 0.2s ease;
+  color: #64748b;
+}
+
+.wpm-chevron.open {
+  transform: rotate(180deg);
+  color: #0d9488;
+}
+
+.wpm-dropdown-popover {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  width: 100%;
+  min-width: 280px;
+  max-width: 380px;
+  z-index: 1050;
+  background: #ffffff;
+  border: 1.5px solid #0d9488;
+  border-radius: 10px;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.18), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  animation: popoverFadeIn 0.15s ease-out;
+}
+
+@keyframes popoverFadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.wpm-search-bar-wrap {
+  display: flex;
+  align-items: center;
+  padding: 8px 10px;
+  background: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+  gap: 8px;
+  position: relative;
+}
+
+.wpm-search-icon {
+  color: #0d9488;
+  flex-shrink: 0;
+}
+
+.wpm-search-input {
+  width: 100%;
+  border: 1px solid #cbd5e1 !important;
+  border-radius: 6px !important;
+  padding: 6px 26px 6px 10px !important;
+  font-size: 12.5px !important;
+  background: #ffffff !important;
+  color: #0f172a !important;
+  outline: none !important;
+  box-sizing: border-box;
+}
+
+.wpm-search-input:focus {
+  border-color: #0d9488 !important;
+  box-shadow: 0 0 0 2px rgba(13, 148, 136, 0.15) !important;
+}
+
+.wpm-search-clear {
+  position: absolute;
+  right: 18px;
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.wpm-search-clear:hover {
+  color: #ef4444;
+}
+
+.wpm-search-results-count {
+  padding: 4px 10px;
+  background: #f0fdfa;
+  border-bottom: 1px solid #ccfbf1;
+  font-size: 11px;
+  font-weight: 700;
+  color: #0f766e;
+}
+
+.wpm-med-dropdown-list {
+  max-height: 200px;
+  overflow-y: auto;
+  padding: 4px;
+}
+
+.wpm-med-dropdown-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s;
+  gap: 8px;
+}
+
+.wpm-med-dropdown-item:hover {
+  background: #f0fdfa;
+}
+
+.wpm-med-dropdown-item.selected {
+  background: #ccfbf1;
+}
+
+.wpm-med-item-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow: hidden;
+  flex: 1;
+}
+
+.wpm-med-item-main {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.wpm-med-item-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.wpm-med-item-strength {
+  font-size: 11px;
+  font-weight: 700;
+  color: #0d9488;
+  background: #e6fffa;
+  padding: 1px 5px;
+  border-radius: 3px;
+  border: 1px solid #99f6e4;
+}
+
+.wpm-med-item-cat {
+  background: #f1f5f9;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 10px;
+  color: #475569;
+  font-weight: 600;
+}
+
+.wpm-med-item-sub {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: #64748b;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wpm-med-item-generic {
+  font-style: italic;
+}
+
+.wpm-med-item-mfg {
+  color: #94a3b8;
+}
+
+.wpm-check-icon {
+  color: #0d9488;
+  flex-shrink: 0;
+}
+
+.wpm-med-empty {
+  padding: 16px;
+  text-align: center;
+  font-size: 12.5px;
+  color: #94a3b8;
+  font-style: italic;
+}
 
 .wpm-remove-med-btn {
   background: #fef2f2;
@@ -276,3 +580,82 @@
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
+
+/* ── Top Clinic & Doctor Official Banner ── */
+.wpm-clinic-banner {
+  background: linear-gradient(135deg, #0d9488 0%, #0f766e 100%);
+  color: #ffffff;
+  padding: 16px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  border-bottom: 1.5px solid #0f766e;
+}
+
+.wpm-cb-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.wpm-cb-clinic-name {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 900;
+  color: #ffffff;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.wpm-cb-doctor-name {
+  margin: 0;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #ccfbf1;
+}
+
+.wpm-cb-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 14px;
+  font-size: 11.5px;
+  color: #e6fffa;
+  margin-top: 2px;
+}
+
+.wpm-cb-type-badge {
+  background: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  color: #ffffff;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-weight: 700;
+  font-size: 11px;
+}
+
+.wpm-download-record-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #ffffff;
+  color: #0f766e;
+  border: none;
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-weight: 800;
+  font-size: 13px;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.wpm-download-record-btn:hover {
+  background: #f0fdfa;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+}
+

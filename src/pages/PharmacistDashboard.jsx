@@ -177,6 +177,154 @@ const PharmacistDashboard = () => {
     return nowTime < scheduled;
   }, [getScheduledDateTime, nowTime]);
 
+  const getFollowUpScheduledDateTime = useCallback((appt) => {
+    if (!appt?.follow_up_date) return null;
+    const d = new Date(appt.follow_up_date);
+    const timeStr = String(appt.follow_up_time || appt.appointment_time || '10:00').trim();
+    let hours = 0;
+    let minutes = 0;
+    if (timeStr.toLowerCase().includes('am') || timeStr.toLowerCase().includes('pm')) {
+      const isPm = timeStr.toLowerCase().includes('pm');
+      const cleanTime = timeStr.replace(/(am|pm)/gi, '').trim();
+      const parts = cleanTime.split(':').map(Number);
+      hours = parts[0] || 0;
+      minutes = parts[1] || 0;
+      if (isPm && hours < 12) hours += 12;
+      if (!isPm && hours === 12) hours = 0;
+    } else {
+      const parts = timeStr.split(':').map(Number);
+      hours = parts[0] || 0;
+      minutes = parts[1] || 0;
+    }
+    let year, month, date;
+    if (typeof appt.follow_up_date === 'string' && appt.follow_up_date.includes('-')) {
+      const dateParts = appt.follow_up_date.split('T')[0].split('-').map(Number);
+      year = dateParts[0];
+      month = dateParts[1] - 1;
+      date = dateParts[2];
+    } else {
+      year = d.getFullYear();
+      month = d.getMonth();
+      date = d.getDate();
+    }
+    return new Date(year, month, date, hours, minutes, 0, 0);
+  }, []);
+
+  const isFollowUpMeetTimeReached = useCallback((appt) => {
+    const scheduled = getFollowUpScheduledDateTime(appt);
+    if (!scheduled) return true;
+    return nowTime >= scheduled;
+  }, [getFollowUpScheduledDateTime, nowTime]);
+
+  const getEffectiveFollowUpStatus = useCallback((appt) => {
+    const st = (appt?.follow_up_status || 'none').toLowerCase().trim();
+    if (['completed', 'cancelled', 'rejected', 'expired'].includes(st)) return st;
+
+    const scheduled = getFollowUpScheduledDateTime(appt);
+    if (scheduled) {
+      if (st === 'requested' && nowTime > scheduled) {
+        return 'expired';
+      }
+      if (st === 'accepted') {
+        const windowEnd = new Date(scheduled.getTime() + 30 * 60 * 1000);
+        if (nowTime > windowEnd) return 'expired';
+      }
+    }
+    return st;
+  }, [getFollowUpScheduledDateTime, nowTime]);
+
+  const getEffectiveFollowUpExpireReason = useCallback((appt) => {
+    if (appt?.follow_up_expire_reason) return appt.follow_up_expire_reason;
+    const st = (appt?.follow_up_status || 'none').toLowerCase().trim();
+    const scheduled = getFollowUpScheduledDateTime(appt);
+
+    if (scheduled) {
+      if (st === 'requested' && nowTime > scheduled) {
+        return "Follow-up meet expired without doctor confirmation";
+      }
+      if (st === 'accepted') {
+        const windowEnd = new Date(scheduled.getTime() + 30 * 60 * 1000);
+        if (nowTime > windowEnd) {
+          if (appt?.consult_mode === 'online') {
+            const docJoined = Boolean(appt.follow_up_doctor_joined || appt.follow_up_meet_time_start);
+            const patJoined = Boolean(appt.follow_up_patient_joined);
+            if (docJoined && !patJoined) {
+              return "Follow-up meet expired because of pharmacist unavailability";
+            }
+            return "Follow-up meet expired because of doctor unavailability";
+          } else {
+            if (appt?.follow_up_patient_arrived) {
+              return "Follow-up meet expired because of doctor unavailability";
+            }
+            return "Follow-up meet expired because of pharmacist unavailability";
+          }
+        }
+      }
+    }
+    return "";
+  }, [getFollowUpScheduledDateTime, nowTime]);
+
+  const getDoctorAssignedFollowUpDateTime = useCallback((appt) => {
+    if (!appt) return null;
+    const rawDate = appt.assigned_follow_up_date || appt.follow_up_date;
+    if (!rawDate) return null;
+
+    const d = new Date(rawDate);
+    if (isNaN(d.getTime())) return null;
+
+    // Follow-up meet scheduling option lasts till the last meet time of the assigned date
+    let hours = 17;
+    let minutes = 0;
+
+    const docEnd = appt.doctor_id && typeof appt.doctor_id === 'object' ? appt.doctor_id.work_time_end : null;
+    const timeSource = docEnd || (appt.assigned_follow_up_time !== appt.appointment_time ? appt.assigned_follow_up_time : null);
+
+    if (timeSource) {
+      const clean = String(timeSource).trim();
+      if (clean.toLowerCase().includes('am') || clean.toLowerCase().includes('pm')) {
+        const isPm = clean.toLowerCase().includes('pm');
+        const numPart = clean.replace(/(am|pm)/gi, '').trim();
+        const parts = numPart.split(':').map(Number);
+        let h = parts[0] || 0;
+        const m = parts[1] || 0;
+        if (isPm && h < 12) h += 12;
+        if (!isPm && h === 12) h = 0;
+        if (h > 17 || (h === 17 && m > 0)) {
+          hours = h;
+          minutes = m;
+        }
+      } else if (clean.includes(':')) {
+        const parts = clean.split(':').map(Number);
+        const h = parts[0] || 0;
+        const m = parts[1] || 0;
+        if (h > 17 || (h === 17 && m > 0)) {
+          hours = h;
+          minutes = m;
+        }
+      }
+    }
+
+    let year, month, date;
+    if (typeof rawDate === 'string' && rawDate.includes('-')) {
+      const dateParts = rawDate.split('T')[0].split('-').map(Number);
+      year = dateParts[0];
+      month = dateParts[1] - 1;
+      date = dateParts[2];
+    } else {
+      year = d.getFullYear();
+      month = d.getMonth();
+      date = d.getDate();
+    }
+
+    return new Date(year, month, date, hours, minutes, 0, 0);
+  }, []);
+
+  const isDoctorAssignedFollowUpPassed = useCallback((appt) => {
+    const deadline = getDoctorAssignedFollowUpDateTime(appt);
+    if (!deadline) return false;
+    return nowTime > deadline;
+  }, [getDoctorAssignedFollowUpDateTime, nowTime]);
+
   // Standard 30-min appointment slots (24h format stored, 12h displayed)
   const SLOT_TIMES = [
     '09:00', '09:30', '10:00', '10:30', '11:00', '11:30',
@@ -299,6 +447,74 @@ const PharmacistDashboard = () => {
 
     toast.success("Meeting is live! Rejoining video call room...");
     navigate(`/video-call/MediPulse_${apptId}?role=pharmacist`, { state: { role: 'pharmacist' } });
+  };
+
+  /* ── join follow-up video call for pharmacist ── */
+  const handleJoinFollowUpVideoCall = async (apptOrId) => {
+    const apptId = typeof apptOrId === 'object' ? apptOrId._id : apptOrId;
+    const token = getToken();
+
+    try {
+      const res = await fetch(`${API}/appointment/${apptId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      const currentAppt = data?.appointment || data;
+
+      const effStatus = getEffectiveFollowUpStatus(currentAppt);
+      if (effStatus === 'completed') {
+        toast.error("Follow-up consultation has ended and is marked as Completed.");
+        fetchAppointments();
+        return;
+      }
+      if (effStatus === 'expired') {
+        const reason = getEffectiveFollowUpExpireReason(currentAppt);
+        toast.error(reason || "Follow-up meet has expired.");
+        fetchAppointments();
+        return;
+      }
+    } catch (e) {
+      console.warn('Error checking follow-up status before join:', e);
+    }
+
+    try {
+      await fetch(`${API}/appointment/${apptId}/followup-join`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        }
+      });
+    } catch (err) {
+      console.warn('Failed to record follow-up pharmacist join:', err);
+    }
+
+    toast.success("Joining follow-up video consultation room...");
+    navigate(`/video-call/MediPulse_${apptId}_followup?role=pharmacist`, { state: { role: 'pharmacist' } });
+  };
+
+  /* ── mark arrived at clinic for offline follow-up ── */
+  const handleMarkFollowUpArrived = async (apptOrId) => {
+    const apptId = typeof apptOrId === 'object' ? apptOrId._id : apptOrId;
+    const token = getToken();
+    try {
+      const res = await fetch(`${API}/appointment/${apptId}/followup-arrive`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        }
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        toast.success(data.message || 'Marked as arrived at doctor\'s clinic for follow-up!');
+        fetchAppointments();
+      } else {
+        toast.error(data.message || 'Failed to record arrival status');
+      }
+    } catch (err) {
+      toast.error('Network error updating arrival status');
+    }
   };
 
   // Fetch Profile
@@ -800,41 +1016,58 @@ const PharmacistDashboard = () => {
   // View Doctor Prescription for Completed Consultations
   const handleViewPrescription = async (target) => {
     if (!target) return;
-    const apptId = typeof target === 'object' ? (target?.appointment_id?._id || target?.appointment_id || target?._id) : target;
+    const isFollowUp = target?.prescription_type === 'follow_up' || target?.type === 'follow_up';
+    const apptId = typeof target === 'object' ? (target?.appointment_id?._id || target?.appointment_id || (String(target?._id || '').startsWith('APPOINTMENT') ? target?._id : null)) : (String(target || '').startsWith('APPOINTMENT') ? target : null);
+    const directPrescId = typeof target === 'object' ? (!String(target?._id || '').startsWith('APPOINTMENT') ? target?._id : null) : (!String(target || '').startsWith('APPOINTMENT') ? target : null);
 
     setShowPrescriptionModal(true);
     setPrescriptionLoading(true);
     setSelectedPrescription(null);
 
     try {
-      // 1. Check local allPrescriptions cache
-      const localMatch = allPrescriptions.find(p => (p.appointment_id?._id || p.appointment_id) === apptId || p._id === apptId);
-
-      // 2. Fetch from backend endpoint
-      const res = await fetch(`${API}/prescription/appointment/${apptId}`, {
-        headers: { Authorization: `Bearer ${getToken()}` }
-      });
-      const data = await res.json();
       let pObj = null;
-      if (res.ok && data.prescription) {
-        pObj = data.prescription;
-      } else if (localMatch) {
-        pObj = localMatch;
-      } else if (typeof target === 'object') {
-        pObj = target;
+
+      // 1. If direct prescription ID is present, fetch it directly
+      if (directPrescId) {
+        const resDirect = await fetch(`${API}/prescription/${directPrescId}`, {
+          headers: { Authorization: `Bearer ${getToken()}` }
+        });
+        if (resDirect.ok) {
+          const dDirect = await resDirect.json();
+          if (dDirect.prescription) pObj = dDirect.prescription;
+        }
+      }
+
+      // 2. Fetch by appointment ID (with ?type=follow_up if follow-up)
+      if (!pObj && apptId) {
+        const url = isFollowUp
+          ? `${API}/prescription/appointment/${apptId}?type=follow_up`
+          : `${API}/prescription/appointment/${apptId}`;
+        const res = await fetch(url, {
+          headers: { Authorization: `Bearer ${getToken()}` }
+        });
+        const data = await res.json();
+        if (res.ok && data.prescription) {
+          pObj = data.prescription;
+        }
+      }
+
+      // 3. Check local allPrescriptions cache
+      if (!pObj && apptId) {
+        const localMatch = allPrescriptions.find(p => 
+          ((p.appointment_id?._id || p.appointment_id) === apptId || p._id === apptId) &&
+          (isFollowUp ? p.prescription_type === 'follow_up' : p.prescription_type !== 'follow_up')
+        );
+        if (localMatch) pObj = localMatch;
       }
 
       if (pObj) {
-        const fUp = pObj.follow_up_date 
-          || (typeof target === 'object' && target?.follow_up_date)
-          || pObj.medical_record_id?.follow_up_date
-          || pObj.appointment_id?.follow_up_date;
-        if (fUp) {
-          pObj.follow_up_date = fUp;
+        if (pObj.follow_up_date === undefined && pObj.medical_record_id?.follow_up_date) {
+          pObj.follow_up_date = pObj.medical_record_id.follow_up_date;
         }
         setSelectedPrescription(pObj);
       } else {
-        toast.info(data.message || 'Prescription record has not been created for this consultation yet.');
+        toast.info('Prescription record has not been created for this consultation yet.');
         setShowPrescriptionModal(false);
       }
     } catch {
@@ -1199,12 +1432,23 @@ Verification Status: Digitally Verified Medical Record
     const todayStr = new Date().toISOString().split('T')[0];
     const presDateStr = appt.appointment_date ? new Date(appt.appointment_date).toISOString().split('T')[0] : '';
     const minDateStr = (presDateStr && presDateStr > todayStr) ? presDateStr : todayStr;
-    const docFollowUpDateStr = appt.follow_up_date ? new Date(appt.follow_up_date).toISOString().split('T')[0] : '';
+    const assignedRawDate = appt.assigned_follow_up_date || appt.follow_up_date;
+    const docFollowUpDateStr = assignedRawDate ? new Date(assignedRawDate).toISOString().split('T')[0] : '';
     const defaultDate = (docFollowUpDateStr && docFollowUpDateStr >= minDateStr) ? docFollowUpDateStr : minDateStr;
+
+    let defaultTime = '10:00';
+    if (defaultDate === todayStr) {
+      const upcoming = SLOT_TIMES.find(t => !isSlotPassed(defaultDate, t));
+      defaultTime = upcoming || (SLOT_TIMES[SLOT_TIMES.length - 1] || '17:00');
+    } else {
+      defaultTime = (appt.assigned_follow_up_time && !isSlotPassed(defaultDate, appt.assigned_follow_up_time))
+        ? appt.assigned_follow_up_time
+        : '10:00';
+    }
 
     setFollowUpForm({
       follow_up_date: defaultDate,
-      follow_up_time: appt.appointment_time || '10:00',
+      follow_up_time: defaultTime,
       follow_up_reason: ''
     });
     setShowFollowUpModal(true);
@@ -2122,8 +2366,53 @@ Verification Status: Digitally Verified Medical Record
                             );
                           })()}
 
-                          {/* Meeting Time Info — shown for completed appointments */}
-                          {statusKey === 'completed' && (appt.meet_time_start || appt.meet_time_end) && (
+                          {/* General Meet Related Box — shown when consultation completed without follow-up */}
+                          {statusKey === 'completed' && (!appt.follow_up_date && (!appt.follow_up_status || appt.follow_up_status === 'none')) && (
+                            <div style={{
+                              marginTop: '0.85rem',
+                              padding: '0.9rem 1.1rem',
+                              background: '#f8fafc',
+                              borderRadius: '12px',
+                              border: '1.5px solid #e2e8f0',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: '8px'
+                            }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                  <CalendarCheck size={16} color="#0d9488" />
+                                  <span style={{ fontWeight: 800, fontSize: '13px', color: '#0f172a' }}>
+                                    Consultation & Meeting Details
+                                  </span>
+                                </div>
+                                <span style={{
+                                  fontSize: '11px', fontWeight: 800, padding: '2px 10px', borderRadius: '12px',
+                                  background: '#ecfdf5', color: '#047857', border: '1px solid #a7f3d0'
+                                }}>
+                                  Consultation Completed
+                                </span>
+                              </div>
+
+                              <div style={{ display: 'flex', gap: '1.2rem', flexWrap: 'wrap', fontSize: '12px', color: '#475569' }}>
+                                <span><strong>Consultation Date:</strong> {formatDate(appt.appointment_date)} at {appt.appointment_time || '10:00 AM'}</span>
+                                <span><strong>Mode:</strong> <span style={{ textTransform: 'capitalize', fontWeight: 700, color: '#0f766e' }}>{appt.consult_mode || 'offline'}</span></span>
+                                <span><strong>Fee Paid:</strong> <strong style={{ color: '#16a34a' }}>₹{appt.consultation_fee ?? 0}</strong> {appt.original_fee && appt.original_fee > appt.consultation_fee ? <span style={{ color: '#059669', fontSize: '11px' }}>(10% Pharmacist Privilege)</span> : ''}</span>
+                                {appt.meet_time != null && <span><strong>Duration:</strong> <strong style={{ color: '#0f172a' }}>{appt.meet_time} mins</strong></span>}
+                              </div>
+
+                              {(appt.meet_time_start || appt.meet_time_end) && (
+                                <div style={{ fontSize: '11.5px', color: '#64748b', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', borderTop: '1px dashed #e2e8f0', paddingTop: '6px' }}>
+                                  <Clock size={12} color="#0d9488" />
+                                  {appt.meet_time_start && <span>Started: <strong style={{ color: '#334155' }}>{new Date(appt.meet_time_start).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })}</strong></span>}
+                                  {appt.meet_time_start && appt.meet_time_end && <span>·</span>}
+                                  {appt.meet_time_end && <span>Ended: <strong style={{ color: '#334155' }}>{new Date(appt.meet_time_end).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })}</strong></span>}
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Meeting Time Info — shown for completed appointments with active follow-up */}
+                          {statusKey === 'completed' && Boolean(appt.follow_up_date || (appt.follow_up_status && appt.follow_up_status !== 'none')) && (appt.meet_time_start || appt.meet_time_end) && (
                             <div style={{
                               display: 'inline-flex', alignItems: 'center', gap: '6px', marginTop: '8px',
                               fontSize: '12px', color: '#475569', background: '#f0fdfa',
@@ -2146,32 +2435,43 @@ Verification Status: Digitally Verified Medical Record
                           )}
 
                           {/* Follow-up Status Box */}
-                          {(appt.follow_up_date || (appt.follow_up_status && appt.follow_up_status !== 'none')) && (() => {
-                            const fDateStr = appt.follow_up_date ? appt.follow_up_date.split('T')[0] : '';
-                            const todayStr = new Date().toISOString().split('T')[0];
+                          {(Boolean(appt.follow_up_date || appt.assigned_follow_up_date || (appt.follow_up_status && appt.follow_up_status !== 'none'))) && (() => {
+                            const effStatus = getEffectiveFollowUpStatus(appt);
+                            const effReason = getEffectiveFollowUpExpireReason(appt);
+                            const followUpMeetTimeReached = isFollowUpMeetTimeReached(appt);
+                            const isFollowUpDeadlinePassed = isDoctorAssignedFollowUpPassed(appt);
+                            const assignedDateVal = appt.assigned_follow_up_date || appt.follow_up_date;
+                            const fDateStr = assignedDateVal ? (typeof assignedDateVal === 'string' ? assignedDateVal.split('T')[0] : '') : '';
+                            const todayStr = nowTime.toISOString().split('T')[0];
                             const isPastFollowUp = fDateStr && fDateStr < todayStr;
-                            const fStatus = appt.follow_up_status || 'none';
+
+                            const isExpired = effStatus === 'expired';
+                            const isCompleted = effStatus === 'completed';
+                            const isAccepted = effStatus === 'accepted';
+                            const isRequested = effStatus === 'requested';
+                            const isRejected = effStatus === 'rejected';
+                            const isCancelled = effStatus === 'cancelled';
 
                             return (
                               <div style={{
                                 marginTop: '0.85rem',
                                 padding: '0.85rem 1.1rem',
-                                background: fStatus === 'accepted' ? '#f0fdf4' : fStatus === 'rejected' || fStatus === 'cancelled' ? '#fef2f2' : fStatus === 'requested' ? '#f0f9ff' : '#faf5ff',
+                                background: isAccepted || isCompleted ? '#f0fdf4' : isRejected || isCancelled || isExpired ? '#fef2f2' : isRequested ? '#f0f9ff' : '#faf5ff',
                                 borderRadius: '12px',
-                                border: `1.5px solid ${fStatus === 'accepted' ? '#86efac' : fStatus === 'rejected' || fStatus === 'cancelled' ? '#fca5a5' : fStatus === 'requested' ? '#bae6fd' : '#e9d5ff'}`
+                                border: `1.5px solid ${isAccepted || isCompleted ? '#86efac' : isRejected || isCancelled || isExpired ? '#fca5a5' : isRequested ? '#bae6fd' : '#e9d5ff'}`
                               }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.4rem' }}>
                                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                    <Calendar size={16} color={fStatus === 'accepted' ? '#16a34a' : fStatus === 'rejected' || fStatus === 'cancelled' ? '#dc2626' : '#7c3aed'} />
+                                    <Calendar size={16} color={isAccepted || isCompleted ? '#16a34a' : isRejected || isCancelled || isExpired ? '#dc2626' : '#7c3aed'} />
                                     <span style={{ fontWeight: 800, fontSize: '13px', color: '#1e293b' }}>
                                       Follow-up Consultation Box
                                     </span>
                                     <span style={{
                                       fontSize: '11px', fontWeight: 800, padding: '2px 8px', borderRadius: '10px', textTransform: 'capitalize',
-                                      background: fStatus === 'accepted' ? '#dcfce7' : fStatus === 'requested' ? '#e0f2fe' : fStatus === 'rejected' || fStatus === 'cancelled' ? '#fee2e2' : '#f3e8ff',
-                                      color: fStatus === 'accepted' ? '#15803d' : fStatus === 'requested' ? '#0369a1' : fStatus === 'rejected' || fStatus === 'cancelled' ? '#b91c1c' : '#6b21a8'
+                                      background: isAccepted || isCompleted ? '#dcfce7' : isRequested ? '#e0f2fe' : isRejected || isCancelled || isExpired ? '#fee2e2' : '#f3e8ff',
+                                      color: isAccepted || isCompleted ? '#15803d' : isRequested ? '#0369a1' : isRejected || isCancelled || isExpired ? '#b91c1c' : '#6b21a8'
                                     }}>
-                                      {fStatus === 'none' ? 'Date Assigned' : fStatus}
+                                      {isAccepted ? 'Follow-up Confirmed' : isCompleted ? 'Completed' : isExpired ? 'Meet Expired' : isRequested ? 'Requested (Awaiting Doctor)' : isRejected ? 'Rejected' : isCancelled ? 'Cancelled' : 'Date Assigned'}
                                     </span>
                                   </div>
                                   <span style={{ fontSize: '12px', fontWeight: 700, color: '#059669', background: '#ecfdf5', padding: '2px 8px', borderRadius: '6px', border: '1px solid #a7f3d0' }}>
@@ -2180,64 +2480,207 @@ Verification Status: Digitally Verified Medical Record
                                 </div>
 
                                 <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', fontSize: '12px', color: '#475569' }}>
-                                  <span><strong>Assigned Follow-up Date:</strong> {formatDate(appt.follow_up_date)}</span>
+                                  <span><strong>Assigned Follow-up Date:</strong> {formatDate(appt.assigned_follow_up_date || appt.follow_up_date)}</span>
+                                  {appt.follow_up_time && <span><strong>Time Slot:</strong> {appt.follow_up_time}</span>}
                                   <span><strong>Mode:</strong> <span style={{ textTransform: 'capitalize', fontWeight: 700 }}>{appt.consult_mode || 'offline'}</span> (Same as primary meet)</span>
                                 </div>
 
-                                {/* Action / Message Status */}
-                                {fStatus === 'none' && (
-                                  <div style={{ marginTop: '0.6rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem' }}>
-                                    <span style={{ fontSize: '12px', color: isPastFollowUp ? '#dc2626' : '#6b21a8', fontWeight: 600 }}>
-                                      {isPastFollowUp ? 'Follow-up date has passed.' : 'Send a free follow-up request to doctor for selected date.'}
-                                    </span>
-                                    <button
-                                      onClick={() => openFollowUpModal(appt)}
-                                      disabled={isPastFollowUp}
-                                      style={{
-                                        padding: '6px 14px',
-                                        borderRadius: '8px',
-                                        border: 'none',
-                                        background: isPastFollowUp ? '#cbd5e1' : '#7c3aed',
-                                        color: '#ffffff',
-                                        fontWeight: 700,
-                                        fontSize: '12px',
-                                        cursor: isPastFollowUp ? 'not-allowed' : 'pointer',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: '5px'
-                                      }}
-                                    >
-                                      <CalendarCheck size={13} />
-                                      {isPastFollowUp ? 'Follow-up Date Passed' : 'Select Date & Request Follow-Up'}
-                                    </button>
+                                {/* Expired message box */}
+                                {isExpired && (
+                                  <div style={{ marginTop: '0.6rem', padding: '8px 12px', background: '#fee2e2', borderRadius: '8px', border: '1px solid #fca5a5', color: '#991b1b', fontSize: '12px', fontWeight: 600 }}>
+                                    ⚠️ <strong>Follow-up Status:</strong> {effReason || 'Follow-up meet has expired.'}
                                   </div>
                                 )}
 
-                                {fStatus === 'requested' && (
+                                {/* Action / Message Status */}
+                                {effStatus === 'none' && (
+                                  <div style={{ marginTop: '0.6rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem' }}>
+                                    <span style={{ fontSize: '12px', color: isFollowUpDeadlinePassed ? '#dc2626' : '#6b21a8', fontWeight: 600 }}>
+                                      {isFollowUpDeadlinePassed ? 'Assigned follow-up date and time has passed.' : 'Send a free follow-up request to doctor for selected date.'}
+                                    </span>
+                                    {!isFollowUpDeadlinePassed && (
+                                      <button
+                                        onClick={() => openFollowUpModal(appt)}
+                                        style={{
+                                          padding: '6px 14px',
+                                          borderRadius: '8px',
+                                          border: 'none',
+                                          background: '#7c3aed',
+                                          color: '#ffffff',
+                                          fontWeight: 700,
+                                          fontSize: '12px',
+                                          cursor: 'pointer',
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          gap: '5px'
+                                        }}
+                                      >
+                                        <CalendarCheck size={13} />
+                                        Select Date & Request Follow-Up
+                                      </button>
+                                    )}
+                                  </div>
+                                )}
+
+                                {isRequested && (
                                   <p style={{ marginTop: '0.5rem', fontSize: '12px', color: '#0369a1', fontWeight: 600, margin: '0.5rem 0 0' }}>
                                     ⏳ Follow-up request sent to doctor. Awaiting doctor's approval.
                                   </p>
                                 )}
 
-                                {fStatus === 'accepted' && (
-                                  <p style={{ marginTop: '0.5rem', fontSize: '12px', color: '#15803d', fontWeight: 700, margin: '0.5rem 0 0' }}>
-                                    ✓ Doctor accepted your follow-up request! Scheduled for {formatDate(appt.follow_up_date)} ({appt.consult_mode || 'offline'} mode).
-                                  </p>
+                                {isCompleted && (
+                                  <div style={{ marginTop: '0.65rem', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#15803d', fontSize: '12.5px', fontWeight: 700 }}>
+                                      <CheckCircle2 size={14} color="#16a34a" />
+                                      <span>✓ Follow-up consultation completed.</span>
+                                    </div>
+
+                                    {(appt.follow_up_prescription_status === 'added' || appt.follow_up_prescription_id) ? (
+                                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px', padding: '8px 12px', background: '#ffffff', borderRadius: '8px', border: '1px solid #86efac' }}>
+                                        <span style={{ fontSize: '12px', color: '#15803d', fontWeight: 700 }}>
+                                          📋 Follow-up prescription attached
+                                        </span>
+                                        <button
+                                          onClick={() => handleViewPrescription({ appointment_id: appt._id, _id: appt.follow_up_prescription_id, prescription_type: 'follow_up' })}
+                                          style={{
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: '6px',
+                                            padding: '6px 14px',
+                                            borderRadius: '6px',
+                                            background: '#0d9488',
+                                            color: '#ffffff',
+                                            border: 'none',
+                                            fontWeight: 800,
+                                            fontSize: '12px',
+                                            cursor: 'pointer',
+                                            boxShadow: '0 2px 6px rgba(13,148,136,0.3)'
+                                          }}
+                                        >
+                                          <FileText size={13} /> View Follow-up Prescription
+                                        </button>
+                                      </div>
+                                    ) : appt.follow_up_prescription_status === 'skipped' ? (
+                                      <div style={{ padding: '8px 12px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', color: '#64748b', fontSize: '12px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                        <FileText size={14} color="#94a3b8" />
+                                        <span>No prescription added</span>
+                                      </div>
+                                    ) : (
+                                      <div style={{ padding: '8px 12px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', color: '#64748b', fontSize: '12px', fontWeight: 600 }}>
+                                        ⏳ Follow-up meet completed. Awaiting doctor prescription.
+                                      </div>
+                                    )}
+                                  </div>
                                 )}
 
-                                {fStatus === 'rejected' && (
-                                  <p style={{ marginTop: '0.5rem', fontSize: '12px', color: '#b91c1c', fontWeight: 600, margin: '0.5rem 0 0' }}>
-                                    ✕ Doctor rejected the follow-up request.
-                                  </p>
+                                {isRejected && (
+                                  <div style={{ marginTop: '0.5rem', fontSize: '12px', color: '#b91c1c', fontWeight: 600 }}>
+                                    <p style={{ margin: 0 }}>✕ Doctor rejected the follow-up request.</p>
+                                    {appt.follow_up_cancel_reason && <p style={{ margin: '2px 0 0', fontWeight: 700, color: '#991b1b' }}>Reason: "{appt.follow_up_cancel_reason}"</p>}
+                                  </div>
                                 )}
 
-                                {fStatus === 'cancelled' && (
+                                {isCancelled && (
                                   <div style={{ marginTop: '0.5rem', fontSize: '12px', color: '#b91c1c', fontWeight: 600 }}>
                                     <p style={{ margin: 0 }}>✕ Doctor cancelled the accepted follow-up meet.</p>
                                     {appt.follow_up_cancel_reason && (
                                       <p style={{ margin: '2px 0 0', fontWeight: 700, color: '#991b1b' }}>
                                         Cancellation Reason: "{appt.follow_up_cancel_reason}"
                                       </p>
+                                    )}
+                                  </div>
+                                )}
+
+                                {/* Active Confirmed Follow-up Actions */}
+                                {isAccepted && (
+                                  <div style={{ marginTop: '0.6rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px', padding: '8px 12px', background: '#ffffff', borderRadius: '8px', border: '1px solid #86efac' }}>
+                                    <div>
+                                      {appt.consult_mode === 'online' ? (
+                                        appt.follow_up_doctor_joined ? (
+                                          <span style={{ fontSize: '12px', color: '#16a34a', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                            <CheckCircle2 size={13} /> Doctor has joined the follow-up meeting!
+                                          </span>
+                                        ) : (
+                                          <span style={{ fontSize: '12px', color: '#64748b', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                            <Clock size={13} /> Awaiting doctor to start video session
+                                          </span>
+                                        )
+                                      ) : (
+                                        appt.follow_up_patient_arrived ? (
+                                          <span style={{ fontSize: '12px', color: '#16a34a', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                            <CheckCircle2 size={13} /> Marked arrived at doctor's clinic.
+                                          </span>
+                                        ) : (
+                                          <span style={{ fontSize: '12px', color: '#64748b', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                            <MapPin size={13} /> Please visit clinic at scheduled date & time
+                                          </span>
+                                        )
+                                      )}
+                                    </div>
+
+                                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                      {appt.consult_mode === 'online' ? (
+                                        !followUpMeetTimeReached ? (
+                                          <button
+                                            disabled={true}
+                                            title={`Follow-up meeting starts at ${appt.follow_up_time || appt.appointment_time || ''}`}
+                                            style={{ padding: '6px 14px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#f1f5f9', color: '#94a3b8', fontSize: '12px', fontWeight: 700, cursor: 'not-allowed', opacity: 0.75, display: 'flex', alignItems: 'center', gap: '5px' }}
+                                          >
+                                            <Clock size={13} /> Join at {appt.follow_up_time || appt.appointment_time || 'scheduled time'}
+                                          </button>
+                                        ) : (
+                                          <button
+                                            onClick={() => handleJoinFollowUpVideoCall(appt._id)}
+                                            style={{ padding: '6px 14px', borderRadius: '8px', border: 'none', background: 'linear-gradient(135deg, #2563eb, #1d4ed8)', color: '#ffffff', fontSize: '12px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px', boxShadow: '0 2px 6px rgba(37,99,235,0.3)' }}
+                                          >
+                                            <Video size={13} /> {appt.follow_up_patient_joined ? 'Rejoin Follow-up Video Call' : 'Join Follow-up Video Call'}
+                                          </button>
+                                        )
+                                      ) : (
+                                        <>
+                                          {!appt.follow_up_patient_arrived && (
+                                            <button
+                                              onClick={() => handleMarkFollowUpArrived(appt._id)}
+                                              style={{ padding: '6px 14px', borderRadius: '8px', border: 'none', background: 'linear-gradient(135deg, #0d9488, #14b8a6)', color: '#ffffff', fontSize: '12px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px' }}
+                                            >
+                                              <MapPin size={13} /> I Have Arrived at Clinic
+                                            </button>
+                                          )}
+                                          <button
+                                            onClick={() => openDoctorMapModal(appt)}
+                                            style={{ padding: '6px 12px', borderRadius: '8px', border: '1.5px solid #99f6e4', background: '#f0fdfa', color: '#0d9488', fontSize: '12px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px' }}
+                                          >
+                                            <MapPin size={13} /> Clinic Map
+                                          </button>
+                                        </>
+                                      )}
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* Request Follow-up Again if Expired or Rejected */}
+                                {(isExpired || isRejected) && (
+                                  <div style={{ marginTop: '0.6rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem' }}>
+                                    <span style={{ fontSize: '12px', color: isFollowUpDeadlinePassed ? '#991b1b' : '#dc2626', fontWeight: 600 }}>
+                                      {isFollowUpDeadlinePassed
+                                        ? 'Assigned follow-up date and time has passed. Consultation window closed.'
+                                        : isExpired
+                                          ? 'Prior follow-up expired. You may request a new follow-up slot.'
+                                          : 'Follow-up was rejected. You may request an alternate slot.'}
+                                    </span>
+                                    {!isFollowUpDeadlinePassed && (
+                                      <button
+                                        onClick={() => openFollowUpModal(appt)}
+                                        style={{
+                                          padding: '6px 14px', borderRadius: '8px', border: 'none',
+                                          background: 'linear-gradient(135deg, #7c3aed, #6d28d9)', color: '#ffffff',
+                                          fontWeight: 700, fontSize: '12px', cursor: 'pointer',
+                                          display: 'flex', alignItems: 'center', gap: '5px',
+                                          boxShadow: '0 2px 6px rgba(124,58,237,0.3)'
+                                        }}
+                                      >
+                                        <CalendarCheck size={13} /> Request Follow-Up Meet Again
+                                      </button>
                                     )}
                                   </div>
                                 )}
@@ -4582,7 +5025,8 @@ Verification Status: Digitally Verified Medical Record
                     const todayStr = new Date().toISOString().split('T')[0];
                     const presDateStr = followUpAppt.appointment_date ? new Date(followUpAppt.appointment_date).toISOString().split('T')[0] : (followUpAppt.prescribed_date ? new Date(followUpAppt.prescribed_date).toISOString().split('T')[0] : '');
                     const minDateStr = (presDateStr && presDateStr > todayStr) ? presDateStr : todayStr;
-                    const maxDateStr = followUpAppt.follow_up_date ? new Date(followUpAppt.follow_up_date).toISOString().split('T')[0] : '';
+                    const assignedDocDate = followUpAppt.assigned_follow_up_date || followUpAppt.follow_up_date;
+                    const maxDateStr = assignedDocDate ? new Date(assignedDocDate).toISOString().split('T')[0] : '';
                     return (
                       <div>
                         <label style={{ fontSize: '13px', fontWeight: 800, color: '#334155', display: 'block', marginBottom: '6px' }}>

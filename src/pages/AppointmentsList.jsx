@@ -267,9 +267,9 @@ const AppointmentsList = () => {
                       </span>
                       <span style={{
                         padding: '4px 12px', borderRadius: '20px', fontSize: '11px', fontWeight: 800, textTransform: 'uppercase',
-                        background: appointment.follow_up_status === 'accepted' ? '#dcfce7' : appointment.follow_up_status === 'requested' ? '#dbeafe' : appointment.follow_up_status === 'rejected' ? '#ffedd5' : appointment.follow_up_status === 'cancelled' ? '#fee2e2' : '#f1f5f9',
-                        color: appointment.follow_up_status === 'accepted' ? '#15803d' : appointment.follow_up_status === 'requested' ? '#1d4ed8' : appointment.follow_up_status === 'rejected' ? '#c2410c' : appointment.follow_up_status === 'cancelled' ? '#b91c1c' : '#475569',
-                        border: `1px solid ${appointment.follow_up_status === 'accepted' ? '#86efac' : appointment.follow_up_status === 'requested' ? '#93c5fd' : appointment.follow_up_status === 'rejected' ? '#fdba74' : appointment.follow_up_status === 'cancelled' ? '#fca5a5' : '#cbd5e1'}`
+                        background: appointment.follow_up_status === 'accepted' ? '#dcfce7' : appointment.follow_up_status === 'requested' ? '#dbeafe' : appointment.follow_up_status === 'rejected' ? '#ffedd5' : appointment.follow_up_status === 'cancelled' || appointment.follow_up_status === 'expired' ? '#fee2e2' : appointment.follow_up_status === 'completed' ? '#ecfdf5' : '#f1f5f9',
+                        color: appointment.follow_up_status === 'accepted' ? '#15803d' : appointment.follow_up_status === 'requested' ? '#1d4ed8' : appointment.follow_up_status === 'rejected' ? '#c2410c' : appointment.follow_up_status === 'cancelled' || appointment.follow_up_status === 'expired' ? '#b91c1c' : appointment.follow_up_status === 'completed' ? '#047857' : '#475569',
+                        border: `1px solid ${appointment.follow_up_status === 'accepted' ? '#86efac' : appointment.follow_up_status === 'requested' ? '#93c5fd' : appointment.follow_up_status === 'rejected' ? '#fdba74' : appointment.follow_up_status === 'cancelled' || appointment.follow_up_status === 'expired' ? '#fca5a5' : appointment.follow_up_status === 'completed' ? '#6ee7b7' : '#cbd5e1'}`
                       }}>
                         Status: {appointment.follow_up_status || 'none'}
                       </span>
@@ -278,7 +278,7 @@ const AppointmentsList = () => {
                       <span><strong>Follow-up Date & Time:</strong> {appointment.follow_up_date ? new Date(appointment.follow_up_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Not set'} {appointment.follow_up_time ? `at ${appointment.follow_up_time}` : ''}</span>
                       <span><strong>Consultation Mode:</strong> <span style={{ textTransform: 'capitalize', color: '#0d9488', fontWeight: 700 }}>{appointment.consult_mode}</span> (Same as initial meet)</span>
                       <span><strong>Consultation Fee:</strong> <span style={{ color: '#16a34a', fontWeight: 700 }}>Free / ₹0 (No Charges)</span></span>
-                      <span><strong>Booked By Role:</strong> <span style={{ textTransform: 'capitalize', fontWeight: 600 }}>{appointment.booker_role === 'pharmacist' ? 'Pharmacist' : 'Patient'}</span></span>
+                      <span><strong>Booked By Role:</strong> <span style={{ textTransform: 'capitalize', fontWeight: 600 }}>{appointment.booker_role === 'pharmacist' ? 'Pharmacist' : 'User'}</span></span>
                     </div>
                     {appointment.follow_up_reason && (
                       <div style={{ background: '#fff', border: '1px solid #99f6e4', borderRadius: '8px', padding: '6px 12px', color: '#0f766e', fontWeight: 600 }}>
@@ -293,6 +293,11 @@ const AppointmentsList = () => {
                     {appointment.follow_up_status === 'cancelled' && appointment.follow_up_cancel_reason && (
                       <div style={{ background: '#fff', border: '1px solid #fca5a5', borderRadius: '8px', padding: '8px 12px', color: '#991b1b', marginTop: '2px', fontWeight: 600 }}>
                         ❌ Cancellation Reason: {appointment.follow_up_cancel_reason}
+                      </div>
+                    )}
+                    {appointment.follow_up_status === 'expired' && appointment.follow_up_expire_reason && (
+                      <div style={{ background: '#fff', border: '1px solid #fca5a5', borderRadius: '8px', padding: '8px 12px', color: '#991b1b', marginTop: '2px', fontWeight: 600 }}>
+                        ⚠️ Expiration Reason: {appointment.follow_up_expire_reason}
                       </div>
                     )}
                   </div>

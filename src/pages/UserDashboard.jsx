@@ -141,12 +141,23 @@ const UserDashboard = () => {
     const todayStr = new Date().toISOString().split('T')[0];
     const presDateStr = appt.appointment_date ? new Date(appt.appointment_date).toISOString().split('T')[0] : '';
     const minDateStr = (presDateStr && presDateStr > todayStr) ? presDateStr : todayStr;
-    const docFollowUpDateStr = appt.follow_up_date ? new Date(appt.follow_up_date).toISOString().split('T')[0] : '';
+    const assignedRawDate = appt.assigned_follow_up_date || appt.follow_up_date;
+    const docFollowUpDateStr = assignedRawDate ? new Date(assignedRawDate).toISOString().split('T')[0] : '';
     const defaultDate = (docFollowUpDateStr && docFollowUpDateStr >= minDateStr) ? docFollowUpDateStr : minDateStr;
+
+    let defaultTime = '10:00';
+    if (defaultDate === todayStr) {
+      const upcoming = SLOT_TIMES.find(t => !isSlotPassed(defaultDate, t));
+      defaultTime = upcoming || (SLOT_TIMES[SLOT_TIMES.length - 1] || '17:00');
+    } else {
+      defaultTime = (appt.assigned_follow_up_time && !isSlotPassed(defaultDate, appt.assigned_follow_up_time))
+        ? appt.assigned_follow_up_time
+        : '10:00';
+    }
 
     setFollowUpForm({
       follow_up_date: defaultDate,
-      follow_up_time: appt.follow_up_time || appt.appointment_time || '10:00',
+      follow_up_time: defaultTime,
       follow_up_reason: ''
     });
     setShowFollowUpModal(true);
@@ -255,6 +266,154 @@ const UserDashboard = () => {
     return nowTime < scheduled;
   }, [getScheduledDateTime, nowTime]);
 
+  const getFollowUpScheduledDateTime = useCallback((appt) => {
+    if (!appt?.follow_up_date) return null;
+    const d = new Date(appt.follow_up_date);
+    const timeStr = String(appt.follow_up_time || appt.appointment_time || '10:00').trim();
+    let hours = 0;
+    let minutes = 0;
+    if (timeStr.toLowerCase().includes('am') || timeStr.toLowerCase().includes('pm')) {
+      const isPm = timeStr.toLowerCase().includes('pm');
+      const cleanTime = timeStr.replace(/(am|pm)/gi, '').trim();
+      const parts = cleanTime.split(':').map(Number);
+      hours = parts[0] || 0;
+      minutes = parts[1] || 0;
+      if (isPm && hours < 12) hours += 12;
+      if (!isPm && hours === 12) hours = 0;
+    } else {
+      const parts = timeStr.split(':').map(Number);
+      hours = parts[0] || 0;
+      minutes = parts[1] || 0;
+    }
+    let year, month, date;
+    if (typeof appt.follow_up_date === 'string' && appt.follow_up_date.includes('-')) {
+      const dateParts = appt.follow_up_date.split('T')[0].split('-').map(Number);
+      year = dateParts[0];
+      month = dateParts[1] - 1;
+      date = dateParts[2];
+    } else {
+      year = d.getFullYear();
+      month = d.getMonth();
+      date = d.getDate();
+    }
+    return new Date(year, month, date, hours, minutes, 0, 0);
+  }, []);
+
+  const isFollowUpMeetTimeReached = useCallback((appt) => {
+    const scheduled = getFollowUpScheduledDateTime(appt);
+    if (!scheduled) return true;
+    return nowTime >= scheduled;
+  }, [getFollowUpScheduledDateTime, nowTime]);
+
+  const getEffectiveFollowUpStatus = useCallback((appt) => {
+    const st = (appt?.follow_up_status || 'none').toLowerCase().trim();
+    if (['completed', 'cancelled', 'rejected', 'expired'].includes(st)) return st;
+
+    const scheduled = getFollowUpScheduledDateTime(appt);
+    if (scheduled) {
+      if (st === 'requested' && nowTime > scheduled) {
+        return 'expired';
+      }
+      if (st === 'accepted') {
+        const windowEnd = new Date(scheduled.getTime() + 30 * 60 * 1000);
+        if (nowTime > windowEnd) return 'expired';
+      }
+    }
+    return st;
+  }, [getFollowUpScheduledDateTime, nowTime]);
+
+  const getEffectiveFollowUpExpireReason = useCallback((appt) => {
+    if (appt?.follow_up_expire_reason) return appt.follow_up_expire_reason;
+    const st = (appt?.follow_up_status || 'none').toLowerCase().trim();
+    const scheduled = getFollowUpScheduledDateTime(appt);
+
+    if (scheduled) {
+      if (st === 'requested' && nowTime > scheduled) {
+        return "Follow-up meet expired without doctor confirmation";
+      }
+      if (st === 'accepted') {
+        const windowEnd = new Date(scheduled.getTime() + 30 * 60 * 1000);
+        if (nowTime > windowEnd) {
+          if (appt?.consult_mode === 'online') {
+            const docJoined = Boolean(appt.follow_up_doctor_joined || appt.follow_up_meet_time_start);
+            const patJoined = Boolean(appt.follow_up_patient_joined);
+            if (docJoined && !patJoined) {
+              return "Follow-up meet expired because of patient unavailability";
+            }
+            return "Follow-up meet expired because of doctor unavailability";
+          } else {
+            if (appt?.follow_up_patient_arrived) {
+              return "Follow-up meet expired because of doctor unavailability";
+            }
+            return "Follow-up meet expired because of patient unavailability";
+          }
+        }
+      }
+    }
+    return "";
+  }, [getFollowUpScheduledDateTime, nowTime]);
+
+  const getDoctorAssignedFollowUpDateTime = useCallback((appt) => {
+    if (!appt) return null;
+    const rawDate = appt.assigned_follow_up_date || appt.follow_up_date;
+    if (!rawDate) return null;
+
+    const d = new Date(rawDate);
+    if (isNaN(d.getTime())) return null;
+
+    // Follow-up meet scheduling option lasts till the last meet time of the assigned date
+    let hours = 17;
+    let minutes = 0;
+
+    const docEnd = appt.doctor_id && typeof appt.doctor_id === 'object' ? appt.doctor_id.work_time_end : null;
+    const timeSource = docEnd || (appt.assigned_follow_up_time !== appt.appointment_time ? appt.assigned_follow_up_time : null);
+
+    if (timeSource) {
+      const clean = String(timeSource).trim();
+      if (clean.toLowerCase().includes('am') || clean.toLowerCase().includes('pm')) {
+        const isPm = clean.toLowerCase().includes('pm');
+        const numPart = clean.replace(/(am|pm)/gi, '').trim();
+        const parts = numPart.split(':').map(Number);
+        let h = parts[0] || 0;
+        const m = parts[1] || 0;
+        if (isPm && h < 12) h += 12;
+        if (!isPm && h === 12) h = 0;
+        if (h > 17 || (h === 17 && m > 0)) {
+          hours = h;
+          minutes = m;
+        }
+      } else if (clean.includes(':')) {
+        const parts = clean.split(':').map(Number);
+        const h = parts[0] || 0;
+        const m = parts[1] || 0;
+        if (h > 17 || (h === 17 && m > 0)) {
+          hours = h;
+          minutes = m;
+        }
+      }
+    }
+
+    let year, month, date;
+    if (typeof rawDate === 'string' && rawDate.includes('-')) {
+      const dateParts = rawDate.split('T')[0].split('-').map(Number);
+      year = dateParts[0];
+      month = dateParts[1] - 1;
+      date = dateParts[2];
+    } else {
+      year = d.getFullYear();
+      month = d.getMonth();
+      date = d.getDate();
+    }
+
+    return new Date(year, month, date, hours, minutes, 0, 0);
+  }, []);
+
+  const isDoctorAssignedFollowUpPassed = useCallback((appt) => {
+    const deadline = getDoctorAssignedFollowUpDateTime(appt);
+    if (!deadline) return false;
+    return nowTime > deadline;
+  }, [getDoctorAssignedFollowUpDateTime, nowTime]);
+
   const openDoctorMapModal = (appt) => {
     setSelectedApptForMap(appt);
     setShowDoctorMapModal(true);
@@ -277,16 +436,43 @@ const UserDashboard = () => {
     setPrescriptionLoading(true);
     setSelectedPrescription(null);
     try {
-      const apptId = typeof target === 'object' ? (target?.appointment_id?._id || target?.appointment_id || target?._id) : target;
-      const res = await fetch(`${API}/prescription/appointment/${apptId}`, {
-        headers: { Authorization: `Bearer ${getToken()}` }
-      });
-      const data = await res.json();
+      const isFollowUp = target?.prescription_type === 'follow_up' || target?.type === 'follow_up';
+      const apptId = typeof target === 'object' ? (target?.appointment_id?._id || target?.appointment_id || (String(target?._id || '').startsWith('APPOINTMENT') ? target?._id : null)) : (String(target || '').startsWith('APPOINTMENT') ? target : null);
+      const directPrescId = typeof target === 'object' ? (!String(target?._id || '').startsWith('APPOINTMENT') ? target?._id : null) : (!String(target || '').startsWith('APPOINTMENT') ? target : null);
+
       let fetchedPrescription = null;
-      if (res.ok && data.prescription) {
-        fetchedPrescription = data.prescription;
-      } else {
-        const found = patientPrescriptions.find(p => (p.appointment_id?._id || p.appointment_id) === apptId || p._id === apptId);
+
+      // 1. Direct prescription ID fetch
+      if (directPrescId) {
+        const resDirect = await fetch(`${API}/prescription/${directPrescId}`, {
+          headers: { Authorization: `Bearer ${getToken()}` }
+        });
+        if (resDirect.ok) {
+          const dDirect = await resDirect.json();
+          if (dDirect.prescription) fetchedPrescription = dDirect.prescription;
+        }
+      }
+
+      // 2. Fetch by appointment ID (with ?type=follow_up if follow-up)
+      if (!fetchedPrescription && apptId) {
+        const url = isFollowUp
+          ? `${API}/prescription/appointment/${apptId}?type=follow_up`
+          : `${API}/prescription/appointment/${apptId}`;
+        const res = await fetch(url, {
+          headers: { Authorization: `Bearer ${getToken()}` }
+        });
+        const data = await res.json();
+        if (res.ok && data.prescription) {
+          fetchedPrescription = data.prescription;
+        }
+      }
+
+      // 3. Fallback to local patientPrescriptions
+      if (!fetchedPrescription && apptId) {
+        const found = patientPrescriptions.find(p => 
+          ((p.appointment_id?._id || p.appointment_id) === apptId || p._id === apptId) &&
+          (isFollowUp ? p.prescription_type === 'follow_up' : p.prescription_type !== 'follow_up')
+        );
         if (found) {
           fetchedPrescription = found;
         } else if (typeof target === 'object') {
@@ -295,12 +481,8 @@ const UserDashboard = () => {
       }
 
       if (fetchedPrescription) {
-        const fUp = fetchedPrescription.follow_up_date 
-          || (typeof target === 'object' && target?.follow_up_date)
-          || fetchedPrescription.medical_record_id?.follow_up_date
-          || fetchedPrescription.appointment_id?.follow_up_date;
-        if (fUp) {
-          fetchedPrescription.follow_up_date = fUp;
+        if (fetchedPrescription.follow_up_date === undefined && fetchedPrescription.medical_record_id?.follow_up_date) {
+          fetchedPrescription.follow_up_date = fetchedPrescription.medical_record_id.follow_up_date;
         }
         setSelectedPrescription(fetchedPrescription);
       } else {
@@ -525,6 +707,75 @@ const UserDashboard = () => {
 
     toast.success("Meeting is live! Rejoining video call room...");
     navigate(`/video-call/MediPulse_${apptId}?role=patient`, { state: { role: 'patient' } });
+  };
+
+  /* ── join follow-up video call ── */
+  const handleJoinFollowUpVideoCall = async (apptOrId) => {
+    const apptId = typeof apptOrId === 'object' ? apptOrId._id : apptOrId;
+    const token = getToken();
+
+    try {
+      const res = await fetch(`${API}/appointment/${apptId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      const currentAppt = data?.appointment || data;
+
+      const effStatus = getEffectiveFollowUpStatus(currentAppt);
+      if (effStatus === 'completed') {
+        toast.error("Follow-up consultation has ended and is marked as Completed.");
+        fetchAppointments();
+        return;
+      }
+      if (effStatus === 'expired') {
+        const reason = getEffectiveFollowUpExpireReason(currentAppt);
+        toast.error(reason || "Follow-up meet has expired.");
+        fetchAppointments();
+        return;
+      }
+    } catch (e) {
+      console.warn('Error checking follow-up appointment status before join:', e);
+    }
+
+    // Call backend endpoint to mark patient as joined
+    try {
+      await fetch(`${API}/appointment/${apptId}/followup-join`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        }
+      });
+    } catch (err) {
+      console.warn('Failed to record follow-up patient join:', err);
+    }
+
+    toast.success("Joining follow-up video consultation room...");
+    navigate(`/video-call/MediPulse_${apptId}_followup?role=patient`, { state: { role: 'patient' } });
+  };
+
+  /* ── mark arrived at clinic for offline follow-up ── */
+  const handleMarkFollowUpArrived = async (apptOrId) => {
+    const apptId = typeof apptOrId === 'object' ? apptOrId._id : apptOrId;
+    const token = getToken();
+    try {
+      const res = await fetch(`${API}/appointment/${apptId}/followup-arrive`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        }
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        toast.success(data.message || 'Marked as arrived at doctor\'s clinic for follow-up!');
+        fetchAppointments();
+      } else {
+        toast.error(data.message || 'Failed to record arrival status');
+      }
+    } catch (err) {
+      toast.error('Network error updating arrival status');
+    }
   };
 
   /* ── pay for confirmed appointment modal handler ── */
@@ -1166,7 +1417,11 @@ Verification Status: Digitally Verified Medical Record
                     .map((appt) => {
                     const cfg = STATUS_CONFIG[appt.status] || STATUS_CONFIG.pending;
                     const canCancel = (appt.status === 'pending' || appt.status === 'confirmed') && appt.payment_status !== 'paid';
-                    const hasFollowUp = appt.follow_up_date || (appt.follow_up_status && appt.follow_up_status !== 'none');
+                    const hasFollowUp = Boolean(appt.follow_up_date || appt.assigned_follow_up_date || (appt.follow_up_status && appt.follow_up_status !== 'none'));
+                    const effFollowUpStatus = getEffectiveFollowUpStatus(appt);
+                    const effFollowUpReason = getEffectiveFollowUpExpireReason(appt);
+                    const followUpMeetTimeReached = isFollowUpMeetTimeReached(appt);
+                    const isFollowUpDeadlinePassed = isDoctorAssignedFollowUpPassed(appt);
 
                     const hasNoticeBadge = appt.refund_status === 'refunded' ||
                       (appt.payment_status === 'paid' && appt.refund_status === 'pending') ||
@@ -1384,24 +1639,34 @@ Verification Status: Digitally Verified Medical Record
                               </div>
 
                               {/* Follow-up Status Badges */}
-                              {appt.follow_up_status === 'requested' && (
+                              {effFollowUpStatus === 'requested' && (
                                 <span style={{ background: '#eff6ff', border: '1.5px solid #93c5fd', color: '#1d4ed8', padding: '4px 12px', borderRadius: '20px', fontSize: '11px', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '4px' }}>
                                   <Clock size={11} /> Follow-up Requested (Awaiting Doctor Response)
                                 </span>
                               )}
-                              {appt.follow_up_status === 'accepted' && (
+                              {effFollowUpStatus === 'accepted' && (
                                 <span style={{ background: '#ecfdf5', border: '1.5px solid #86efac', color: '#15803d', padding: '4px 12px', borderRadius: '20px', fontSize: '11px', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                  <CheckCircle2 size={11} /> Follow-up Accepted by Doctor
+                                  <CheckCircle2 size={11} /> Follow-up Confirmed by Doctor
                                 </span>
                               )}
-                              {appt.follow_up_status === 'rejected' && (
+                              {effFollowUpStatus === 'completed' && (
+                                <span style={{ background: '#ecfdf5', border: '1.5px solid #86efac', color: '#15803d', padding: '4px 12px', borderRadius: '20px', fontSize: '11px', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                  <CheckCircle2 size={11} /> Follow-up Meet Completed
+                                </span>
+                              )}
+                              {effFollowUpStatus === 'rejected' && (
                                 <span style={{ background: '#fff7ed', border: '1.5px solid #fed7aa', color: '#c2410c', padding: '4px 12px', borderRadius: '20px', fontSize: '11px', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '4px' }}>
                                   <XCircle size={11} /> Follow-up Request Rejected by Doctor
                                 </span>
                               )}
-                              {appt.follow_up_status === 'cancelled' && (
+                              {effFollowUpStatus === 'cancelled' && (
                                 <span style={{ background: '#fef2f2', border: '1.5px solid #fca5a5', color: '#b91c1c', padding: '4px 12px', borderRadius: '20px', fontSize: '11px', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '4px' }}>
                                   <AlertCircle size={11} /> Follow-up Cancelled by Doctor
+                                </span>
+                              )}
+                              {effFollowUpStatus === 'expired' && (
+                                <span style={{ background: '#fef2f2', border: '1.5px solid #fca5a5', color: '#b91c1c', padding: '4px 12px', borderRadius: '20px', fontSize: '11px', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                  <XCircle size={11} /> Follow-up Meet Expired
                                 </span>
                               )}
                               {(!appt.follow_up_status || appt.follow_up_status === 'none') && (
@@ -1413,32 +1678,146 @@ Verification Status: Digitally Verified Medical Record
 
                             {/* Follow-up Details Grid */}
                             <div className="ud-appt-followup-grid">
-                              <span><strong>Follow-up Date:</strong> {appt.follow_up_date ? formatDate(appt.follow_up_date) : 'Not scheduled'}</span>
+                              <span><strong>Follow-up Date:</strong> {formatDate(appt.assigned_follow_up_date || appt.follow_up_date) || 'Not scheduled'}</span>
+                              {appt.follow_up_time && <span><strong>Time Slot:</strong> {appt.follow_up_time}</span>}
                               <span><strong>Consultation Mode:</strong> <span style={{ textTransform: 'capitalize', color: '#0d9488', fontWeight: 700 }}>{appt.consult_mode}</span> (Same as initial meet)</span>
                               <span><strong>Consultation Fee:</strong> <span style={{ color: '#16a34a', fontWeight: 700 }}>Free / ₹0 (No Payment Required)</span></span>
                             </div>
 
+                            {/* Expired Reason Box */}
+                            {effFollowUpStatus === 'expired' && (
+                              <div style={{ background: '#fef2f2', border: '1.5px solid #fca5a5', borderRadius: '8px', padding: '10px 14px', color: '#991b1b', fontSize: '12px', fontWeight: 600 }}>
+                                ⚠️ <strong>Follow-up Status:</strong> {effFollowUpReason || 'Follow-up meet has expired.'}
+                              </div>
+                            )}
+
                             {/* Doctor Rejection/Cancellation Reason Box */}
-                            {(appt.follow_up_status === 'rejected' || appt.follow_up_status === 'cancelled') && appt.follow_up_cancel_reason && (
+                            {(effFollowUpStatus === 'rejected' || effFollowUpStatus === 'cancelled') && appt.follow_up_cancel_reason && (
                               <div style={{ background: '#fef2f2', border: '1.5px solid #fca5a5', borderRadius: '8px', padding: '10px 14px', color: '#991b1b', fontSize: '12px', fontWeight: 600 }}>
                                 ❌ Doctor's Rejection/Cancellation Reason: "{appt.follow_up_cancel_reason}"
                               </div>
                             )}
 
+                            {/* Active Confirmed Follow-up Actions */}
+                            {effFollowUpStatus === 'accepted' && (
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px', marginTop: '6px', padding: '10px 14px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                  {appt.consult_mode === 'online' ? (
+                                    appt.follow_up_doctor_joined ? (
+                                      <span style={{ fontSize: '12px', color: '#16a34a', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                        <CheckCircle2 size={13} /> Doctor has joined the follow-up meeting!
+                                      </span>
+                                    ) : (
+                                      <span style={{ fontSize: '12px', color: '#64748b', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                        <Clock size={13} /> Awaiting doctor to start video session
+                                      </span>
+                                    )
+                                  ) : (
+                                    appt.follow_up_patient_arrived ? (
+                                      <span style={{ fontSize: '12px', color: '#16a34a', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                        <CheckCircle2 size={13} /> Marked arrived at doctor's clinic.
+                                      </span>
+                                    ) : (
+                                      <span style={{ fontSize: '12px', color: '#64748b', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                        <MapPin size={13} /> Please visit clinic at scheduled date & time
+                                      </span>
+                                    )
+                                  )}
+                                </div>
+
+                                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                  {appt.consult_mode === 'online' ? (
+                                    !followUpMeetTimeReached ? (
+                                      <button
+                                        disabled={true}
+                                        title={`Follow-up meeting starts at ${appt.follow_up_time || appt.appointment_time || ''}`}
+                                        className="ud-appt-action-btn"
+                                        style={{ background: '#f1f5f9', border: '1px solid #cbd5e1', color: '#94a3b8', cursor: 'not-allowed', opacity: 0.75 }}
+                                      >
+                                        <Clock size={14} /> Join at {appt.follow_up_time || appt.appointment_time || 'scheduled time'}
+                                      </button>
+                                    ) : (
+                                      <button
+                                        onClick={() => handleJoinFollowUpVideoCall(appt._id)}
+                                        className="ud-appt-action-btn"
+                                        style={{ background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)', color: '#ffffff', boxShadow: '0 4px 10px rgba(37,99,235,0.35)' }}
+                                      >
+                                        <Video size={14} /> {appt.follow_up_patient_joined ? 'Rejoin Follow-up Video Call' : 'Join Follow-up Video Call'}
+                                      </button>
+                                    )
+                                  ) : (
+                                    <>
+                                      {!appt.follow_up_patient_arrived && (
+                                        <button
+                                          onClick={() => handleMarkFollowUpArrived(appt._id)}
+                                          className="ud-appt-action-btn"
+                                          style={{ background: 'linear-gradient(135deg, #0d9488 0%, #14b8a6 100%)', color: '#ffffff' }}
+                                        >
+                                          <MapPin size={14} /> I Have Arrived at Clinic
+                                        </button>
+                                      )}
+                                      <button
+                                        onClick={() => openDoctorMapModal(appt)}
+                                        className="ud-appt-action-btn"
+                                        style={{ background: '#f0fdfa', border: '1.5px solid #99f6e4', color: '#0d9488' }}
+                                      >
+                                        <MapPin size={14} /> Clinic Map
+                                      </button>
+                                    </>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Completed Follow-up Actions in User Panel */}
+                            {effFollowUpStatus === 'completed' && (
+                              <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                {(appt.follow_up_prescription_status === 'added' || appt.follow_up_prescription_id) ? (
+                                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px', padding: '8px 12px', background: '#ffffff', borderRadius: '8px', border: '1px solid #86efac' }}>
+                                    <span style={{ fontSize: '12px', color: '#15803d', fontWeight: 700 }}>
+                                      📋 Follow-up prescription attached
+                                    </span>
+                                    <button
+                                      onClick={() => handleViewPrescription({ appointment_id: appt._id, _id: appt.follow_up_prescription_id, prescription_type: 'follow_up' })}
+                                      className="ud-appt-action-btn"
+                                      style={{ background: '#f0fdf4', border: '1px solid #86efac', color: '#0d9488', fontWeight: 800 }}
+                                    >
+                                      <FileText size={14} /> View Follow-up Prescription
+                                    </button>
+                                  </div>
+                                ) : appt.follow_up_prescription_status === 'skipped' ? (
+                                  <div style={{ padding: '8px 12px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', color: '#64748b', fontSize: '12px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                    <FileText size={14} color="#94a3b8" />
+                                    <span>No prescription added</span>
+                                  </div>
+                                ) : (
+                                  <div style={{ padding: '8px 12px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', color: '#64748b', fontSize: '12px', fontWeight: 600 }}>
+                                    ⏳ Follow-up meet completed. Awaiting doctor prescription.
+                                  </div>
+                                )}
+                              </div>
+                            )}
+
                             {/* Request Follow-up Button Logic */}
-                            {(!appt.follow_up_status || appt.follow_up_status === 'none' || appt.follow_up_status === 'rejected') && (
+                            {(!appt.follow_up_status || appt.follow_up_status === 'none' || effFollowUpStatus === 'rejected' || effFollowUpStatus === 'expired') && (
                               <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '4px' }}>
-                                <button
-                                  onClick={() => openFollowUpModal(appt)}
-                                  className="ud-appt-followup-btn"
-                                  style={{
-                                    background: 'linear-gradient(135deg,#0d9488,#14b8a6)', color: '#fff',
-                                    border: 'none', borderRadius: '8px', padding: '8px 18px', fontWeight: 700,
-                                    fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px',
-                                    boxShadow: '0 4px 12px rgba(13,148,136,0.3)'
-                                  }}>
-                                  <CalendarCheck size={14} /> Request Free Follow-Up Meet
-                                </button>
+                                {!isFollowUpDeadlinePassed ? (
+                                  <button
+                                    onClick={() => openFollowUpModal(appt)}
+                                    className="ud-appt-followup-btn"
+                                    style={{
+                                      background: 'linear-gradient(135deg,#0d9488,#14b8a6)', color: '#fff',
+                                      border: 'none', borderRadius: '8px', padding: '8px 18px', fontWeight: 700,
+                                      fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px',
+                                      boxShadow: '0 4px 12px rgba(13,148,136,0.3)'
+                                    }}>
+                                    <CalendarCheck size={14} /> {effFollowUpStatus === 'expired' ? 'Request Follow-Up Meet Again' : 'Request Free Follow-Up Meet'}
+                                  </button>
+                                ) : (
+                                  <span style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '4px 8px' }}>
+                                    <Clock size={12} /> Assigned follow-up date and time has passed
+                                  </span>
+                                )}
                               </div>
                             )}
                           </div>
@@ -2042,7 +2421,8 @@ Verification Status: Digitally Verified Medical Record
                     const todayStr = new Date().toISOString().split('T')[0];
                     const presDateStr = followUpAppt.appointment_date ? new Date(followUpAppt.appointment_date).toISOString().split('T')[0] : (followUpAppt.prescribed_date ? new Date(followUpAppt.prescribed_date).toISOString().split('T')[0] : '');
                     const minDateStr = (presDateStr && presDateStr > todayStr) ? presDateStr : todayStr;
-                    const maxDateStr = followUpAppt.follow_up_date ? new Date(followUpAppt.follow_up_date).toISOString().split('T')[0] : '';
+                    const assignedDocDate = followUpAppt.assigned_follow_up_date || followUpAppt.follow_up_date;
+                    const maxDateStr = assignedDocDate ? new Date(assignedDocDate).toISOString().split('T')[0] : '';
                     return (
                       <div>
                         <label style={{ fontSize: '13px', fontWeight: 800, color: '#334155', display: 'block', marginBottom: '6px' }}>

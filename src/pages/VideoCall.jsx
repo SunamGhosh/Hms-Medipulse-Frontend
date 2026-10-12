@@ -314,8 +314,8 @@ const VideoCall = () => {
 
     const init = async () => {
       try {
-        const API = import.meta.env.VITE_URL || 'http://localhost:5000/api';
-        const cleanApptId = roomId ? roomId.replace('MediPulse_', '').trim() : '';
+        const isFollowUpCall = roomId ? roomId.includes('_followup') : false;
+        const cleanApptId = roomId ? roomId.replace('MediPulse_', '').replace('_followup', '').trim() : '';
         const activeToken = (isDoctor ? (sessionStorage.getItem('doctorToken') || localStorage.getItem('doctorToken')) : null) ||
           sessionStorage.getItem('token') || localStorage.getItem('token') ||
           sessionStorage.getItem('pharmacistToken') || localStorage.getItem('pharmacistToken');
@@ -330,10 +330,20 @@ const VideoCall = () => {
             });
             const data = await res.json();
             const appt = data?.appointment || data;
-            if (appt && (appt.status === 'completed' || appt.meet_time_end)) {
-              toast.error("Consultation has ended now and status is marked as Completed.");
-              setTimeout(() => navigate(-1), 1000);
-              return;
+            if (appt) {
+              if (isFollowUpCall) {
+                if (appt.follow_up_status === 'completed' || appt.follow_up_status === 'expired' || appt.follow_up_meet_time_end) {
+                  toast.error("Follow-up consultation has ended now and status is marked as Completed.");
+                  setTimeout(() => navigate(-1), 1000);
+                  return;
+                }
+              } else {
+                if (appt.status === 'completed' || appt.meet_time_end) {
+                  toast.error("Consultation has ended now and status is marked as Completed.");
+                  setTimeout(() => navigate(-1), 1000);
+                  return;
+                }
+              }
             }
           } catch (e) {
             console.warn('[VideoCall] Could not verify initial appointment status:', e);
@@ -490,19 +500,31 @@ const VideoCall = () => {
     const token = (isDoctor ? (sessionStorage.getItem('doctorToken') || localStorage.getItem('doctorToken')) : null) || 
                   sessionStorage.getItem('token') || localStorage.getItem('token') || 
                   sessionStorage.getItem('pharmacistToken') || localStorage.getItem('pharmacistToken');
-    const cleanApptId = roomId ? roomId.replace('MediPulse_', '').trim() : '';
+    const isFollowUpCall = roomId ? roomId.includes('_followup') : false;
+    const cleanApptId = roomId ? roomId.replace('MediPulse_', '').replace('_followup', '').trim() : '';
 
     if (isDoctor && cleanApptId && token) {
       try {
         const API = import.meta.env.VITE_URL || 'http://localhost:5000/api';
-        await fetch(`${API}/appointment/doctor/${cleanApptId}/call-complete`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`
-          }
-        });
-        toast.success('Consultation meeting ended. Status updated to Completed.');
+        if (isFollowUpCall) {
+          await fetch(`${API}/appointment/doctor/${cleanApptId}/followup-complete`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`
+            }
+          });
+          toast.success('Follow-up consultation meeting ended. Status updated to Completed.');
+        } else {
+          await fetch(`${API}/appointment/doctor/${cleanApptId}/call-complete`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`
+            }
+          });
+          toast.success('Consultation meeting ended. Status updated to Completed.');
+        }
       } catch (err) {
         console.error('Call completion sync error:', err);
       }
