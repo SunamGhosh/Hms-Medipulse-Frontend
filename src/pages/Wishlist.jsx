@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import ProfileDropdown from '../components/ProfileDropdown';
+import UserSidebar from '../components/UserSidebar';
 import './Wishlist.css';
 
 const API = import.meta.env.VITE_URL || 'http://localhost:5000';
@@ -27,6 +28,20 @@ const Wishlist = () => {
 
   const token = localStorage.getItem('userToken');
   const navigate = useNavigate();
+
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    if (window.innerWidth <= 1024) return true;
+    const saved = localStorage.getItem('userSidebarCollapsed');
+    return saved !== null ? JSON.parse(saved) : false;
+  });
+
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth <= 1024) setSidebarCollapsed(true);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   useEffect(() => {
     if (!token) {
@@ -190,33 +205,14 @@ const Wishlist = () => {
   };
 
   return (
-    <div className="wl-container">
-      {/* Navbar */}
-      <nav className="wl-navbar">
-        <Link to="/" className="nav-logo">
-          <img src="/img/logo.jpeg" alt="MediPulse Logo" />
-          <span className="nav-logo-text">MediPulse</span>
-        </Link>
-        <div className="nav-links">
-          <Link to="/" className="nav-link">Home</Link>
-          <Link to="/about" className="nav-link">About</Link>
-          <Link to="/doctors" className="nav-link">Doctor</Link>
-          <Link to="/pharmacy" className="nav-link">Pharmacy</Link>
-          <Link to="/contact" className="nav-link">Contact</Link>
-        </div>
-        <div className="nav-actions">
-          <Link to="/user/dashboard" className="btn-dashboard">Dashboard</Link>
-          <Link to="/wishlist" className="nav-wishlist-icon active-nav" title="My Wishlist">
-            <Heart size={20} className="wishlist-icon-filled" />
-            {wishlistItems.length > 0 && <span className="wishlist-badge">{wishlistItems.length}</span>}
-          </Link>
-          <Link to="/cart" className="nav-cart-icon" title="My Cart">
-            <ShoppingCart size={22} />
-            {cartTotalItems > 0 && <span className="cart-badge">{cartTotalItems}</span>}
-          </Link>
-          <ProfileDropdown />
-        </div>
-      </nav>
+    <div className={`wl-container with-user-sidebar${sidebarCollapsed ? ' sidebar-collapsed' : ''}`}>
+      <UserSidebar
+        activeItem="wishlist"
+        sidebarCollapsed={sidebarCollapsed}
+        setSidebarCollapsed={setSidebarCollapsed}
+      />
+
+
 
       {/* Main Content */}
       <div className="wl-content-wrapper">
