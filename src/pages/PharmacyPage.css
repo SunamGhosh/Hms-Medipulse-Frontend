@@ -542,3 +542,104 @@
   transform: translateY(-1px);
   box-shadow: 0 6px 16px rgba(13, 148, 136, 0.35);
 }
+
+/* ── Authenticated User with Sidebar ── */
+.pp-container.with-user-sidebar {
+  min-height: 100vh;
+  background-color: #f8fafc;
+  padding-top: 0;
+}
+
+.pp-container.with-user-sidebar .pp-content-wrapper {
+  margin-left: 260px;
+  max-width: calc(100vw - 260px);
+  padding: 32px 36px 60px;
+  transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1), max-width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.pp-container.with-user-sidebar.sidebar-collapsed .pp-content-wrapper {
+  margin-left: 76px;
+  max-width: calc(100vw - 76px);
+}
+
+.pp-header-right-group {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.pp-header-user-bar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.pp-header-action-btn {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  color: #475569;
+  text-decoration: none;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.pp-header-action-btn:hover {
+  background: #f0fdf9;
+  border-color: #0d9488;
+  color: #0d9488;
+  transform: translateY(-1px);
+}
+
+.pp-header-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  background: #e11d48;
+  color: #fff;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  min-width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+  box-shadow: 0 2px 5px rgba(225, 29, 72, 0.4);
+}
+
+@media (max-width: 1024px) {
+  .pp-container.with-user-sidebar .pp-content-wrapper {
+    margin-left: 76px;
+    max-width: calc(100vw - 76px);
+    padding: 24px 20px 60px;
+  }
+}
+
+@media (max-width: 768px) {
+  .pp-header-right-group {
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
+  }
+  .pp-header-user-bar {
+    justify-content: flex-end;
+  }
+}
+
+@media (max-width: 480px) {
+  .pp-container.with-user-sidebar .pp-content-wrapper {
+    margin-left: 64px;
+    max-width: calc(100vw - 64px);
+    padding: 16px 12px 60px;
+  }
+}
+
+

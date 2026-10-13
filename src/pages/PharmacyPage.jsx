@@ -5,6 +5,8 @@ import toast from 'react-hot-toast';
 import RoleSelectionModal from '../components/RoleSelectionModal';
 import SignupModal from '../components/SignupModal';
 import ProfileDropdown from '../components/ProfileDropdown';
+import UserSidebar from '../components/UserSidebar';
+import BookAppointmentModal from '../components/BookAppointmentModal';
 import API_BASE_URL from '../config/api';
 import './PharmacyPage.css';
 
@@ -44,7 +46,22 @@ const PharmacyPage = () => {
   const token = localStorage.getItem('userToken');
   const navigate = useNavigate();
 
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    if (window.innerWidth <= 1024) return true;
+    const saved = localStorage.getItem('userSidebarCollapsed');
+    return saved !== null ? JSON.parse(saved) : false;
+  });
+  const [isBookModalOpen, setIsBookModalOpen] = useState(false);
+
   const dashboardPath = token ? '/user/dashboard' : null;
+
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth <= 1024) setSidebarCollapsed(true);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   useEffect(() => {
     const fetchMedicines = async () => {
@@ -239,52 +256,40 @@ const PharmacyPage = () => {
   });
 
   return (
-    <div className="pp-container">
-      {/* Navigation */}
-      <nav className="pp-navbar">
-        <Link to="/" className="nav-logo">
-          <img src="/img/logo.jpeg" alt="MediPulse Logo" />
-          <span className="nav-logo-text">MediPulse</span>
-        </Link>
-        <div className="nav-links">
-          <Link to="/" className="nav-link">Home</Link>
-          <Link to="/about" className="nav-link">About</Link>
-          <Link to="/doctors" className="nav-link">Doctor</Link>
-          <Link to="/pharmacy" className="nav-link active">Pharmacy</Link>
-          <Link to="/contact" className="nav-link">Contact</Link>
-        </div>
-        <div className="nav-actions">
-          {token ? (
-            <>
-              {dashboardPath && (
-                <Link to={dashboardPath} className="btn-dashboard">Dashboard</Link>
-              )}
-              <Link to="/wishlist" className="nav-wishlist-icon" title="My Wishlist">
-                <Heart size={20} className={wishlistTotalItems > 0 ? "wishlist-icon-filled" : ""} />
-                {wishlistTotalItems > 0 && <span className="wishlist-badge">{wishlistTotalItems}</span>}
-              </Link>
-              <Link to="/cart" className="nav-cart-icon" title="My Cart">
-                <ShoppingCart size={22} />
-                {cartTotalItems > 0 && <span className="cart-badge">{cartTotalItems}</span>}
-              </Link>
-              <ProfileDropdown />
-            </>
-          ) : dashboardPath ? (
-            <>
-              <Link to={dashboardPath} className="btn-dashboard">Dashboard</Link>
-            </>
-          ) : (
-            <>
-              <button className="btn-outline" onClick={() => setIsSignupModalOpen(true)}>
-                Signup
-              </button>
-              <button className="btn-primary-nav" onClick={() => setIsRoleModalOpen(true)}>
-                Login
-              </button>
-            </>
-          )}
-        </div>
-      </nav>
+    <div className={`pp-container${token ? ' with-user-sidebar' : ''}${sidebarCollapsed ? ' sidebar-collapsed' : ''}`}>
+      {token && (
+        <UserSidebar
+          activeItem="pharmacy"
+          sidebarCollapsed={sidebarCollapsed}
+          setSidebarCollapsed={setSidebarCollapsed}
+          onBookClick={() => setIsBookModalOpen(true)}
+        />
+      )}
+
+      {/* Navigation - Only for unauthenticated public visitors */}
+      {!token && (
+        <nav className="pp-navbar">
+          <Link to="/" className="nav-logo">
+            <img src="/img/logo.jpeg" alt="MediPulse Logo" />
+            <span className="nav-logo-text">MediPulse</span>
+          </Link>
+          <div className="nav-links">
+            <Link to="/" className="nav-link">Home</Link>
+            <Link to="/about" className="nav-link">About</Link>
+            <Link to="/doctors" className="nav-link">Doctor</Link>
+            <Link to="/pharmacy" className="nav-link active">Pharmacy</Link>
+            <Link to="/contact" className="nav-link">Contact</Link>
+          </div>
+          <div className="nav-actions">
+            <button className="btn-outline" onClick={() => setIsSignupModalOpen(true)}>
+              Signup
+            </button>
+            <button className="btn-primary-nav" onClick={() => setIsRoleModalOpen(true)}>
+              Login
+            </button>
+          </div>
+        </nav>
+      )}
 
       <div className="pp-content-wrapper">
         <div className="pp-header-row">
@@ -293,30 +298,46 @@ const PharmacyPage = () => {
             <p className="pp-page-subtitle">Get your medicines delivered right to your door.</p>
           </div>
 
-          {/* Search Medicine Bar with Search Button */}
-          <form onSubmit={handleSearchSubmit} className="pp-search-form">
-            <div className="pp-search-box-container">
-              <Search size={18} className="pp-search-icon" />
-              <input
-                type="text"
-                placeholder="Search medicine, category, or generic..."
-                value={searchInput}
-                onChange={(e) => {
-                  setSearchInput(e.target.value);
-                  setActiveSearchQuery(e.target.value);
-                }}
-                className="pp-search-input"
-              />
-              {searchInput && (
-                <button type="button" className="pp-search-clear-btn" onClick={handleClearSearch} title="Clear search">
-                  <X size={16} />
-                </button>
-              )}
-            </div>
-            <button type="submit" className="pp-search-submit-btn">
-              <Search size={16} /> Search
-            </button>
-          </form>
+          <div className="pp-header-right-group">
+            {/* Search Medicine Bar with Search Button */}
+            <form onSubmit={handleSearchSubmit} className="pp-search-form">
+              <div className="pp-search-box-container">
+                <Search size={18} className="pp-search-icon" />
+                <input
+                  type="text"
+                  placeholder="Search medicine, category, or generic..."
+                  value={searchInput}
+                  onChange={(e) => {
+                    setSearchInput(e.target.value);
+                    setActiveSearchQuery(e.target.value);
+                  }}
+                  className="pp-search-input"
+                />
+                {searchInput && (
+                  <button type="button" className="pp-search-clear-btn" onClick={handleClearSearch} title="Clear search">
+                    <X size={16} />
+                  </button>
+                )}
+              </div>
+              <button type="submit" className="pp-search-submit-btn">
+                <Search size={16} /> Search
+              </button>
+            </form>
+
+            {token && (
+              <div className="pp-header-user-bar">
+                <Link to="/wishlist" className="pp-header-action-btn" title="My Wishlist">
+                  <Heart size={20} className={wishlistTotalItems > 0 ? "wishlist-icon-filled" : ""} />
+                  {wishlistTotalItems > 0 && <span className="pp-header-badge">{wishlistTotalItems}</span>}
+                </Link>
+                <Link to="/cart" className="pp-header-action-btn" title="My Cart">
+                  <ShoppingCart size={21} />
+                  {cartTotalItems > 0 && <span className="pp-header-badge">{cartTotalItems}</span>}
+                </Link>
+                <ProfileDropdown />
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="pp-main-layout">
@@ -446,6 +467,13 @@ const PharmacyPage = () => {
         isOpen={isSignupModalOpen}
         onClose={() => setIsSignupModalOpen(false)}
       />
+
+      {isBookModalOpen && (
+        <BookAppointmentModal
+          isOpen={isBookModalOpen}
+          onClose={() => setIsBookModalOpen(false)}
+        />
+      )}
     </div>
   );
 };

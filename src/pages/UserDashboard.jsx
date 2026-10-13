@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
 import {
   Activity, CalendarCheck, Stethoscope, Pill, Bell, User, LogOut,
   ArrowRight, Clock, Heart, ShieldCheck, ArrowUpRight, Users,
@@ -12,6 +12,7 @@ import './MyOrders.css';
 import './PharmacyPage.css';
 import BookAppointmentModal from '../components/BookAppointmentModal';
 import DoctorLocationMapModal from '../components/DoctorLocationMapModal';
+import UserSidebar from '../components/UserSidebar';
 
 import API_BASE_URL from '../config/api';
 
@@ -61,6 +62,13 @@ const UserDashboard = () => {
   const [userName, setUserName] = useState('');
   const [greeting, setGreeting] = useState('');
   const [view, setView] = useState(VIEWS.DASHBOARD);
+  const location = useLocation();
+
+  useEffect(() => {
+    if (location.state?.view && Object.values(VIEWS).includes(location.state.view)) {
+      setView(location.state.view);
+    }
+  }, [location.state]);
   const [isBookModalOpen, setIsBookModalOpen] = useState(false);
   const [trackingModalItem, setTrackingModalItem] = useState(null);
   const [isTrackingModalOpen, setIsTrackingModalOpen] = useState(false);
@@ -1094,78 +1102,14 @@ Verification Status: Digitally Verified Medical Record
       <div className="ud-blob ud-blob-3" />
 
       {/* ── Sidebar ── */}
-      <aside className={`ud-sidebar${sidebarCollapsed ? ' collapsed' : ''}`}>
-        <div className="ud-sidebar-brand" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingRight: 16 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div className="ud-sidebar-logo">
-              <Activity size={20} strokeWidth={2.5} color="#fff" />
-            </div>
-            {!sidebarCollapsed && <span>MediPulse</span>}
-          </div>
-          <button
-            onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-            title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-            style={{
-              background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: '8px',
-              width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center',
-              cursor: 'pointer', color: '#475569', transition: 'all 0.2s', flexShrink: 0
-            }}
-          >
-            {sidebarCollapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
-          </button>
-        </div>
-
-        <nav className="ud-nav">
-          <button className={`ud-nav-item${view === VIEWS.DASHBOARD ? ' active' : ''}`}
-            onClick={() => setView(VIEWS.DASHBOARD)} title={sidebarCollapsed ? "Dashboard" : ""} style={{ background: 'none', border: 'none', font: 'inherit', cursor: 'pointer', width: '100%', textAlign: 'left' }}>
-            <Activity size={18} /> {!sidebarCollapsed && <span>Dashboard</span>}
-          </button>
-
-          <Link to="/doctors" className="ud-nav-item" title={sidebarCollapsed ? "Doctors" : ""}>
-            <Stethoscope size={18} /> {!sidebarCollapsed && <span>Doctors</span>}
-          </Link>
-
-          <Link to="/pharmacy" className="ud-nav-item" title={sidebarCollapsed ? "Pharmacy" : ""}>
-            <Pill size={18} /> {!sidebarCollapsed && <span>Pharmacy</span>}
-          </Link>
-
-          <Link to="/wishlist" className="ud-nav-item" title={sidebarCollapsed ? "My Wishlist" : ""}>
-            <Heart size={18} /> {!sidebarCollapsed && <span>My Wishlist</span>}
-          </Link>
-
-          <button className={`ud-nav-item${view === VIEWS.APPOINTMENTS ? ' active' : ''}`}
-            onClick={() => setView(VIEWS.APPOINTMENTS)} title={sidebarCollapsed ? "Appointments" : ""} style={{ background: 'none', border: 'none', font: 'inherit', cursor: 'pointer', width: '100%', textAlign: 'left' }}>
-            <CalendarCheck size={18} /> {!sidebarCollapsed && <span>Appointments</span>}
-            {pendingAppts > 0 && (
-              <span style={{ marginLeft: sidebarCollapsed ? '0' : 'auto', background: '#0d9488', color: '#fff', borderRadius: '12px', fontSize: '11px', fontWeight: 700, padding: '2px 8px' }}>
-                {pendingAppts}
-              </span>
-            )}
-          </button>
-
-          <button className={`ud-nav-item${view === VIEWS.ORDERS ? ' active' : ''}`}
-            onClick={() => setView(VIEWS.ORDERS)} title={sidebarCollapsed ? "My Orders" : ""} style={{ background: 'none', border: 'none', font: 'inherit', cursor: 'pointer', width: '100%', textAlign: 'left' }}>
-            <Package size={18} /> {!sidebarCollapsed && <span>My Orders</span>}
-          </button>
-
-          {/* ── Book Appointment — sidebar CTA ── */}
-          <div className="ud-nav-divider" />
-          <button className="ud-nav-item ud-nav-book" onClick={() => setIsBookModalOpen(true)} title={sidebarCollapsed ? "Book Appointment" : ""}
-            style={{ background: 'linear-gradient(135deg,#0d9488,#14b8a6)', color: '#fff', border: 'none', font: 'inherit', cursor: 'pointer', width: '100%', textAlign: 'left', borderRadius: '10px', margin: '4px 0', justifyContent: sidebarCollapsed ? 'center' : 'flex-start' }}>
-            <Plus size={18} /> {!sidebarCollapsed && <span>Book Appointment</span>}
-          </button>
-          <div className="ud-nav-divider" />
-
-          <button className={`ud-nav-item${view === VIEWS.PROFILE ? ' active' : ''}`}
-            onClick={() => setView(VIEWS.PROFILE)} title={sidebarCollapsed ? "My Profile" : ""} style={{ background: 'none', border: 'none', font: 'inherit', cursor: 'pointer', width: '100%', textAlign: 'left' }}>
-            <User size={18} /> {!sidebarCollapsed && <span>My Profile</span>}
-          </button>
-        </nav>
-
-        <button className="ud-logout-btn" onClick={handleLogout} title={sidebarCollapsed ? "Sign Out" : ""} style={{ color: '#ef4444', justifyContent: sidebarCollapsed ? 'center' : 'flex-start' }}>
-          <LogOut size={17} /> {!sidebarCollapsed && <span>Sign Out</span>}
-        </button>
-      </aside>
+      <UserSidebar
+        activeItem={view}
+        sidebarCollapsed={sidebarCollapsed}
+        setSidebarCollapsed={setSidebarCollapsed}
+        pendingAppts={pendingAppts}
+        onViewChange={(v) => setView(v)}
+        onBookClick={() => setIsBookModalOpen(true)}
+      />
 
       {/* ── Main ── */}
       <main className={`ud-main${sidebarCollapsed ? ' collapsed' : ''}`}>

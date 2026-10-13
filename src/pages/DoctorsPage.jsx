@@ -5,6 +5,7 @@ import RoleSelectionModal from '../components/RoleSelectionModal';
 import BookAppointmentModal from '../components/BookAppointmentModal';
 import SignupModal from '../components/SignupModal';
 import ProfileDropdown from '../components/ProfileDropdown';
+import UserSidebar from '../components/UserSidebar';
 import './DoctorsPage.css';
 
 import API_BASE_URL from '../config/api';
@@ -24,7 +25,22 @@ const DoctorsPage = () => {
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
-  const dashboardPath = localStorage.getItem('userToken') ? '/user/dashboard' : null;
+  const token = localStorage.getItem('userToken');
+  const dashboardPath = token ? '/user/dashboard' : null;
+
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    if (window.innerWidth <= 1024) return true;
+    const saved = localStorage.getItem('userSidebarCollapsed');
+    return saved !== null ? JSON.parse(saved) : false;
+  });
+
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth <= 1024) setSidebarCollapsed(true);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
 
   const handleBookAppointment = (doctorId) => {
@@ -90,44 +106,43 @@ const DoctorsPage = () => {
   });
 
   return (
-    <div className="dp-container">
-      {/* Reusing Home Navigation Style */}
-      <nav className="dp-navbar">
-        <Link to="/" className="nav-logo">
-          <img src="/img/logo.jpeg" alt="MediPulse Logo" />
-          <span className="nav-logo-text">MediPulse</span>
-        </Link>
-        <div className="nav-links">
-          <Link to="/" className="nav-link">Home</Link>
-          <Link to="/about" className="nav-link">About</Link>
-          <Link to="/doctors" className="nav-link active">Doctor</Link>
-          <Link to="/pharmacy" className="nav-link">Pharmacy</Link>
-          <Link to="/contact" className="nav-link">Contact</Link>
-        </div>
-        <div className="nav-actions">
-          {localStorage.getItem('userToken') ? (
-            <>
-              {dashboardPath && (
-                <Link to={dashboardPath} className="btn-dashboard">Dashboard</Link>
-              )}
-              <ProfileDropdown />
-            </>
-          ) : dashboardPath ? (
-            <>
-              <Link to={dashboardPath} className="btn-dashboard">Dashboard</Link>
-            </>
-          ) : (
-            <>
-              <button className="btn-outline" onClick={() => setIsSignupModalOpen(true)}>
-                Signup
-              </button>
-              <button className="btn-primary-nav" onClick={() => setIsRoleModalOpen(true)}>
-                Login
-              </button>
-            </>
-          )}
-        </div>
-      </nav>
+    <div className={`dp-container${token ? ' with-user-sidebar' : ''}${sidebarCollapsed ? ' sidebar-collapsed' : ''}`}>
+      {token && (
+        <UserSidebar
+          activeItem="doctors"
+          sidebarCollapsed={sidebarCollapsed}
+          setSidebarCollapsed={setSidebarCollapsed}
+          onBookClick={() => {
+            setBookDoctorId(null);
+            setIsBookModalOpen(true);
+          }}
+        />
+      )}
+
+      {/* Public Navigation - Only for unauthenticated visitors */}
+      {!token && (
+        <nav className="dp-navbar">
+          <Link to="/" className="nav-logo">
+            <img src="/img/logo.jpeg" alt="MediPulse Logo" />
+            <span className="nav-logo-text">MediPulse</span>
+          </Link>
+          <div className="nav-links">
+            <Link to="/" className="nav-link">Home</Link>
+            <Link to="/about" className="nav-link">About</Link>
+            <Link to="/doctors" className="nav-link active">Doctor</Link>
+            <Link to="/pharmacy" className="nav-link">Pharmacy</Link>
+            <Link to="/contact" className="nav-link">Contact</Link>
+          </div>
+          <div className="nav-actions">
+            <button className="btn-outline" onClick={() => setIsSignupModalOpen(true)}>
+              Signup
+            </button>
+            <button className="btn-primary-nav" onClick={() => setIsRoleModalOpen(true)}>
+              Login
+            </button>
+          </div>
+        </nav>
+      )}
 
       <div className="dp-content-wrapper">
         <div className="dp-header-row">
@@ -136,30 +151,38 @@ const DoctorsPage = () => {
             <p className="dp-page-subtitle">Browse through our extensive list of trusted doctors.</p>
           </div>
 
-          {/* Search Doctor Bar with Search Button */}
-          <form onSubmit={handleSearchSubmit} className="dp-search-form">
-            <div className="dp-search-box-container">
-              <Search size={18} className="dp-search-icon" />
-              <input
-                type="text"
-                placeholder="Search doctor by name, specialty, or qualification..."
-                value={searchInput}
-                onChange={(e) => {
-                  setSearchInput(e.target.value);
-                  setActiveSearchQuery(e.target.value);
-                }}
-                className="dp-search-input"
-              />
-              {searchInput && (
-                <button type="button" className="dp-search-clear-btn" onClick={handleClearSearch} title="Clear search">
-                  <X size={16} />
-                </button>
-              )}
-            </div>
-            <button type="submit" className="dp-search-submit-btn">
-              <Search size={16} /> Search
-            </button>
-          </form>
+          <div className="dp-header-right-group">
+            {/* Search Doctor Bar with Search Button */}
+            <form onSubmit={handleSearchSubmit} className="dp-search-form">
+              <div className="dp-search-box-container">
+                <Search size={18} className="dp-search-icon" />
+                <input
+                  type="text"
+                  placeholder="Search doctor by name, specialty, or qualification..."
+                  value={searchInput}
+                  onChange={(e) => {
+                    setSearchInput(e.target.value);
+                    setActiveSearchQuery(e.target.value);
+                  }}
+                  className="dp-search-input"
+                />
+                {searchInput && (
+                  <button type="button" className="dp-search-clear-btn" onClick={handleClearSearch} title="Clear search">
+                    <X size={16} />
+                  </button>
+                )}
+              </div>
+              <button type="submit" className="dp-search-submit-btn">
+                <Search size={16} /> Search
+              </button>
+            </form>
+
+            {token && (
+              <div className="dp-header-user-bar">
+                <ProfileDropdown />
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="dp-main-layout">
