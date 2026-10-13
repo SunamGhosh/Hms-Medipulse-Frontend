@@ -2222,6 +2222,9 @@ Verification Status: Digitally Verified Medical Record
                               prescriptions.some(p => (p.appointment_id?._id || p.appointment_id) === appt._id || p._id === appt._id) ||
                               medicalRecords.some(m => (m.appointment_id?._id || m.appointment_id) === appt._id || m._id === appt._id)
                             );
+                            const hasRequestedMeet = Boolean((appt.follow_up_status && appt.follow_up_status !== 'none') || appt.follow_up_requested_at || (appt.follow_up_time && appt.follow_up_date));
+                            const doctorAssignedDate = appt.assigned_follow_up_date || appt.follow_up_date;
+                            const isPharmacistBooker = appt.booker_role === 'pharmacist' || appt.follow_up_requested_by === 'pharmacist';
                             return (
                               <>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
@@ -2234,38 +2237,89 @@ Verification Status: Digitally Verified Medical Record
 
                                   <span style={{
                                     padding: '4px 12px', borderRadius: '20px', fontSize: '11px', fontWeight: 800,
-                                    background: effStatus === 'accepted' ? '#dcfce7' : effStatus === 'requested' ? '#dbeafe' : effStatus === 'rejected' ? '#ffedd5' : effStatus === 'cancelled' || effStatus === 'expired' ? '#fee2e2' : effStatus === 'completed' ? '#ecfdf5' : !isPrescAdded ? '#fef3c7' : appt.follow_up_date ? '#ccfbf1' : '#f1f5f9',
-                                    color: effStatus === 'accepted' ? '#15803d' : effStatus === 'requested' ? '#1d4ed8' : effStatus === 'rejected' ? '#c2410c' : effStatus === 'cancelled' || effStatus === 'expired' ? '#b91c1c' : effStatus === 'completed' ? '#047857' : !isPrescAdded ? '#b45309' : appt.follow_up_date ? '#0f766e' : '#475569',
-                                    border: `1px solid ${effStatus === 'accepted' ? '#86efac' : effStatus === 'requested' ? '#93c5fd' : effStatus === 'rejected' ? '#fdba74' : effStatus === 'cancelled' || effStatus === 'expired' ? '#fca5a5' : effStatus === 'completed' ? '#6ee7b7' : !isPrescAdded ? '#fde68a' : appt.follow_up_date ? '#99f6e4' : '#cbd5e1'}`
+                                    background: effStatus === 'accepted' ? '#dcfce7' : effStatus === 'requested' ? '#dbeafe' : effStatus === 'rejected' ? '#ffedd5' : effStatus === 'cancelled' || effStatus === 'expired' ? '#fee2e2' : effStatus === 'completed' ? '#ecfdf5' : !isPrescAdded ? '#fef3c7' : doctorAssignedDate ? '#ccfbf1' : '#f1f5f9',
+                                    color: effStatus === 'accepted' ? '#15803d' : effStatus === 'requested' ? '#1d4ed8' : effStatus === 'rejected' ? '#c2410c' : effStatus === 'cancelled' || effStatus === 'expired' ? '#b91c1c' : effStatus === 'completed' ? '#047857' : !isPrescAdded ? '#b45309' : doctorAssignedDate ? '#0f766e' : '#475569',
+                                    border: `1px solid ${effStatus === 'accepted' ? '#86efac' : effStatus === 'requested' ? '#93c5fd' : effStatus === 'rejected' ? '#fdba74' : effStatus === 'cancelled' || effStatus === 'expired' ? '#fca5a5' : effStatus === 'completed' ? '#6ee7b7' : !isPrescAdded ? '#fde68a' : doctorAssignedDate ? '#99f6e4' : '#cbd5e1'}`
                                   }}>
                                     {effStatus === 'accepted' ? 'Status: Confirmed / Accepted' :
-                                     effStatus === 'requested' ? 'Status: Requested by Patient' :
+                                     effStatus === 'requested' ? `Status: Requested by ${isPharmacistBooker ? 'Pharmacist' : 'Patient'}` :
                                      effStatus === 'rejected' ? 'Status: Rejected' :
                                      effStatus === 'cancelled' ? 'Status: Cancelled' :
                                      effStatus === 'expired' ? 'Status: Expired' :
                                      effStatus === 'completed' ? 'Status: Completed' :
                                      !isPrescAdded ? 'Status: Pending Prescription' :
-                                     appt.follow_up_date ? 'Status: Follow-up Required' : 'Status: No Follow-up Required'}
+                                     doctorAssignedDate ? 'Status: Follow-up Required' : 'Status: No Follow-up Required'}
                                   </span>
                                 </div>
 
-                                <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap', fontSize: '12.5px', color: '#334155', alignItems: 'center' }}>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                    <strong style={{ color: '#0f766e' }}>Follow-up Date & Time:</strong>
-                                    <span style={{ fontWeight: 600, color: (appt.assigned_follow_up_date || appt.follow_up_date) ? '#0f172a' : '#64748b' }}>
-                                      {(appt.assigned_follow_up_date || appt.follow_up_date) ? (
-                                        `${formatDate(appt.assigned_follow_up_date || appt.follow_up_date)} ${appt.follow_up_time ? `at ${appt.follow_up_time}` : ''}`
+                                <div style={{
+                                  display: 'grid',
+                                  gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+                                  gap: '12px',
+                                  background: '#ffffff',
+                                  padding: '12px 16px',
+                                  borderRadius: '10px',
+                                  border: '1px solid #ccfbf1',
+                                  fontSize: '12.5px'
+                                }}>
+                                  <div>
+                                    <span style={{ color: '#0f766e', fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', display: 'block', marginBottom: '3px', letterSpacing: '0.3px' }}>
+                                      Doctor Assigned Follow-up Date
+                                    </span>
+                                    <span style={{ fontWeight: 700, color: '#0f172a' }}>
+                                      {doctorAssignedDate ? (
+                                        <>
+                                          {formatDate(doctorAssignedDate)}
+                                          {appt.assigned_follow_up_time && (
+                                            <span style={{ fontSize: '11.5px', color: '#64748b', fontWeight: 500 }}> (Till {appt.assigned_follow_up_time})</span>
+                                          )}
+                                        </>
                                       ) : !isPrescAdded ? (
                                         <span style={{ fontStyle: 'italic', fontWeight: 500, color: '#b45309' }}>To be set while creating prescription</span>
                                       ) : (
-                                        <span style={{ fontStyle: 'italic', fontWeight: 500, color: '#64748b' }}>Not Scheduled (No follow-up set during prescription)</span>
+                                        <span style={{ fontStyle: 'italic', fontWeight: 500, color: '#64748b' }}>Not Scheduled</span>
                                       )}
                                     </span>
                                   </div>
 
-                                  <span><strong style={{ color: '#0f766e' }}>Consultation Mode:</strong> <span style={{ textTransform: 'capitalize', color: '#0d9488', fontWeight: 700 }}>{appt.consult_mode || 'offline'}</span> (Same as initial meet)</span>
-                                  <span><strong style={{ color: '#0f766e' }}>Consultation Fee:</strong> <span style={{ color: '#16a34a', fontWeight: 800, background: '#dcfce7', padding: '2px 8px', borderRadius: '6px', border: '1px solid #86efac' }}>Free / ₹0 (No Charges)</span></span>
-                                  <span><strong style={{ color: '#0f766e' }}>Booked By:</strong> {appt.booker_role === 'pharmacist' ? 'Pharmacist (10% Privilege)' : 'User'}</span>
+                                  <div>
+                                    <span style={{ color: '#0f766e', fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', display: 'block', marginBottom: '3px', letterSpacing: '0.3px' }}>
+                                      Recent Request Date & Time
+                                    </span>
+                                    {hasRequestedMeet ? (
+                                      <span style={{ fontWeight: 800, color: effStatus === 'accepted' ? '#15803d' : effStatus === 'requested' ? '#1d4ed8' : '#0f172a', fontSize: '13px' }}>
+                                        📅 {formatDate(appt.follow_up_date)} {appt.follow_up_time ? `at ${appt.follow_up_time}` : ''}
+                                      </span>
+                                    ) : (
+                                      <span style={{ fontStyle: 'italic', color: '#64748b', fontWeight: 500 }}>
+                                        Not yet requested by {isPharmacistBooker ? 'pharmacist' : 'patient'}
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  <div>
+                                    <span style={{ color: '#0f766e', fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', display: 'block', marginBottom: '3px', letterSpacing: '0.3px' }}>
+                                      Mode & Charges
+                                    </span>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                                      <span style={{ textTransform: 'capitalize', color: '#0d9488', fontWeight: 700 }}>{appt.consult_mode || 'offline'}</span>
+                                      <span style={{ color: '#16a34a', fontWeight: 800, background: '#dcfce7', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', border: '1px solid #86efac' }}>
+                                        Free / ₹0
+                                      </span>
+                                    </div>
+                                  </div>
+
+                                  <div>
+                                    <span style={{ color: '#0f766e', fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', display: 'block', marginBottom: '3px', letterSpacing: '0.3px' }}>
+                                      Booked By
+                                    </span>
+                                    <span style={{ fontWeight: 600, color: '#334155' }}>
+                                      {appt.booker_role === 'pharmacist' ? 'Pharmacist (10% Privilege)' : 'User / Patient'}
+                                      {appt.follow_up_requested_by && appt.follow_up_requested_by !== appt.booker_role && (
+                                        <span style={{ fontSize: '11px', color: '#64748b' }}> (Req: {appt.follow_up_requested_by})</span>
+                                      )}
+                                    </span>
+                                  </div>
                                 </div>
 
                                 {/* Patient Attendance / Availability Status when Follow-up Confirmed */}
@@ -2327,91 +2381,99 @@ Verification Status: Digitally Verified Medical Record
                                 {/* Follow-up Completed Notice & Prescription Actions */}
                                 {effStatus === 'completed' && (
                                   <>
-                                    {/* If Follow-up Prescription is Added */}
-                                    {(appt.follow_up_prescription_status === 'added' || appt.follow_up_prescription_id) ? (
-                                      <div style={{ background: '#f0fdf4', border: '1.5px solid #86efac', borderRadius: '10px', padding: '10px 14px', color: '#15803d', fontSize: '12.5px', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                          <CheckCircle2 size={15} color="#16a34a" />
-                                          <span>✓ Follow-up Consultation Completed & Prescription Added.</span>
-                                        </div>
-                                        <button
-                                          onClick={() => handleViewDoctorRecordSheet({ appointment_id: appt._id, _id: appt.follow_up_prescription_id, prescription_type: 'follow_up' })}
-                                          style={{
-                                            background: '#0d9488',
-                                            color: '#fff',
-                                            border: 'none',
-                                            borderRadius: '6px',
-                                            padding: '6px 14px',
-                                            fontWeight: 800,
-                                            fontSize: '12px',
-                                            cursor: 'pointer',
-                                            display: 'inline-flex',
-                                            alignItems: 'center',
-                                            gap: '5px',
-                                            boxShadow: '0 2px 6px rgba(13,148,136,0.3)'
-                                          }}
-                                        >
-                                          <FileText size={13} /> View Follow-up Prescription
-                                        </button>
-                                      </div>
-                                    ) : appt.follow_up_prescription_status === 'skipped' ? (
-                                      /* If Follow-up Prescription was Skipped */
-                                      <div style={{ background: '#f8fafc', border: '1.5px solid #cbd5e1', borderRadius: '10px', padding: '10px 14px', color: '#475569', fontSize: '12.5px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                        <FileText size={15} color="#64748b" />
-                                        <span>📋 Prescription Skipped (No prescription added)</span>
-                                      </div>
-                                    ) : (
-                                      /* If Pending Decision: Two Buttons (Add Prescription or Skip Prescription) */
-                                      <div style={{ background: '#f0fdf4', border: '1.5px solid #86efac', borderRadius: '10px', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#15803d', fontSize: '12.5px', fontWeight: 700 }}>
-                                          <CheckCircle2 size={15} color="#16a34a" />
-                                          <span>✓ Follow-up Consultation Completed Successfully.</span>
-                                        </div>
-                                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', flexWrap: 'wrap', paddingTop: '8px', borderTop: '1px solid #dcfce7' }}>
+                                    {(() => {
+                                      const hasFollowUpPresc = Boolean(
+                                        appt.follow_up_prescription_status === 'added' ||
+                                        appt.follow_up_prescription_id ||
+                                        prescriptions.some(p => (p.appointment_id?._id || p.appointment_id) === appt._id && (p.prescription_type === 'follow_up' || p.is_follow_up)) ||
+                                        medicalRecords.some(m => (m.appointment_id?._id || m.appointment_id) === appt._id && (m.record_type === 'follow_up' || m.is_follow_up))
+                                      );
+
+                                      return hasFollowUpPresc ? (
+                                        <div style={{ background: '#f0fdf4', border: '1.5px solid #86efac', borderRadius: '10px', padding: '10px 14px', color: '#15803d', fontSize: '12.5px', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
+                                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                            <CheckCircle2 size={15} color="#16a34a" />
+                                            <span>✓ Follow-up Consultation Completed & Prescription Added.</span>
+                                          </div>
                                           <button
-                                            onClick={() => {
-                                              setSelectedApptForPrescription({ ...appt, isFollowUp: true });
-                                              setIsPrescriptionModalOpen(true);
-                                            }}
+                                            onClick={() => handleViewDoctorRecordSheet({ appointment_id: appt._id, _id: appt.follow_up_prescription_id || appt._id, prescription_type: 'follow_up' })}
                                             style={{
-                                              background: 'linear-gradient(135deg, #0d9488 0%, #0f766e 100%)',
+                                              background: '#0d9488',
                                               color: '#fff',
                                               border: 'none',
                                               borderRadius: '6px',
-                                              padding: '7px 16px',
+                                              padding: '6px 14px',
                                               fontWeight: 800,
                                               fontSize: '12px',
                                               cursor: 'pointer',
                                               display: 'inline-flex',
                                               alignItems: 'center',
                                               gap: '5px',
-                                              boxShadow: '0 2px 8px rgba(13,148,136,0.35)'
+                                              boxShadow: '0 2px 6px rgba(13,148,136,0.3)'
                                             }}
                                           >
-                                            <Plus size={13} /> Add Prescription
-                                          </button>
-                                          <button
-                                            onClick={() => handleSkipFollowUpPrescription(appt._id)}
-                                            style={{
-                                              background: '#f1f5f9',
-                                              color: '#475569',
-                                              border: '1.5px solid #cbd5e1',
-                                              borderRadius: '6px',
-                                              padding: '7px 16px',
-                                              fontWeight: 700,
-                                              fontSize: '12px',
-                                              cursor: 'pointer',
-                                              display: 'inline-flex',
-                                              alignItems: 'center',
-                                              gap: '5px',
-                                              transition: 'all 0.2s'
-                                            }}
-                                          >
-                                            <X size={13} /> Skip Prescription
+                                            <FileText size={13} /> View Follow-up Prescription
                                           </button>
                                         </div>
-                                      </div>
-                                    )}
+                                      ) : appt.follow_up_prescription_status === 'skipped' ? (
+                                        /* If Follow-up Prescription was Skipped */
+                                        <div style={{ background: '#f8fafc', border: '1.5px solid #cbd5e1', borderRadius: '10px', padding: '10px 14px', color: '#475569', fontSize: '12.5px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                          <FileText size={15} color="#64748b" />
+                                          <span>📋 Prescription Skipped (No prescription added)</span>
+                                        </div>
+                                      ) : (
+                                        /* If Pending Decision: Two Buttons (Add Prescription or Skip Prescription) */
+                                        <div style={{ background: '#f0fdf4', border: '1.5px solid #86efac', borderRadius: '10px', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#15803d', fontSize: '12.5px', fontWeight: 700 }}>
+                                            <CheckCircle2 size={15} color="#16a34a" />
+                                            <span>✓ Follow-up Consultation Completed Successfully.</span>
+                                          </div>
+                                          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', flexWrap: 'wrap', paddingTop: '8px', borderTop: '1px solid #dcfce7' }}>
+                                            <button
+                                              onClick={() => {
+                                                setSelectedApptForPrescription({ ...appt, isFollowUp: true });
+                                                setIsPrescriptionModalOpen(true);
+                                              }}
+                                              style={{
+                                                background: 'linear-gradient(135deg, #0d9488 0%, #0f766e 100%)',
+                                                color: '#fff',
+                                                border: 'none',
+                                                borderRadius: '6px',
+                                                padding: '7px 16px',
+                                                fontWeight: 800,
+                                                fontSize: '12px',
+                                                cursor: 'pointer',
+                                                display: 'inline-flex',
+                                                alignItems: 'center',
+                                                gap: '5px',
+                                                boxShadow: '0 2px 8px rgba(13,148,136,0.35)'
+                                              }}
+                                            >
+                                              <Plus size={13} /> Add Prescription
+                                            </button>
+                                            <button
+                                              onClick={() => handleSkipFollowUpPrescription(appt._id)}
+                                              style={{
+                                                background: '#f1f5f9',
+                                                color: '#475569',
+                                                border: '1.5px solid #cbd5e1',
+                                                borderRadius: '6px',
+                                                padding: '7px 16px',
+                                                fontWeight: 700,
+                                                fontSize: '12px',
+                                                cursor: 'pointer',
+                                                display: 'inline-flex',
+                                                alignItems: 'center',
+                                                gap: '5px',
+                                                transition: 'all 0.2s'
+                                              }}
+                                            >
+                                              <X size={13} /> Skip Prescription
+                                            </button>
+                                          </div>
+                                        </div>
+                                      );
+                                    })()}
                                   </>
                                 )}
 
@@ -2525,7 +2587,7 @@ Verification Status: Digitally Verified Medical Record
                       )}
 
                       {/* ── Meet Details in Doctor Panel (when consultation completed without follow-up) ── */}
-                      {!Boolean(appt.follow_up_date || (appt.follow_up_status && appt.follow_up_status !== 'none')) && (appt.status === 'completed' || appt.prescription_added) && (
+                      {!Boolean(appt.follow_up_date || appt.assigned_follow_up_date || (appt.follow_up_status && appt.follow_up_status !== 'none')) && (appt.status === 'completed' || appt.prescription_added) && (
                         <div className="dd-ac-followup-banner" style={{
                           width: '100%',
                           background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',

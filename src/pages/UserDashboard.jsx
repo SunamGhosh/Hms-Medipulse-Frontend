@@ -144,6 +144,13 @@ const UserDashboard = () => {
     return false;
   };
 
+  const isSlotBooked = (slotTime, list) => {
+    if (!list || !list.length || !slotTime) return false;
+    if (list.includes(slotTime)) return true;
+    const clean = String(slotTime).trim().toLowerCase();
+    return list.some(b => String(b).trim().toLowerCase() === clean);
+  };
+
   const openFollowUpModal = (appt) => {
     setFollowUpAppt(appt);
     const todayStr = new Date().toISOString().split('T')[0];
@@ -185,7 +192,7 @@ const UserDashboard = () => {
         const res = await fetch(`${API}/appointment/slots/${docId}/${followUpForm.follow_up_date}`);
         const data = await res.json();
         if (res.ok) {
-          setFollowUpBookedSlots(data.bookedTimes || data.booked_slots || []);
+          setFollowUpBookedSlots(data.bookedTimes || data.booked_slots || data.slots || []);
         } else {
           setFollowUpBookedSlots([]);
         }
@@ -1621,12 +1628,65 @@ Verification Status: Digitally Verified Medical Record
                             </div>
 
                             {/* Follow-up Details Grid */}
-                            <div className="ud-appt-followup-grid">
-                              <span><strong>Follow-up Date:</strong> {formatDate(appt.assigned_follow_up_date || appt.follow_up_date) || 'Not scheduled'}</span>
-                              {appt.follow_up_time && <span><strong>Time Slot:</strong> {appt.follow_up_time}</span>}
-                              <span><strong>Consultation Mode:</strong> <span style={{ textTransform: 'capitalize', color: '#0d9488', fontWeight: 700 }}>{appt.consult_mode}</span> (Same as initial meet)</span>
-                              <span><strong>Consultation Fee:</strong> <span style={{ color: '#16a34a', fontWeight: 700 }}>Free / ₹0 (No Payment Required)</span></span>
-                            </div>
+                            {(() => {
+                              const hasRequestedMeet = Boolean((appt.follow_up_status && appt.follow_up_status !== 'none') || appt.follow_up_requested_at || (appt.follow_up_time && appt.follow_up_date));
+                              return (
+                                <div className="ud-appt-followup-grid" style={{
+                                  display: 'grid',
+                                  gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))',
+                                  gap: '10px',
+                                  background: '#ffffff',
+                                  padding: '10px 14px',
+                                  borderRadius: '8px',
+                                  border: '1px solid #ccfbf1',
+                                  fontSize: '12px',
+                                  marginTop: '6px'
+                                }}>
+                                  <div>
+                                    <span style={{ color: '#0f766e', fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', display: 'block', marginBottom: '2px' }}>
+                                      Doctor Assigned Follow-up Date
+                                    </span>
+                                    <span style={{ fontWeight: 700, color: '#0f172a' }}>
+                                      {formatDate(appt.assigned_follow_up_date || appt.follow_up_date) || 'Not scheduled'}
+                                      {appt.assigned_follow_up_time && (
+                                        <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 500 }}> (Till {appt.assigned_follow_up_time})</span>
+                                      )}
+                                    </span>
+                                  </div>
+
+                                  <div>
+                                    <span style={{ color: '#0f766e', fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', display: 'block', marginBottom: '2px' }}>
+                                      Recent Request Meet Date & Time
+                                    </span>
+                                    {hasRequestedMeet ? (
+                                      <span style={{ fontWeight: 800, color: effFollowUpStatus === 'accepted' ? '#15803d' : effFollowUpStatus === 'requested' ? '#1d4ed8' : '#0f172a' }}>
+                                        📅 {formatDate(appt.follow_up_date)} {appt.follow_up_time ? `at ${appt.follow_up_time}` : ''}
+                                      </span>
+                                    ) : (
+                                      <span style={{ fontStyle: 'italic', color: '#64748b', fontWeight: 500 }}>
+                                        Not yet requested
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  <div>
+                                    <span style={{ color: '#0f766e', fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', display: 'block', marginBottom: '2px' }}>
+                                      Consultation Mode & Fee
+                                    </span>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                                      <span style={{ textTransform: 'capitalize', color: '#0d9488', fontWeight: 700 }}>{appt.consult_mode}</span>
+                                      <span style={{ color: '#16a34a', fontWeight: 700, background: '#dcfce7', padding: '1px 6px', borderRadius: '4px', fontSize: '11px' }}>Free / ₹0 (No Fee)</span>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })()}
+
+                            {appt.follow_up_reason && (
+                              <div style={{ marginTop: '6px', background: '#f0fdfa', border: '1px solid #99f6e4', borderRadius: '6px', padding: '6px 12px', fontSize: '12px', color: '#0f766e' }}>
+                                <strong>My Request Note:</strong> {appt.follow_up_reason}
+                              </div>
+                            )}
 
                             {/* Expired Reason Box */}
                             {effFollowUpStatus === 'expired' && (
@@ -1716,29 +1776,37 @@ Verification Status: Digitally Verified Medical Record
                             {/* Completed Follow-up Actions in User Panel */}
                             {effFollowUpStatus === 'completed' && (
                               <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                {(appt.follow_up_prescription_status === 'added' || appt.follow_up_prescription_id) ? (
-                                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px', padding: '8px 12px', background: '#ffffff', borderRadius: '8px', border: '1px solid #86efac' }}>
-                                    <span style={{ fontSize: '12px', color: '#15803d', fontWeight: 700 }}>
-                                      📋 Follow-up prescription attached
-                                    </span>
-                                    <button
-                                      onClick={() => handleViewPrescription({ appointment_id: appt._id, _id: appt.follow_up_prescription_id, prescription_type: 'follow_up' })}
-                                      className="ud-appt-action-btn"
-                                      style={{ background: '#f0fdf4', border: '1px solid #86efac', color: '#0d9488', fontWeight: 800 }}
-                                    >
-                                      <FileText size={14} /> View Follow-up Prescription
-                                    </button>
-                                  </div>
-                                ) : appt.follow_up_prescription_status === 'skipped' ? (
-                                  <div style={{ padding: '8px 12px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', color: '#64748b', fontSize: '12px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                    <FileText size={14} color="#94a3b8" />
-                                    <span>No prescription added</span>
-                                  </div>
-                                ) : (
-                                  <div style={{ padding: '8px 12px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', color: '#64748b', fontSize: '12px', fontWeight: 600 }}>
-                                    ⏳ Follow-up meet completed. Awaiting doctor prescription.
-                                  </div>
-                                )}
+                                {(() => {
+                                  const hasFollowUpPresc = Boolean(
+                                    appt.follow_up_prescription_status === 'added' ||
+                                    appt.follow_up_prescription_id ||
+                                    patientPrescriptions.some(p => (p.appointment_id?._id || p.appointment_id) === appt._id && (p.prescription_type === 'follow_up' || p.is_follow_up))
+                                  );
+
+                                  return hasFollowUpPresc ? (
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px', padding: '8px 12px', background: '#ffffff', borderRadius: '8px', border: '1px solid #86efac' }}>
+                                      <span style={{ fontSize: '12px', color: '#15803d', fontWeight: 700 }}>
+                                        📋 Follow-up prescription attached
+                                      </span>
+                                      <button
+                                        onClick={() => handleViewPrescription({ appointment_id: appt._id, _id: appt.follow_up_prescription_id || appt._id, prescription_type: 'follow_up' })}
+                                        className="ud-appt-action-btn"
+                                        style={{ background: '#f0fdf4', border: '1px solid #86efac', color: '#0d9488', fontWeight: 800 }}
+                                      >
+                                        <FileText size={14} /> View Follow-up Prescription
+                                      </button>
+                                    </div>
+                                  ) : appt.follow_up_prescription_status === 'skipped' ? (
+                                    <div style={{ padding: '8px 12px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', color: '#64748b', fontSize: '12px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                      <FileText size={14} color="#94a3b8" />
+                                      <span>No prescription added</span>
+                                    </div>
+                                  ) : (
+                                    <div style={{ padding: '8px 12px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', color: '#64748b', fontSize: '12px', fontWeight: 600 }}>
+                                      ⏳ Follow-up meet completed. Awaiting doctor prescription.
+                                    </div>
+                                  );
+                                })()}
                               </div>
                             )}
 
@@ -2404,7 +2472,7 @@ Verification Status: Digitally Verified Medical Record
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(85px, 1fr))', gap: '8px', maxHeight: '140px', overflowY: 'auto', paddingRight: '2px' }}>
                       {SLOT_TIMES.map(t24 => {
-                        const isBooked = followUpBookedSlots.includes(t24);
+                        const isBooked = isSlotBooked(t24, followUpBookedSlots);
                         const isPassed = isSlotPassed(followUpForm.follow_up_date, t24);
                         const isDisabled = isBooked || isPassed;
                         const isSelected = followUpForm.follow_up_time === t24;
@@ -2416,16 +2484,17 @@ Verification Status: Digitally Verified Medical Record
                             onClick={() => !isDisabled && setFollowUpForm({ ...followUpForm, follow_up_time: t24 })}
                             style={{
                               padding: '8px 4px', borderRadius: '8px',
-                              border: `1.5px solid ${isSelected ? '#0d9488' : isDisabled ? '#e2e8f0' : '#cbd5e1'}`,
+                              border: `1.5px solid ${isSelected ? '#0d9488' : isBooked ? '#fecdd3' : isDisabled ? '#e2e8f0' : '#cbd5e1'}`,
                               fontSize: '12px', fontWeight: 700,
                               cursor: isDisabled ? 'not-allowed' : 'pointer',
-                              background: isSelected ? '#0d9488' : isBooked ? '#fff7ed' : isPassed ? '#f1f5f9' : '#ffffff',
-                              color: isSelected ? '#ffffff' : isBooked ? '#c2410c' : isPassed ? '#94a3b8' : '#334155',
-                              opacity: isDisabled ? 0.6 : 1, transition: 'all 0.15s'
+                              background: isSelected ? '#0d9488' : isBooked ? '#fff1f2' : isPassed ? '#f1f5f9' : '#ffffff',
+                              color: isSelected ? '#ffffff' : isBooked ? '#e11d48' : isPassed ? '#94a3b8' : '#334155',
+                              opacity: isDisabled && !isBooked ? 0.6 : 1, transition: 'all 0.15s',
+                              textDecoration: isBooked ? 'line-through' : 'none',
                             }}
                           >
                             {t24}
-                            {isBooked && <span style={{ display: 'block', fontSize: '9px', color: '#c2410c' }}>Booked</span>}
+                            {isBooked && <span style={{ display: 'block', fontSize: '9px', fontWeight: 800, color: '#e11d48' }}>Booked</span>}
                             {!isBooked && isPassed && <span style={{ display: 'block', fontSize: '9px', color: '#94a3b8' }}>Passed</span>}
                           </button>
                         );

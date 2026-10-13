@@ -54,28 +54,38 @@ const BookAppointmentModal = ({ isOpen, onClose, preselectedDoctorId = null }) =
   /* ── Returns true if `time` ("HH:mm") is in the past when date is today ── */
   const isPastSlot = (time) => {
     if (!appt.appointment_date) return false;
-    const todayStr = now.toISOString().split('T')[0];
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    const d = String(now.getDate()).padStart(2, '0');
+    const todayStr = `${y}-${m}-${d}`;
     if (appt.appointment_date !== todayStr) return false; // future date → never past
     // parse slot time e.g. "09:00" or "14:30"
-    const [h, m] = time.split(':').map(Number);
+    const [h, min] = time.split(':').map(Number);
     const slotDate = new Date(now);
-    slotDate.setHours(h, m, 0, 0);
+    slotDate.setHours(h, min, 0, 0);
     return slotDate <= now; // slot is at or before current moment
+  };
+
+  /* Helper to check if a slot is in bookedSlots across format representations */
+  const isSlotBooked = (slotTime, bookedList) => {
+    if (!bookedList || !bookedList.length || !slotTime) return false;
+    if (bookedList.includes(slotTime)) return true;
+    const cleanSlot = String(slotTime).trim().toLowerCase();
+    return bookedList.some(b => String(b).trim().toLowerCase() === cleanSlot);
   };
 
   /* slot generation helper */
   const generateTimeSlots = (start, end) => {
     if (!start || !end) return [];
     const slots = [];
-    // Handle am/pm or 24h format by padding/normalizing if needed. Assuming 24h HH:mm format from backend.
-    // If it's something like "09:00 AM", we can parse it, but let's assume it works with Date parsing.
+    const pad = (n) => String(n).padStart(2, '0');
     let current = new Date(`2000-01-01T${start.padStart(5, '0')}`);
     if (isNaN(current)) current = new Date(`2000-01-01T09:00`); // fallback
     const endTime = new Date(`2000-01-01T${end.padStart(5, '0')}`);
     const endT = isNaN(endTime) ? new Date(`2000-01-01T17:00`) : endTime;
     
     while (current < endT) {
-      slots.push(current.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }));
+      slots.push(`${pad(current.getHours())}:${pad(current.getMinutes())}`);
       current.setMinutes(current.getMinutes() + 30);
     }
     return slots;
@@ -89,7 +99,7 @@ const BookAppointmentModal = ({ isOpen, onClose, preselectedDoctorId = null }) =
       fetch(`${API}/appointment/slots/${selectedDoctor._id}/${appt.appointment_date}`)
         .then(res => res.json())
         .then(data => {
-          setBookedSlots(data.bookedTimes || []);
+          setBookedSlots(data.bookedTimes || data.booked_slots || data.slots || []);
           const generated = generateTimeSlots(selectedDoctor.work_time_start || '09:00', selectedDoctor.work_time_end || '17:00');
           setAvailableSlots(generated);
         })
@@ -528,7 +538,7 @@ const BookAppointmentModal = ({ isOpen, onClose, preselectedDoctorId = null }) =
                       display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(80px, 1fr))', gap: '8px', marginTop: '0.75rem'
                     }}>
                       {availableSlots.map(time => {
-                        const isBooked = bookedSlots.includes(time);
+                        const isBooked = isSlotBooked(time, bookedSlots);
                         const isPast   = isPastSlot(time);
                         const isSelected = appt.appointment_time === time;
                         const isDisabled = isBooked || isPast;
@@ -537,21 +547,29 @@ const BookAppointmentModal = ({ isOpen, onClose, preselectedDoctorId = null }) =
                             key={time}
                             type="button"
                             disabled={isDisabled}
-                            title={isPast ? 'This time has already passed' : isBooked ? 'Already booked' : ''}
+                            title={isBooked ? 'This time slot is already booked' : isPast ? 'This time has already passed' : ''}
                             onClick={() => !isDisabled && setAppt(a => ({ ...a, appointment_time: time }))}
                             style={{
                               position: 'relative',
-                              padding: '8px 4px', borderRadius: '8px', border: '1px solid', fontSize: '13px', fontWeight: 600,
+                              padding: '8px 4px', borderRadius: '8px', border: '1.5px solid', fontSize: '13px', fontWeight: 600,
                               cursor: isDisabled ? 'not-allowed' : 'pointer', transition: 'all 0.2s',
-                              background: isSelected ? '#0d9488' : isPast ? '#fef2f2' : isBooked ? '#f1f5f9' : '#fff',
-                              color: isSelected ? '#fff' : isPast ? '#fca5a5' : isBooked ? '#94a3b8' : '#334155',
-                              borderColor: isSelected ? '#0d9488' : isPast ? '#fecaca' : isBooked ? '#e2e8f0' : '#cbd5e1',
+                              background: isSelected ? '#0d9488' : isBooked ? '#fff1f2' : isPast ? '#fef2f2' : '#fff',
+                              color: isSelected ? '#fff' : isBooked ? '#e11d48' : isPast ? '#fca5a5' : '#334155',
+                              borderColor: isSelected ? '#0d9488' : isBooked ? '#fecdd3' : isPast ? '#fecaca' : '#cbd5e1',
                               textDecoration: isBooked ? 'line-through' : 'none',
-                              opacity: isPast ? 0.75 : 1,
+                              opacity: isPast && !isBooked ? 0.75 : 1,
                             }}
                           >
                             {time}
-                            {/* ✕ overlay for past slots */}
+                            {/* Booked label badge */}
+                            {isBooked && (
+                              <span style={{
+                                display: 'block', fontSize: '9px', fontWeight: 800, color: '#e11d48', marginTop: '2px', lineHeight: 1
+                              }}>
+                                Booked
+                              </span>
+                            )}
+                            {/* ✕ overlay for past slots (when not already booked) */}
                             {isPast && !isBooked && (
                               <span style={{
                                 position: 'absolute', top: '50%', left: '50%',

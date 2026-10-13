@@ -274,11 +274,54 @@ const AppointmentsList = () => {
                         Status: {appointment.follow_up_status || 'none'}
                       </span>
                     </div>
-                    <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', color: '#334155' }}>
-                      <span><strong>Follow-up Date & Time:</strong> {appointment.follow_up_date ? new Date(appointment.follow_up_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Not set'} {appointment.follow_up_time ? `at ${appointment.follow_up_time}` : ''}</span>
-                      <span><strong>Consultation Mode:</strong> <span style={{ textTransform: 'capitalize', color: '#0d9488', fontWeight: 700 }}>{appointment.consult_mode}</span> (Same as initial meet)</span>
-                      <span><strong>Consultation Fee:</strong> <span style={{ color: '#16a34a', fontWeight: 700 }}>Free / ₹0 (No Charges)</span></span>
-                      <span><strong>Booked By Role:</strong> <span style={{ textTransform: 'capitalize', fontWeight: 600 }}>{appointment.booker_role === 'pharmacist' ? 'Pharmacist' : 'User'}</span></span>
+                    <div style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))',
+                      gap: '10px',
+                      background: '#fff',
+                      padding: '10px 14px',
+                      borderRadius: '8px',
+                      border: '1px solid #ccfbf1',
+                      color: '#334155'
+                    }}>
+                      <div>
+                        <strong style={{ color: '#0f766e', display: 'block', fontSize: '11px', textTransform: 'uppercase', marginBottom: '2px' }}>
+                          Doctor Assigned Date
+                        </strong>
+                        <span style={{ fontWeight: 600 }}>
+                          {(appointment.assigned_follow_up_date || appointment.follow_up_date) ? new Date(appointment.assigned_follow_up_date || appointment.follow_up_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Not set'}
+                          {appointment.assigned_follow_up_time && (
+                            <span style={{ fontSize: '11px', color: '#64748b' }}> (Till {appointment.assigned_follow_up_time})</span>
+                          )}
+                        </span>
+                      </div>
+                      <div>
+                        <strong style={{ color: '#0f766e', display: 'block', fontSize: '11px', textTransform: 'uppercase', marginBottom: '2px' }}>
+                          Recent Request Meet Date & Time
+                        </strong>
+                        {(Boolean((appointment.follow_up_status && appointment.follow_up_status !== 'none') || appointment.follow_up_requested_at || (appointment.follow_up_time && appointment.follow_up_date))) ? (
+                          <span style={{ fontWeight: 700, color: appointment.follow_up_status === 'accepted' ? '#15803d' : appointment.follow_up_status === 'requested' ? '#1d4ed8' : '#0f172a' }}>
+                            📅 {appointment.follow_up_date ? new Date(appointment.follow_up_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : 'N/A'} {appointment.follow_up_time ? `at ${appointment.follow_up_time}` : ''}
+                          </span>
+                        ) : (
+                          <span style={{ fontStyle: 'italic', color: '#64748b' }}>Not yet requested</span>
+                        )}
+                      </div>
+                      <div>
+                        <strong style={{ color: '#0f766e', display: 'block', fontSize: '11px', textTransform: 'uppercase', marginBottom: '2px' }}>
+                          Mode & Charges
+                        </strong>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <span style={{ textTransform: 'capitalize', color: '#0d9488', fontWeight: 700 }}>{appointment.consult_mode}</span>
+                          <span style={{ color: '#16a34a', fontWeight: 700, background: '#dcfce7', padding: '1px 6px', borderRadius: '4px', fontSize: '11px' }}>Free / ₹0</span>
+                        </div>
+                      </div>
+                      <div>
+                        <strong style={{ color: '#0f766e', display: 'block', fontSize: '11px', textTransform: 'uppercase', marginBottom: '2px' }}>
+                          Booked By Role
+                        </strong>
+                        <span style={{ textTransform: 'capitalize', fontWeight: 600 }}>{appointment.booker_role === 'pharmacist' ? 'Pharmacist' : 'User'}</span>
+                      </div>
                     </div>
                     {appointment.follow_up_reason && (
                       <div style={{ background: '#fff', border: '1px solid #99f6e4', borderRadius: '8px', padding: '6px 12px', color: '#0f766e', fontWeight: 600 }}>
