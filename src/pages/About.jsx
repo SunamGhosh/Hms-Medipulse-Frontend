@@ -201,21 +201,21 @@ const About = () => {
         
         <div className="founders-row">
            <div className="founder-avatar animate-on-scroll animate-stagger-item stagger-1">
-             <img src="https://images.unsplash.com/photo-1560250097-0b93528c311a?q=80&w=600&auto=format&fit=crop" alt="Sunam Ghosh"/>
+             <img src="/img/sunam-ghosh.jpeg" alt="Sunam Ghosh"/>
              <div className="founder-info-overlay">
                 <h4>Sunam Ghosh</h4>
                 <span>Chief Executive Officer</span>
              </div>
            </div>
            <div className="founder-avatar animate-on-scroll animate-stagger-item stagger-2">
-             <img src="https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?q=80&w=600&auto=format&fit=crop" alt="Ritu Singh"/>
+             <img src="/img/ritu-singh.jpeg" alt="Ritu Singh"/>
              <div className="founder-info-overlay">
                 <h4>Ritu Singh</h4>
                 <span>Chief Medical Officer</span>
              </div>
            </div>
            <div className="founder-avatar animate-on-scroll animate-stagger-item stagger-3">
-             <img src="https://images.unsplash.com/photo-1573497019940-1c28c88b4f3e?q=80&w=600&auto=format&fit=crop" alt="Mandeep Kaur"/>
+             <img src="/img/mandeep-kaur.jpeg" alt="Mandeep Kaur"/>
              <div className="founder-info-overlay">
                 <h4>Mandeep Kaur</h4>
                 <span>Chief Technology Officer</span>
